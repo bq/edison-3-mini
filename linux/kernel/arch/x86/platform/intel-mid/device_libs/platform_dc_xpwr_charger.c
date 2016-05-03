@@ -122,7 +122,7 @@ static void *platform_debug_batt_charge_profile(void)
 	temp_mon_range[3].maint_chrg_vol_ul = 4350;
 	temp_mon_range[3].maint_chrg_cur = 1600;
 
-	temp_mon_range[4].temp_up_lim = 25;
+	temp_mon_range[4].temp_up_lim = 15;
 	temp_mon_range[4].full_chrg_vol = 4350;
 	temp_mon_range[4].full_chrg_cur = 800;
 	temp_mon_range[4].maint_chrg_vol_ll = 4285;
