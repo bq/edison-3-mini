@@ -1,0 +1,10 @@
+#
+# Industrial I/O subsystem configuration
+#
+menu "IIO staging drivers"
+	depends on IIO
+
+source "drivers/staging/iio/mpu6050c/inv_compass/Kconfig"
+source "drivers/staging/iio/mpu6050c/inv_mpu/Kconfig"
+source "drivers/staging/iio/mpu6050c/inv_test/Kconfig"
+endmenu

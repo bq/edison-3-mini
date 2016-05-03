@@ -1,0 +1,5 @@
+config MALATA_VIBRATOR
+        bool "vibrator driver"
+        default n
+        help
+          This option enables to support vibrator.
