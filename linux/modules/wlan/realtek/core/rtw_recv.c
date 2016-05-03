@@ -2466,12 +2466,14 @@ _func_enter_;
 		}
 	}
 
+	if (ptr) {
 	_rtw_memcpy(ptr, pattrib->dst, ETH_ALEN);
 	_rtw_memcpy(ptr+ETH_ALEN, pattrib->src, ETH_ALEN);
 
 	if(!bsnaphdr) {
 		len = htons(len);
 		_rtw_memcpy(ptr+12, &len, 2);
+	}
 	}
 
 exiting:

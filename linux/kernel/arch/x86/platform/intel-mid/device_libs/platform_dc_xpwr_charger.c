@@ -53,11 +53,11 @@ static void *platform_debug_batt_charge_profile(void)
 	batt_chg_profile.voltage_max = 4200;
 	batt_chg_profile.chrg_term_ma = 250;
 	batt_chg_profile.low_batt_mV = 3400;
-	batt_chg_profile.disch_tmp_ul = 52;
+	batt_chg_profile.disch_tmp_ul = 50;
 	batt_chg_profile.disch_tmp_ll = -5;
 	batt_chg_profile.temp_mon_ranges = 3;
 
-	temp_mon_range[0].temp_up_lim = 52;
+	temp_mon_range[0].temp_up_lim = 50;
 	temp_mon_range[0].full_chrg_vol = 4200;
 	temp_mon_range[0].full_chrg_cur = 1800;
 	temp_mon_range[0].maint_chrg_vol_ll = 4100;
@@ -228,7 +228,7 @@ static void *get_platform_data(void)
 	pdata.def_cv = 4200;
 	pdata.def_ilim = 900;
 	pdata.def_iterm = 300;
-	pdata.def_max_temp = 52;
+	pdata.def_max_temp = 50;
 	pdata.def_min_temp = -5;
 #elif defined(CONFIG_BATTERY_BT_E002H)
 	pdata.max_cc = 1600;

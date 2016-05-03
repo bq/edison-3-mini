@@ -3588,15 +3588,15 @@ int rtw_dev_pno_set(struct net_device *net, pno_ssid_t* ssid, int num,
 
 failing:
 	if (pwrctl->pnlo_info) {
-		rtw_mfree(pwrctl->pnlo_info, sizeof(pno_nlo_info_t));
+		rtw_mfree((u8 *)pwrctl->pnlo_info, sizeof(pno_nlo_info_t));
 		pwrctl->pnlo_info = NULL;
 	}
 	if (pwrctl->pno_ssid_list) {
-		rtw_mfree(pwrctl->pno_ssid_list, sizeof(pno_ssid_list_t));
+		rtw_mfree((u8 *)pwrctl->pno_ssid_list, sizeof(pno_ssid_list_t));
 		pwrctl->pno_ssid_list = NULL;
 	}
 	if (pwrctl->pscan_info) {
-		rtw_mfree(pwrctl->pscan_info, sizeof(pno_scan_info_t));
+		rtw_mfree((u8 *)pwrctl->pscan_info, sizeof(pno_scan_info_t));
 		pwrctl->pscan_info = NULL;
 	}
 

@@ -886,10 +886,12 @@ u32 rtw_start_drv_threads(_adapter *padapter)
 #endif //CONFIG_CONCURRENT_MODE
 	{
 		padapter->cmdThread = kthread_run(rtw_cmd_thread, padapter, "RTW_CMD_THREAD");
-	        if(IS_ERR(padapter->cmdThread))
+	    if(IS_ERR(padapter->cmdThread)) {
 			_status = _FAIL;
-		else
-			_rtw_down_sema(&padapter->cmdpriv.terminate_cmdthread_sema); //wait for cmd_thread to run
+		} else {
+			_rtw_down_sema_uninterruptible(&padapter->cmdpriv.terminate_cmdthread_sema); //wait for cmd_thread to run
+			DBG_871X_LEVEL(_drv_always_, "%s: terminate_cmdthread_sema_count=%d\n", __FUNCTION__, padapter->cmdpriv.terminate_cmdthread_sema.count);
+		}
 	}
 
 
@@ -3229,9 +3231,13 @@ int rtw_suspend_wow(_adapter *padapter)
 			rtw_suspend_free_assoc_resource(padapter->pbuddy_adapter);
 		}
 		#endif	
-
-		if(pwrpriv->wowlan_pno_enable)
-			DBG_871X_LEVEL(_drv_always_, "%s: pno: %d\n", __func__, pwrpriv->wowlan_pno_enable);
+		if(pwrpriv->wowlan_pno_enable) {
+			DBG_871X_LEVEL(_drv_always_, "%s: pno: %d\n", __func__,
+					pwrpriv->wowlan_pno_enable);
+#ifdef CONFIG_FWLPS_IN_IPS
+			rtw_set_fw_in_ips_mode(padapter,_TRUE);
+#endif
+		}
 		#ifdef CONFIG_LPS
 		else
 			rtw_set_ps_mode(padapter, PS_MODE_DTIM, 0, 0, "WOWLAN");
@@ -3577,6 +3583,11 @@ _func_enter_;
 	pwrpriv->pno_in_resume = _TRUE;
 #endif
 
+#ifdef CONFIG_FWLPS_IN_IPS
+	if(pwrpriv->wowlan_pno_enable)
+		rtw_set_fw_in_ips_mode(padapter, _FALSE);
+#endif //CONFIG_FWLPS_IN_IPS
+
 	if (pwrpriv->wowlan_mode == _TRUE){
 #ifdef CONFIG_LPS
 		rtw_set_ps_mode(padapter, PS_MODE_ACTIVE, 0, 0, "WOWLAN");
@@ -3719,8 +3730,8 @@ _func_enter_;
 	pwrpriv->wowlan_mode =_FALSE;
 
 	//clean driver side wake up reason.
-	//2014.09.29 Adam PNO wakeup patch
-	//pwrpriv->wowlan_wake_reason = 0;
+    //2014.09.29 Adam PNO wakeup patch
+    //pwrpriv->wowlan_wake_reason = 0;
 exit:
 	DBG_871X("<== "FUNC_ADPT_FMT" exit....\n", FUNC_ADPT_ARG(padapter));
 _func_exit_;
@@ -4001,10 +4012,10 @@ int rtw_resume_common(_adapter *padapter)
 	u32 start_time = rtw_get_current_time();
 	struct pwrctrl_priv *pwrpriv = adapter_to_pwrctl(padapter);
 	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
-	//2014.09.29 Adam PNO wakeup patch
-	struct rtw_wdev_priv *pwdev_priv = adapter_wdev_data(padapter);
-	_irqL 					irqL;
-	int PNOWakeupScanWaitCnt = 0;
+    //2014.09.29 Adam PNO wakeup patch
+    struct rtw_wdev_priv *pwdev_priv = adapter_wdev_data(padapter);
+    _irqL				irqL;
+    int PNOWakeupScanWaitCnt = 0;
 	_func_enter_;
 
 	DBG_871X_LEVEL(_drv_always_, "resume start\n");
@@ -4057,14 +4068,18 @@ int rtw_resume_common(_adapter *padapter)
 		pwrpriv->pno_in_resume = _FALSE;
 	#endif
 	}
-    	//2014.09.29 Adam PNO wakeup patch
-    	if (pwrpriv->wowlan_wake_reason == RX_PNOWakeUp)
-       	{
+    //2014.09.29 Adam PNO wakeup patch
+    //After PNO wakeup, driver have to do 
+    //1. rtw_sitesurvey_cmd() : scan and update bssid information to kernel
+    //2. cfg80211_sched_scan_results() : trigger application to re-connect AP
+    if (pwrpriv->wowlan_wake_reason == RX_PNOWakeUp)
+    {
         
-               _enter_critical_bh(&pmlmepriv->lock, &irqL);
-               rtw_sitesurvey_cmd(padapter, NULL, 0, NULL, 0);
-               _exit_critical_bh(&pmlmepriv->lock, &irqL);
-	   for(PNOWakeupScanWaitCnt = 0;PNOWakeupScanWaitCnt<10;PNOWakeupScanWaitCnt++)
+		_enter_critical_bh(&pmlmepriv->lock, &irqL);
+		rtw_sitesurvey_cmd(padapter, NULL, 0, NULL, 0);
+		_exit_critical_bh(&pmlmepriv->lock, &irqL);
+        
+        for(PNOWakeupScanWaitCnt = 0;PNOWakeupScanWaitCnt<10;PNOWakeupScanWaitCnt++)
         {
             if(check_fwstate(pmlmepriv, _FW_UNDER_SURVEY) == _FALSE)
             {
@@ -4075,13 +4090,12 @@ int rtw_resume_common(_adapter *padapter)
         }
         
         _enter_critical_bh(&pmlmepriv->lock, &irqL);
-           cfg80211_sched_scan_results(padapter->rtw_wdev->wiphy);
+        cfg80211_sched_scan_results(padapter->rtw_wdev->wiphy);
         _exit_critical_bh(&pmlmepriv->lock, &irqL);
         
         
-       }
+    }
     pwrpriv->wowlan_wake_reason = 0;
-
 	DBG_871X_LEVEL(_drv_always_, "%s:%d in %d ms\n", __FUNCTION__ ,ret,
 		rtw_get_passing_time_ms(start_time));
 

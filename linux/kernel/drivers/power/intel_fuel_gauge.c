@@ -302,6 +302,8 @@ static int intel_fg_battery_health(struct intel_fg_info *info)
 	else
 		health = POWER_SUPPLY_HEALTH_GOOD;
 
+	pr_info("[%s] health = %d\n", __func__, health);
+
 	return health;
 }
 

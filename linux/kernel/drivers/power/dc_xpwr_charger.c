@@ -462,21 +462,19 @@ static int pmic_chrg_enable_charging(struct pmic_chrg_info *info, bool enable)
 {
 	int ret;
 
+	pr_info("[%s] enable = %d\n", __func__, enable);
+
 	ret = pmic_chrg_enable_charger(info, true);
 	if (ret < 0)
 		dev_warn(&info->pdev->dev, "vbus path disable failed\n");
 
-#if 0 //fixed:in low power charging, pluging or unpluging in charger, can't charging by xmyyq
 	if (enable)
 		ret = pmic_chrg_reg_setb(info,
 			DC_CHRG_CCCV_REG, CHRG_CCCV_CHG_EN);
 	else
 		ret = pmic_chrg_reg_clearb(info,
 			DC_CHRG_CCCV_REG, CHRG_CCCV_CHG_EN);
-#else
-	ret = pmic_chrg_reg_setb(info,
-		DC_CHRG_CCCV_REG, CHRG_CCCV_CHG_EN);
-#endif
+
 	return ret;
 }
 
@@ -1084,6 +1082,8 @@ static int pmic_chrg_remove(struct platform_device *pdev)
 {
 	struct pmic_chrg_info *info =  dev_get_drvdata(&pdev->dev);
 	int i;
+
+	pmic_chrg_enable_charging(info, true);  // to fix that charging doesn't work in low power charging.
 
 	for (i = 0; i < DC_CHRG_INTR_NUM && info->irq[i] != -1; i++)
 		free_irq(info->irq[i], info);

@@ -759,13 +759,16 @@ static inline void enable_supplied_by_charging
 		if (is_enable && is_charging_can_be_enabled(chrgr_lst[cnt]) &&
 				is_charging_can_be_enabled(psy)) {
 			if (disabled_charging_overheat == true && (TEMPERATURE(psy) / 10) > (MAX_TEMP(psy) - BATTERY_RECHARG_TEMP_INTERVAL_HIGH)) {
+				pr_info("-%d- [%s] disable charging.\n", __LINE__, __func__);
 				disable_charging(chrgr_lst[cnt]);
 			} else {
+				pr_info("-%d- [%s] enable charging.\n", __LINE__, __func__);
 				enable_charging(chrgr_lst[cnt]);
 				wait_for_charging_enabled(chrgr_lst[cnt]);
 				disabled_charging_overheat = false;
 			}
 		} else {
+			pr_info("-%d- [%s] disable charging.\n", __LINE__, __func__);
 			disable_charging(chrgr_lst[cnt]);
 			if (TEMPERATURE(psy) / 10 >= MAX_TEMP(psy))
 				disabled_charging_overheat = true;
@@ -795,10 +798,12 @@ static void __power_supply_trigger_charging_handler(struct power_supply *psy)
 
 				if (psb && IS_BATTERY(psb) && IS_PRESENT(psb)) {
 					if (trigger_algo(psb)) {
+						pr_info("-%d- [%s] disable charging.\n", __LINE__, __func__);
 						disable_charging(psy);
 						break;
 					} else if (is_charging_can_be_enabled
 								(psy)) {
+						pr_info("-%d- [%s] enable charging.\n", __LINE__, __func__);
 						enable_charging(psy);
 						wait_for_charging_enabled(psy);
 					}
@@ -911,7 +916,9 @@ static int select_chrgr_cable(struct device *dev, void *data)
 	/* no cable connected. disable charging */
 	if (!max_ma_cable) {
 		if ((IS_CHARGER_ENABLED(psy) || IS_CHARGING_ENABLED(psy))) {
+			pr_info("-%d- [%s] disable charging.\n", __LINE__, __func__);
 			disable_charging(psy);
+			pr_info("-%d- [%s] disable charger.\n", __LINE__, __func__);
 			disable_charger(psy);
 		}
 #if 0 //fixed:in low power charging, pluging or unpluging in charger, can't charging
@@ -941,6 +948,7 @@ static int select_chrgr_cable(struct device *dev, void *data)
 			(max_ma_cable->cable_props.ma >= 100)) {
 		struct psy_batt_thresholds bat_thresh;
 		memset(&bat_thresh, 0, sizeof(bat_thresh));
+		pr_info("-%d- [%s] enable charger.\n", __LINE__, __func__);
 		enable_charger(psy);
 
 		update_charger_online(psy);
@@ -954,12 +962,14 @@ static int select_chrgr_cable(struct device *dev, void *data)
 		if (!get_battery_thresholds(psy, &bat_thresh)) {
 			if (!ITERM(psy))
 				SET_ITERM(psy, bat_thresh.iterm);
+			pr_info("[%s] min temp = %d, max temp = %d\n", __func__, bat_thresh.temp_min, bat_thresh.temp_max);
 			SET_MIN_TEMP(psy, bat_thresh.temp_min);
 			SET_MAX_TEMP(psy, bat_thresh.temp_max);
 		}
 
 	} else {
 		set_inlmt(psy, max_ma_cable->cable_props.ma);
+		pr_info("-%d- [%s] disable charger.\n", __LINE__, __func__);
 		disable_charger(psy);
 		update_charger_online(psy);
 	}
@@ -1029,10 +1039,12 @@ int psy_charger_throttle_charger(struct power_supply *psy,
 
 		case PSY_THROTTLE_DISABLE_CHARGER:
 			SET_MAX_CC(psy, 0);
+			pr_info("-%d- [%s] disable charger.\n", __LINE__, __func__);
 			disable_charger(psy);
 			break;
 		case PSY_THROTTLE_DISABLE_CHARGING:
 			SET_MAX_CC(psy, 0);
+			pr_info("-%d- [%s] disable charging.\n", __LINE__, __func__);
 			disable_charging(psy);
 			break;
 		case PSY_THROTTLE_CC_LIMIT:

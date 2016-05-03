@@ -38,6 +38,8 @@
 #include <linux/irq.h>
 #endif
 
+#include "rtw_version.h"
+
 extern void macstr2num(u8 *dst, u8 *src);
 
 const char *android_wifi_cmd_str[ANDROID_WIFI_CMD_MAX] = {
@@ -86,11 +88,12 @@ const char *android_wifi_cmd_str[ANDROID_WIFI_CMD_MAX] = {
 	"HOSTAPD_SET_MACADDR_ACL",
 	"HOSTAPD_ACL_ADD_STA",
 	"HOSTAPD_ACL_REMOVE_STA",
-#ifdef CONFIG_GTK_OL
+#if defined(CONFIG_GTK_OL) && (LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0))
 	"GTK_REKEY_OFFLOAD",
 #endif //CONFIG_GTK_OL
 /*	Private command for	P2P disable*/
-	"P2P_DISABLE"
+	"P2P_DISABLE",
+	"DRIVER_VERSION"
 };
 
 #ifdef CONFIG_PNO_SUPPORT
@@ -500,7 +503,7 @@ int get_int_from_command( char* pcmd )
 	return ( rtw_atoi( pcmd + i ) );
 }
 
-#ifdef CONFIG_GTK_OL
+#if defined(CONFIG_GTK_OL) && (LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0))
 int rtw_gtk_offload(struct net_device *net, u8 *cmd_ptr)
 {
 	int i;
@@ -847,7 +850,7 @@ int rtw_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		rtw_acl_remove_sta(padapter, addr);
 		break;
 	}
-#ifdef CONFIG_GTK_OL
+#if defined(CONFIG_GTK_OL) && (LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0))
 	case ANDROID_WIFI_CMD_GTK_REKEY_OFFLOAD:
 		rtw_gtk_offload(net, (u8 *)&priv_cmd.buf);
 		break;
@@ -862,6 +865,14 @@ int rtw_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		rtw_p2p_enable(padapter, P2P_ROLE_DISABLE);
 		break;
 	}
+        case ANDROID_WIFI_CMD_DRIVERVERSION:
+	{
+		
+		bytes_written = strlen(DRIVERVERSION);
+		snprintf(command, bytes_written+1, DRIVERVERSION);
+		break;
+	}
+
 	default:
 		DBG_871X("Unknown PRIVATE command %s - ignored\n", command);
 		snprintf(command, 3, "OK");

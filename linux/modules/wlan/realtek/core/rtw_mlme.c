@@ -1528,16 +1528,16 @@ _func_enter_;
 			rtw_tdls_cmd(adapter, myid(&(adapter->eeprompriv)), TDLS_RS_RCR);
 			rtw_reset_tdls_info(adapter);
 			rtw_free_all_stainfo(adapter);
-			_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+//			_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 		}
 		else
 #endif //CONFIG_TDLS
 		{
-			_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+//			_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 			rtw_free_stainfo(adapter,  psta);
 		}
 
-		_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+//		_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 		
 	}
 
@@ -1548,9 +1548,9 @@ _func_enter_;
 		rtw_free_all_stainfo(adapter);
 
 		psta = rtw_get_bcmc_stainfo(adapter);
-		_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);		
+//		_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 		rtw_free_stainfo(adapter, psta);
-		_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);		
+//		_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 
 		rtw_init_bcmc_stainfo(adapter);	
 	}
@@ -2061,9 +2061,9 @@ _func_enter_;
 
 					pcur_sta = rtw_get_stainfo(pstapriv, cur_network->network.MacAddress);
 					if(pcur_sta){
-						_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL2);
+//						_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL2);
 						rtw_free_stainfo(adapter,  pcur_sta);
-						_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL2);
+//						_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL2);
 					}
 
 					ptarget_wlan = rtw_find_network(&pmlmepriv->scanned_queue, pnetwork->network.MacAddress);
@@ -2555,9 +2555,9 @@ _func_enter_;
 	      check_fwstate(pmlmepriv,WIFI_ADHOC_STATE))
 	{
 		
-		_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+//		_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 		rtw_free_stainfo(adapter,  psta);
-		_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+//		_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 		
 		if(adapter->stapriv.asoc_sta_count== 1) //a sta + bc/mc_stainfo (not Ibss_stainfo)
 		{ 

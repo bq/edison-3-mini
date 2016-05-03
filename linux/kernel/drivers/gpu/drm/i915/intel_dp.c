@@ -1205,6 +1205,7 @@ static void ironlake_panel_vdd_work(struct work_struct *__work)
 	struct intel_dp *intel_dp = container_of(to_delayed_work(__work),
 						 struct intel_dp, panel_vdd_work);
 	struct drm_device *dev = intel_dp_to_dev(intel_dp);
+	DRM_DEBUG_KMS("\n");
 
 	mutex_lock(&dev->mode_config.mutex);
 	ironlake_panel_vdd_off_sync(intel_dp);
@@ -1342,7 +1343,9 @@ void ironlake_edp_backlight_on(struct intel_dp *intel_dp)
 {
 	static bool power_on_flag;
 	power_on_flag = false;
+	DRM_DEBUG_KMS("\n");
 	/* Only Power on we could see small point in lcd*/
+#if 0 //fixed: resume, backlight delay 3S by xmyyq
 #ifdef CONFIG_MRD7
 	if (!power_on_flag) {
 		power_on_flag = true;
@@ -1350,12 +1353,14 @@ void ironlake_edp_backlight_on(struct intel_dp *intel_dp)
 					      msecs_to_jiffies(intel_dp->backlight_on_delay * 10));
 	} else
 #endif
+#endif
 		ironlake_edp_backlight_on_sync(intel_dp);
 }
 static void ironlake_panel_bl_work(struct work_struct *__work)
 {
 	struct intel_dp *intel_dp = container_of(to_delayed_work(__work),
 						 struct intel_dp, panel_bl_work);
+	DRM_DEBUG_KMS("\n");
 	ironlake_edp_backlight_on_sync(intel_dp);
 }
 void ironlake_edp_backlight_off(struct intel_dp *intel_dp)

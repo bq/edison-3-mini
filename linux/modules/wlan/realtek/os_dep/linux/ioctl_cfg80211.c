@@ -1657,7 +1657,41 @@ static int cfg80211_rtw_set_default_key(struct wiphy *wiphy,
 	return 0;
 
 }
+#if defined(CONFIG_GTK_OL) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0))
+static int cfg80211_rtw_set_rekey_data(struct wiphy *wiphy,
+	struct net_device *ndev,
+	struct cfg80211_gtk_rekey_data *data)
+{
+	/*int i;*/
+	struct sta_info *psta;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(ndev);
+	struct mlme_priv   *pmlmepriv = &padapter->mlmepriv;
+	struct sta_priv *pstapriv = &padapter->stapriv;
+	struct security_priv *psecuritypriv = &(padapter->securitypriv);
 
+	psta = rtw_get_stainfo(pstapriv, get_bssid(pmlmepriv));
+	if (psta == NULL) {
+		DBG_871X("%s, : Obtain Sta_info fail\n", __func__);
+		return -1;
+	}
+
+	_rtw_memcpy(psta->kek, data->kek, NL80211_KEK_LEN);
+	/*printk("\ncfg80211_rtw_set_rekey_data KEK:");
+	for(i=0;i<NL80211_KEK_LEN; i++)
+		printk(" %02x ", psta->kek[i]);*/
+	_rtw_memcpy(psta->kck, data->kck, NL80211_KCK_LEN);
+	/*printk("\ncfg80211_rtw_set_rekey_data KCK:");
+	for(i=0;i<NL80211_KCK_LEN; i++)
+		printk(" %02x ", psta->kck[i]);*/
+	_rtw_memcpy(psta->replay_ctr, data->replay_ctr, NL80211_REPLAY_CTR_LEN);
+	psecuritypriv->binstallKCK_KEK = _TRUE;
+	/*printk("\nREPLAY_CTR: ");
+	for(i=0;i<RTW_REPLAY_CTR_LEN; i++)
+		printk(" %02x ", psta->replay_ctr[i]);*/
+
+	return 0;
+}
+#endif /*CONFIG_GTK_OL*/
 static int cfg80211_rtw_get_station(struct wiphy *wiphy,
 				    struct net_device *ndev,
 				    u8 *mac, struct station_info *sinfo)
@@ -5310,9 +5344,11 @@ static int cfg80211_rtw_sched_scan_start(struct wiphy *wiphy,
 		check_fwstate(pmlmepriv, _FW_LINKED) == _TRUE  ||
 		check_fwstate(pmlmepriv, _FW_UNDER_LINKING) == _TRUE) {
 		DBG_871X("%s: device is busy.\n", __func__);
-	//2014.09.29 Adam PNO wakeup patch
-	//	rtw_scan_abort(padapter);
-	return -EINVAL;
+        //2014.09.29 Adam PNO wakeup patch
+        //when PNO wakeup patch execute rtw_sitesurvey_cmd(), 
+        //if cfg80211_rtw_sched_scan_start excute rtw_scan_abort() will cause system crash.
+        //rtw_scan_abort(padapter);
+        return -EINVAL;
 	}
 
 	if (request == NULL) {
@@ -5917,6 +5953,9 @@ static struct cfg80211_ops rtw_cfg80211_ops = {
 	.get_key = cfg80211_rtw_get_key,
 	.del_key = cfg80211_rtw_del_key,
 	.set_default_key = cfg80211_rtw_set_default_key,
+#if defined(CONFIG_GTK_OL) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0))
+	.set_rekey_data = cfg80211_rtw_set_rekey_data,
+#endif /*CONFIG_GTK_OL*/
 	.get_station = cfg80211_rtw_get_station,
 	.scan = cfg80211_rtw_scan,
 	.set_wiphy_params = cfg80211_rtw_set_wiphy_params,

@@ -431,6 +431,7 @@ void LPS_Leave(PADAPTER padapter, const char *msg);
 void traffic_check_for_leave_lps(PADAPTER padapter, u8 tx, u32 tx_packets);
 void rtw_set_ps_mode(PADAPTER padapter, u8 ps_mode, u8 smart_ps, u8 bcn_ant_mode, const char *msg);
 void rtw_set_rpwm(_adapter * padapter, u8 val8);
+void rtw_set_fw_in_ips_mode(PADAPTER padapter, u8 enable);
 #endif
 
 #ifdef CONFIG_RESUME_IN_WORKQUEUE

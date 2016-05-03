@@ -33,6 +33,7 @@
 #include <linux/jiffies.h>
 #include <linux/math64.h>
 #include <linux/acpi.h>
+#include <linux/proc_fs.h>
 
 #define D(x...) pr_info(x)
 
@@ -44,7 +45,51 @@
 #define CONFIG_ACPI
 static void report_do_work(struct work_struct *w);
 static DECLARE_DELAYED_WORK(report_work, report_do_work);
+// xmtdf@ 2014.11.19    add proc --begin
+#define CM3232_CONFIG_PROC_FILE     "cm3232_config"
+unsigned char cm3232_config[2];
+unsigned int justResume = 0;
+struct hrtimer cm3232_timer;
+static ssize_t cm3232_config_read_proc(struct file *file, char __user *page, size_t size, loff_t *ppos)
+{
+    char *ptr = page;
+    int i;
+    printk("cm3232_config_read_proc, justResume: %d \n", justResume);
+    if (justResume == 0)
+        ptr[0] = '0';
+    else
+        ptr[0] = '1';
+    ptr[1]= 0;
+    return 0;
+}
+static ssize_t cm3232_config_write_proc(struct file *filp, const char __user *buffer, size_t count, loff_t *off)
+{
+    s32 ret = 0;
+    if (copy_from_user(&cm3232_config[0], buffer, count))
+    {
+        printk("copy from user fail\n");
+        return -EFAULT;
+    }
+    printk("cm3232_config_write_proc, content: %d count %d\n", cm3232_config[0],count);
+    if (cm3232_config[0] == '0')
+        justResume = 0;
+    else
+        justResume = 1;
+    return count;
+}
+static struct proc_dir_entry *cm3232_config_proc = NULL;
+static const struct file_operations config_proc_ops = {
+    .owner = THIS_MODULE,
+    .read = cm3232_config_read_proc,
+    .write = cm3232_config_write_proc,
+};
+static enum hrtimer_restart cm3232_ts_timer_handler(struct hrtimer *timer)
+{
+    justResume = 0;
+    return HRTIMER_NORESTART;
+}
 
+// xmtdf@ 2014.11.19    add proc --end
 struct cm3232_info {
 	struct class *cm3232_class;
 	struct device *ls_dev;
@@ -225,47 +270,28 @@ static void report_lsensor_input_event(struct cm3232_info *lpi)
 	uint16_t adc_value = 0;
 	uint32_t lux_level;
 	int ret = 0;
-    int als_zero_try = 0;
+    //als_zero_try = 0;
 
 	mutex_lock(&als_get_adc_mutex);
 
-als_data_try:
+//als_data_try:
 	ret = get_ls_adc_value(&adc_value);
 	lux_level = (uint32_t)div64_u64((uint64_t)adc_value * lpi->als_resolution * lpi->cal_data, (uint64_t)100000 * 100000);
-    if(lux_level<20)
+  /*  if(lux_level<20)
     {
         als_zero_try++;
         if(als_zero_try<3)
         {
-            mdelay(100);
+            msleep(100);
             goto als_data_try;
         }
     }
+    */
 	//D("[LS][CM3232] %s: ADC=0x%03X, Lux Level=%d\n",
 	//	__func__, adc_value, lux_level);
 
 	lpi->current_lux_level = lux_level;
 	lpi->current_adc = adc_value;
-    /*
-    if(lux_level<20)
-    {
-        lux_level=0;
-    }
-    else if(lux_level>=20&&lux_level<200)
-    {
-        lux_level=50;
-    }
-    else if(lux_level>=200&&lux_level<600)
-    {
-        lux_level=100;
-    }
-    else if(lux_level>=600&&lux_level<1000)
-    {
-        lux_level=500;
-    }
-    else
-        lux_level=1000;
-    */
 	input_report_abs(lpi->ls_input_dev, ABS_MISC, lux_level);
 	input_sync(lpi->ls_input_dev);
 
@@ -532,10 +558,15 @@ static ssize_t ls_enable_store(struct device *dev,
 
 	if (ls_auto)
 	{
+        // xmtdf @ 2014.11.19      -- start
+        justResume = 1;        
+        hrtimer_start(&cm3232_timer, ktime_set(1, 0), HRTIMER_MODE_REL);
+        // xmtdf @ 2014.11.19      -- end
 		ret = lightsensor_enable(lpi);
 	}
 	else
 	{
+        hrtimer_cancel(&cm3232_timer);  // xmtdf
 		ret = lightsensor_disable(lpi);
 	}
 
@@ -758,12 +789,44 @@ static struct cm3232_platform_data cm3232_pdata = {
 };
 #endif
 
+static int setLightsensorStatus(struct file *file, const char *buffer,unsigned long count, void *data)
+{
+    char *buf;
+    int ret;
+    int int_1=0;
+    int adc=0;
+    int wait_t=0;
+    int intr_f=0;
+    int config_1=0;
+    int pulse=0;
+    int gian=0;
+    u8 reg_cntrl = 0;
+    if (count < 1)
+        return -EINVAL;
+    buf = kmalloc(count, GFP_KERNEL);
+    if (!buf)
+        return -ENOMEM;
+    if (copy_from_user(buf, buffer, count))
+    {
+        kfree(buf);
+        return -EFAULT;
+    }
+    if(buf[0]=='1')
+    {
+    }
+    else if(buf[0]=='0')
+    {
+    }
+	kfree(buf);
+	return count;
+}
 static int cm3232_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
 	int ret = 0;
 	struct cm3232_info *lpi;
 	struct cm3232_platform_data *pdata;
+    struct proc_dir_entry *pent,*lent,*pxent;   
 
 	//D("xmwuwh [CM3232] %s\n", __func__);
 
@@ -864,7 +927,19 @@ static int cm3232_probe(struct i2c_client *client,
 
 	lpi->als_enable = 0;
 	lpi->als_enabled_before_suspend = 0;	
-	
+    // xmtdf@ 2014.11.19  create procdir   -- begin
+    // Create proc file system
+    cm3232_config_proc = proc_create(CM3232_CONFIG_PROC_FILE, 0666, NULL, &config_proc_ops);
+    if (cm3232_config_proc == NULL)
+    {
+        pr_warn("create_proc_entry %s failed\n", CM3232_CONFIG_PROC_FILE);
+    }
+    else
+    {
+        pr_warn("create proc entry %s success", CM3232_CONFIG_PROC_FILE);
+    }
+    hrtimer_init(&cm3232_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+    cm3232_timer.function = cm3232_ts_timer_handler;
 	D("[CM3232] %s: Probe success!\n", __func__);
 
 	return ret;

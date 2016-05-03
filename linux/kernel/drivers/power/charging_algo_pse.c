@@ -85,6 +85,9 @@ static int  pse_get_bat_thresholds(struct ps_batt_chg_prof  bprof,
 	bat_thresh->temp_min = pse_mod_bprof->temp_low_lim;
 	bat_thresh->temp_max = pse_mod_bprof->temp_mon_range[0].temp_up_lim;
 
+	pr_info("[%s] bat_thresh: iterm = %d, temp_min = %d, temp_max = %d\n",
+			__func__, bat_thresh->iterm, bat_thresh->temp_min, bat_thresh->temp_max);
+
 	return 0;
 }
 

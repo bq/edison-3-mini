@@ -559,6 +559,9 @@ void intel_panel_actually_set_backlight(struct drm_device *dev, u32 level)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 tmp;
+#ifndef ENABLE_SIO_PWM
+	u32 pwmReq, BLFrequency;
+#endif
 
 	DRM_DEBUG_DRIVER("set backlight PWM = %d\n", level);
 	level = intel_panel_compute_brightness(dev, level);
@@ -588,8 +591,18 @@ void intel_panel_actually_set_backlight(struct drm_device *dev, u32 level)
     	tmp = I915_READ(BLC_PWM_CTL);
     	if (INTEL_INFO(dev)->gen < 4)
     		level <<= 1;
+
+#ifndef ENABLE_SIO_PWM
+	/*modify backlight level to 255, xmyyq, 20141113*/
+	pwmReq = 6127;
+	BLFrequency = ((100 * 1000 * 1000) /(pwmReq*2) ) / 32;
+	tmp = ( (BLFrequency & 0xFFFF) << 16) | (level & 0xFFFF);
+	I915_WRITE(BLC_PWM_CTL, tmp);
+#else
     	tmp &= ~BACKLIGHT_DUTY_CYCLE_MASK;
+
     	I915_WRITE(BLC_PWM_CTL, tmp | level);
+#endif
 	}
 
 
@@ -791,6 +804,9 @@ static uint32_t compute_pwm_base(uint16_t freq)
 	return base_unit;
 }
 
+
+static int enable_num = 1;//[A]add by xmlwz 20141105 :avoid use low backlight when bootanimation start
+
 void intel_panel_enable_backlight(struct drm_device *dev,
 				  enum pipe pipe)
 {
@@ -826,6 +842,17 @@ void intel_panel_enable_backlight(struct drm_device *dev,
 			lpio_bl_write_bits(0, LPIO_PWM_CTRL, 0x80000000,
 							0x80000000);
 			lpio_bl_update(0, LPIO_PWM_CTRL);
+/*	[A]add by xmlwz 20141105 :avoid use low backlight when bootanimation start and fix bug :0031818 */		
+			 if(enable_num  != 1)						
+			 {
+				lpio_bl_write_bits(0, LPIO_PWM_CTRL, 0x80, 0x80);
+				lpio_bl_update(0, LPIO_PWM_CTRL);
+			}
+			 else
+			{
+			 	enable_num--;
+			}
+/*   [A]add end xmlwz 20141105 */
 #ifndef CONFIG_MRD7
 			/* Backlight enable */
 			vlv_gpio_nc_write(dev_priv, 0x40E0, 0x2000CC00);

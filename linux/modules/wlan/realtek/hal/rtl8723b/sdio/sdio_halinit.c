@@ -117,6 +117,76 @@ void HalSetOutPutGPIO(PADAPTER padapter, u8 index, u8 OutPutValue)
 }
 #endif
 
+/*
+ * Description:
+ *	Call this function to make sure power on successfully
+ *
+ * Return:
+ *	_SUCCESS	enable success
+ *	_FAIL	enable fail
+ */
+static int PowerOnCheck(PADAPTER padapter)
+{
+	u32	val_offset0, val_offset1, val_offset2, val_offset3;
+	u32 val_mix = 0;
+	u32 res = 0;
+	u8	ret = _FAIL;
+	int index = 0;
+
+	val_offset0 = rtw_read8(padapter, REG_CR);
+	val_offset1 = rtw_read8(padapter, REG_CR+1);
+	val_offset2 = rtw_read8(padapter, REG_CR+2);
+	val_offset3 = rtw_read8(padapter, REG_CR+3);
+
+	if (val_offset0 == 0xEA || val_offset1 == 0xEA ||
+			val_offset2 == 0xEA || val_offset3 ==0xEA) {
+		DBG_871X("%s: power on fail, do Power on again\n", __func__);
+		return ret;
+	}
+
+	val_mix = val_offset3 << 24 | val_mix;
+	val_mix = val_offset2 << 16 | val_mix;
+	val_mix = val_offset1 << 8 | val_mix;
+	val_mix = val_offset0 | val_mix;
+
+	res = rtw_read32(padapter, REG_CR);
+
+	DBG_871X("%s: val_mix:0x%08x, res:0x%08x\n", __func__, val_mix, res);
+
+	while(index < 100) {
+		if (res == val_mix) {
+			DBG_871X("%s: 0x100 the result of cmd52 and cmd53 is the same.\n", __func__);
+			ret = _SUCCESS;
+			break;
+		} else {
+			DBG_871X("%s: 0x100 cmd52 and cmd53 is not the same(index:%d).\n", __func__, index);
+			res = rtw_read32(padapter, REG_CR);
+			index ++;
+			ret = _FAIL;
+		}
+	}
+
+	if (ret) {
+		index = 0;
+		while(index < 100) {
+			rtw_write32(padapter, 0x1B8, 0x12345678);
+			res = rtw_read32(padapter, 0x1B8);
+			if (res == 0x12345678) {
+				DBG_871X("%s: 0x1B8 test Pass.\n", __func__);
+				ret = _SUCCESS;
+				break;
+			} else {
+				index ++;
+				DBG_871X("%s: 0x1B8 test Fail(index: %d).\n", __func__, index);
+				ret = _FAIL;
+			}
+		}
+	} else {
+		DBG_871X("%s: fail at cmd52, cmd53.\n", __func__);
+	}
+	return ret;
+}
+
 //static
 u8 _InitPowerOn_8723BS(PADAPTER padapter)
 {
@@ -124,8 +194,10 @@ u8 _InitPowerOn_8723BS(PADAPTER padapter)
 	u16 value16;
 	u32 value32;
 	u8 ret;
+	u8 pwron_chk_cnt=0;
 //	u8 bMacPwrCtrlOn;
 
+_init_power_on:
 
 #if 1
 	// all of these MUST be configured before power on
@@ -195,7 +267,19 @@ u8 _InitPowerOn_8723BS(PADAPTER padapter)
 				| PROTOCOL_EN | SCHEDULE_EN | ENSEC | CALTMR_EN);
 	rtw_write16(padapter, REG_CR, value16);
 
-/*
+
+	//PowerOnCheck()
+	ret = PowerOnCheck(padapter);
+	pwron_chk_cnt++;	
+	if (_FAIL == ret ) {	
+		if (pwron_chk_cnt > 1) {
+			DBG_871X("Failed to init Power On!\n");
+			return _FAIL;
+		}
+		DBG_871X("Power on Fail! do it again\n");
+		goto _init_power_on;
+	}
+
 #ifdef CONFIG_BT_COEXIST
 	rtw_btcoex_PowerOnSetting(padapter);
 
@@ -223,7 +307,7 @@ u8 _InitPowerOn_8723BS(PADAPTER padapter)
 #ifdef CONFIG_GPIO_WAKEUP
 	HostWakeUpGpioClear(padapter);
 #endif
-*/
+
 	return _SUCCESS;
 }
 
@@ -959,77 +1043,6 @@ static BOOLEAN HalDetectPwrDownMode(PADAPTER Adapter)
 	return pHalData->pwrdown;
 }	// HalDetectPwrDownMode
 
-/*
- * Description:
- *	Call this function to make sure power on successfully
- *
- * Return:
- *	_SUCCESS	enable success
- *	_FAIL	enable fail
- */
-static int PowerOnCheck(PADAPTER padapter)
-{
-	u32	val_offset0, val_offset1, val_offset2, val_offset3;
-	u32 val_mix = 0;
-	u32 res = 0;
-	u8	ret = _FAIL;
-	int index = 0;
-
-	val_offset0 = rtw_read8(padapter, REG_CR);
-	val_offset1 = rtw_read8(padapter, REG_CR+1);
-	val_offset2 = rtw_read8(padapter, REG_CR+2);
-	val_offset3 = rtw_read8(padapter, REG_CR+3);
-
-	if (val_offset0 == 0xEA || val_offset1 == 0xEA ||
-			val_offset2 == 0xEA || val_offset3 ==0xEA) {
-		DBG_871X("%s: power on fail, do Power on again\n", __func__);
-		return ret;
-	}
-
-	val_mix = val_offset3 << 24 | val_mix;
-	val_mix = val_offset2 << 16 | val_mix;
-	val_mix = val_offset1 << 8 | val_mix;
-	val_mix = val_offset0 | val_mix;
-
-	res = rtw_read32(padapter, REG_CR);
-
-	DBG_871X("%s: val_mix:0x%08x, res:0x%08x\n", __func__, val_mix, res);
-
-	while(index < 100) {
-		if (res == val_mix) {
-			DBG_871X("%s: 0x100 the result of cmd52 and cmd53 is the same.\n", __func__);
-			ret = _SUCCESS;
-			break;
-		} else {
-			DBG_871X("%s: 0x100 cmd52 and cmd53 is not the same(index:%d).\n", __func__, index);
-			res = rtw_read32(padapter, REG_CR);
-			index ++;
-			ret = _FAIL;
-		}
-	}
-
-	if (ret) {
-		index = 0;
-		while(index < 100) {
-			rtw_write32(padapter, 0x1B8, 0x12345678);
-			res = rtw_read32(padapter, 0x1B8);
-			if (res == 0x12345678) {
-				DBG_871X("%s: 0x1B8 test Pass.\n", __func__);
-				ret = _SUCCESS;
-				break;
-			} else {
-				index ++;
-				DBG_871X("%s: 0x1B8 test Fail(index: %d).\n", __func__, index);
-				ret = _FAIL;
-			}
-		}
-	} else {
-		DBG_871X("%s: fail at cmd52, cmd53.\n", __func__);
-	}
-	return ret;
-}
-
-
 static u32 rtl8723bs_hal_init(PADAPTER padapter)
 {
 	s32 ret;
@@ -1189,21 +1202,18 @@ static u32 rtl8723bs_hal_init(PADAPTER padapter)
 		DBG_871X("FW does not exist before power on!!\n");
 	}
 
-
 	if(rtw_fw_ps_state(padapter) == _FAIL)
 	{
 		DBG_871X("check fw_ps_state fail before PowerOn!\n");
 		pdbgpriv->dbg_ips_drvopen_fail_cnt++;
 	}
 
-
-
 	ret = _InitPowerOn_8723BS(padapter);
 	if (_FAIL == ret) {
 		RT_TRACE(_module_hci_hal_init_c_, _drv_err_, ("Failed to init Power On!\n"));
 		return _FAIL;
 	}
-
+	DBG_871X("Power on ok!\n");
 
 	if(rtw_fw_ps_state(padapter) == _FAIL)
 	{
@@ -1211,50 +1221,6 @@ static u32 rtl8723bs_hal_init(PADAPTER padapter)
 		pdbgpriv->dbg_ips_drvopen_fail_cnt++;
 	}
 
-
-	ret = PowerOnCheck(padapter);
-	if (_FAIL == ret ) {
-		DBG_871X("Power on Fail! do it again\n");
-		ret = _InitPowerOn_8723BS(padapter);
-		if (_FAIL == ret) {
-			DBG_871X("Failed to init Power On!\n");
-			return _FAIL;
-		}
-	}
-	DBG_871X("Power on ok!\n");
-
-{
-	u8 value8;
-	u32 value32;
-	
-#ifdef CONFIG_BT_COEXIST
-	rtw_btcoex_PowerOnSetting(padapter);
-
-	// external switch to S1
-	// 0x38[11] = 0x1
-	// 0x4c[23] = 0x1
-	// 0x64[0] = 0
-	value16 = rtw_read16(padapter, REG_PWR_DATA);
-	// Switch the control of EESK, EECS to RFC for DPDT or Antenna switch
-	value16 |= BIT(11); // BIT_EEPRPAD_RFE_CTRL_EN
-	rtw_write16(padapter, REG_PWR_DATA, value16);
-//	DBG_8192C("%s: REG_PWR_DATA(0x%x)=0x%04X\n", __FUNCTION__, REG_PWR_DATA, rtw_read16(padapter, REG_PWR_DATA));
-
-	value32 = rtw_read32(padapter, REG_LEDCFG0);
-	value32 |= BIT(23); // DPDT_SEL_EN, 1 for SW control
-	rtw_write32(padapter, REG_LEDCFG0, value32);
-//	DBG_8192C("%s: REG_LEDCFG0(0x%x)=0x%08X\n", __FUNCTION__, REG_LEDCFG0, rtw_read32(padapter, REG_LEDCFG0));
-
-	value8 = rtw_read8(padapter, REG_PAD_CTRL1_8723B);
-	value8 &= ~BIT(0); // BIT_SW_DPDT_SEL_DATA, DPDT_SEL default configuration
-	rtw_write8(padapter, REG_PAD_CTRL1_8723B, value8);
-//	DBG_8192C("%s: REG_PAD_CTRL1(0x%x)=0x%02X\n", __FUNCTION__, REG_PAD_CTRL1_8723B, rtw_read8(padapter, REG_PAD_CTRL1_8723B));
-#endif // CONFIG_BT_COEXIST
-
-#ifdef CONFIG_GPIO_WAKEUP
-	HostWakeUpGpioClear(padapter);
-#endif
-}
 
 	rtw_write8(padapter, REG_EARLY_MODE_CONTROL, 0);
 
@@ -2109,42 +2075,8 @@ static s32 _ReadAdapterInfo8723BS(PADAPTER padapter)
 
 	// before access eFuse, make sure card enable has been called
 	if(padapter->hw_init_completed == _FALSE)
-	{	
-		u8 value8;
-		u16 value16;
-		u32 value32;
-		
 		_InitPowerOn_8723BS(padapter);
-
-#ifdef CONFIG_BT_COEXIST
-	rtw_btcoex_PowerOnSetting(padapter);
-
-	// external switch to S1
-	// 0x38[11] = 0x1
-	// 0x4c[23] = 0x1
-	// 0x64[0] = 0
-	value16 = rtw_read16(padapter, REG_PWR_DATA);
-	// Switch the control of EESK, EECS to RFC for DPDT or Antenna switch
-	value16 |= BIT(11); // BIT_EEPRPAD_RFE_CTRL_EN
-	rtw_write16(padapter, REG_PWR_DATA, value16);
-//	DBG_8192C("%s: REG_PWR_DATA(0x%x)=0x%04X\n", __FUNCTION__, REG_PWR_DATA, rtw_read16(padapter, REG_PWR_DATA));
-
-	value32 = rtw_read32(padapter, REG_LEDCFG0);
-	value32 |= BIT(23); // DPDT_SEL_EN, 1 for SW control
-	rtw_write32(padapter, REG_LEDCFG0, value32);
-//	DBG_8192C("%s: REG_LEDCFG0(0x%x)=0x%08X\n", __FUNCTION__, REG_LEDCFG0, rtw_read32(padapter, REG_LEDCFG0));
-
-	value8 = rtw_read8(padapter, REG_PAD_CTRL1_8723B);
-	value8 &= ~BIT(0); // BIT_SW_DPDT_SEL_DATA, DPDT_SEL default configuration
-	rtw_write8(padapter, REG_PAD_CTRL1_8723B, value8);
-//	DBG_8192C("%s: REG_PAD_CTRL1(0x%x)=0x%02X\n", __FUNCTION__, REG_PAD_CTRL1_8723B, rtw_read8(padapter, REG_PAD_CTRL1_8723B));
-#endif // CONFIG_BT_COEXIST
-
-#ifdef CONFIG_GPIO_WAKEUP
-	HostWakeUpGpioClear(padapter);
-#endif
-		
-	}	
+	
 
 	val8 = rtw_read8(padapter, 0x4e);
 	MSG_8192C("%s, 0x4e=0x%x\n", __func__, val8);
@@ -2384,6 +2316,8 @@ _func_enter_;
 					, rtw_read32(padapter, 0x4a0), rtw_read32(padapter, 0x4a4)
 					, rtw_read32(padapter, 0x1cc), rtw_read32(padapter, 0x2f0), rtw_read32(padapter, 0x2f4), rtw_read32(padapter, 0x2f8)
 					, rtw_read32(padapter, 0x2fc), rtw_read32(padapter, 0x8c));
+
+                    DBG_871X("\n%s: filtered NBNS pkt count 0x01AC=0x%08x \n", __FUNCTION__, rtw_read32(padapter, 0x01AC));
 #ifdef CONFIG_PNO_SET_DEBUG
 					DBG_871X("0x1b9: 0x%02x, 0x632: 0x%02x\n",rtw_read8(padapter, 0x1b9), rtw_read8(padapter, 0x632));
 					DBG_871X("0x4fc: 0x%02x, 0x4fd: 0x%02x\n",rtw_read8(padapter, 0x4fc), rtw_read8(padapter, 0x4fd));

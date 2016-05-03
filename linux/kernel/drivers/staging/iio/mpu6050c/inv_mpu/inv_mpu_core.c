@@ -1840,9 +1840,9 @@ static struct mpu_platform_data mpu6050_plat_data = {
     .sec_slave_type = SECONDARY_SLAVE_TYPE_COMPASS, 
     .sec_slave_id   = COMPASS_ID_AK8963,    
     .secondary_i2c_addr = 0x0D,
-    .secondary_orientation= {  0,  1,  0,
-                   1 ,  0,  0,
-                    0,  0, -1 },
+    .secondary_orientation= {  0,  -1,  0,
+                   -1 ,  0,  0,
+                    0,  0, 1 },
 };
 
 static int inv_mpu_probe(struct i2c_client *client,

@@ -223,6 +223,25 @@ static int handle_chrg_det_event(struct dc_pwrsrc_info *info)
 		goto notify_otg_em;
 	}
 
+	// xmsxm add @ 2014-11-19  --start--, detect charger type again to fix that USB host sometimes couldn't be recognized.
+	if (vbus_attach) {
+		u8 reg;
+		msleep(100);
+		ret = intel_mid_pmic_readb(DC_BC_GLOBAL_REG);
+		if (ret < 0)
+			goto dev_det_ret;
+		else
+			reg = ret;
+		/*restart detection*/
+		ret = intel_mid_pmic_writeb(DC_BC_GLOBAL_REG, reg&0x01);
+		if (ret < 0)
+			goto dev_det_ret;
+
+		/*wait for detection done*/
+		msleep(300);
+	}
+	// xmsxm add @ 2014-11-19  --end--, detect charger type again to fix that USB host sometimes couldn't be recognized.
+
 	/* check charger detection completion status */
 	ret = intel_mid_pmic_readb(DC_BC_GLOBAL_REG);
 	if (ret < 0)

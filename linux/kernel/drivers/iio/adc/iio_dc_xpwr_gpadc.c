@@ -82,7 +82,7 @@
 #if defined(CONFIG_BATTERY_BT_B0BFQ)
 #define ADC_TS_PIN_ON                  0xE2
 #elif defined(CONFIG_BATTERY_BT_E002H)
-#define ADC_TS_PIN_ON                  0xF2
+#define ADC_TS_PIN_ON                  0xE2
 #endif
 #else
 #define ADC_TS_PIN_ON                  0xF2

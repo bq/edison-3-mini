@@ -49,10 +49,13 @@
 
 #include <linux/irq.h>
 #include "gt9xx.h"
+#include <linux/gpio.h>
+#include <linux/delay.h>
 
 #if GTP_ICS_SLOT_REPORT
     #include <linux/input/mt.h>
 #endif
+
 
 static const char *goodix_ts_name = "goodix_ts";
 static struct workqueue_struct *goodix_wq;
@@ -80,11 +83,58 @@ static ssize_t gt91xx_config_read_proc(struct file *, char __user *, size_t, lof
 static ssize_t gt91xx_config_write_proc(struct file *, const char __user *, size_t, loff_t *);
 
 static struct proc_dir_entry *gt91xx_config_proc = NULL;
+static struct proc_dir_entry *gt91xx_status_switch_proc = NULL;  ////xmwuwh @20141201 add for tp gesture gesture switch statr!
+
+
+
 static const struct file_operations config_proc_ops = {
     .owner = THIS_MODULE,
     .read = gt91xx_config_read_proc,
     .write = gt91xx_config_write_proc,
 };
+
+//xmwuwh @20141201 add for tp gesture gesture switch statr!
+#if GTP_GESTURE_WAKEUP
+unsigned char gt9271_config[2];
+unsigned int justResume_status = 0;
+#define GT91XX_STATUS_SWITHC_PROC_FILE     "gt9xx_switch"
+static ssize_t gt91xx_status_switch_read_proc(struct file *file, char __user *page, size_t size, loff_t *ppos)
+{
+    char *ptr = page;
+    int i;
+    printk("gt91xx_status_switch_read_proc, justResume_status: %d \n", justResume_status);
+    if (justResume_status == 0)
+        ptr[0] = '0';
+    else
+        ptr[0] = '1';
+    ptr[1]= 0;
+    return 0;
+}
+static ssize_t gt91xx_status_switch_write_proc(struct file *filp, const char __user *buffer, size_t count, loff_t *off)
+{
+    s32 ret = 0;
+    if (copy_from_user(&gt9271_config[0], buffer, count))
+    {
+        printk("copy from user fail\n");
+        return -EFAULT;
+    }
+    printk("gt91xx_status_switch_write_proc, content: %d count %d\n", gt9271_config[0],count);
+    if (gt9271_config[0] == '0')
+        justResume_status = 0;
+    else
+        justResume_status = 1;
+    return count;
+
+}
+static const struct file_operations status_switch_proc_ops = {
+    .owner = THIS_MODULE,
+    .read = gt91xx_status_switch_read_proc,
+    .write = gt91xx_status_switch_write_proc,
+};
+#endif
+//xmwuwh @20141201 add for tp gesture gesture switch end!
+
+
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void goodix_ts_early_suspend(struct early_suspend *h);
@@ -580,6 +630,7 @@ static void goodix_ts_work_func(struct work_struct *work)
     s32 ret = -1;
     struct goodix_ts_data *ts = NULL;
 
+
 #if GTP_COMPATIBLE_MODE
     u8 rqst_buf[3] = {0x80, 0x43};  // for GT9XXF
 #endif
@@ -644,12 +695,21 @@ static void goodix_ts_work_func(struct work_struct *work)
             }
             else if (0xCC == doze_buf[2])
             {
+                
+				////change by xmwuwh @20150106  for BU-354 DUT does not vibrate when we unlock it with double tap 
+                //tdev->enable(tdev, 30);              
+                //GTP_INFO("xmwuwh Double click to light up the screen and vibrator work!");
+                gpio_set_value(95,1);
+                msleep(50);
+                gpio_set_value(95,0);
+				////change by xmwuwh @20150106  end
                 GTP_INFO("Double click to light up the screen!");
                 doze_status = DOZE_WAKEUP;
                 input_report_key(ts->input_dev, KEY_POWER, 1);
                 input_sync(ts->input_dev);
                 input_report_key(ts->input_dev, KEY_POWER, 0);
                 input_sync(ts->input_dev);
+
                 // clear 0x814B
                 doze_buf[2] = 0x00;
                 gtp_i2c_write(i2c_connect_client, doze_buf, 3);
@@ -1111,7 +1171,7 @@ void gtp_reset_guitar(struct i2c_client *client, s32 ms)
 #endif
 }
 
-#if GTP_GESTURE_WAKEUP
+//#if GTP_GESTURE_WAKEUP
 /*******************************************************
 Function:
     Enter doze mode for sliding wakeup.
@@ -1153,7 +1213,7 @@ static s8 gtp_enter_doze(struct goodix_ts_data *ts)
     GTP_ERROR("GTP send gesture cmd failed.");
     return ret;
 }
-#else 
+//#else 
 /*******************************************************
 Function:
     Enter sleep mode.
@@ -1197,7 +1257,7 @@ static s8 gtp_enter_sleep(struct goodix_ts_data * ts)
 #endif
 
     GTP_GPIO_OUTPUT(GTP_INT_PORT, 0);
-    msleep(5);
+    msleep(10);
     
     while(retry++ < 5)
     {
@@ -1213,7 +1273,7 @@ static s8 gtp_enter_sleep(struct goodix_ts_data * ts)
     GTP_ERROR("GTP send sleep cmd failed.");
     return ret;
 }
-#endif 
+//#endif 
 /*******************************************************
 Function:
     Wakeup from sleep.
@@ -1305,11 +1365,13 @@ static s8 gtp_wakeup_sleep(struct goodix_ts_data * ts)
         }
         doze_status = DOZE_DISABLED;
         gtp_irq_disable(ts);
-        gtp_reset_guitar(ts->client, 10);
+        gtp_reset_guitar(ts->client, 20);
         gtp_irq_enable(ts);
         
     #else
         GTP_GPIO_OUTPUT(GTP_INT_PORT, 1);
+        msleep(5);
+        GTP_GPIO_OUTPUT(GTP_INT_PORT, 0);
         msleep(5);
     #endif
     
@@ -1320,7 +1382,7 @@ static s8 gtp_wakeup_sleep(struct goodix_ts_data * ts)
             
         #if (!GTP_GESTURE_WAKEUP)
             {
-                gtp_int_sync(25);
+                gtp_int_sync(50);
             #if GTP_ESD_PROTECT
                 gtp_init_ext_watchdog(ts->client);
             #endif
@@ -1690,6 +1752,10 @@ static ssize_t gt91xx_config_write_proc(struct file *filp, const char __user *bu
 
     return count;
 }
+
+
+
+
 /*******************************************************
 Function:
     Read chip version.
@@ -1740,19 +1806,25 @@ Output:
 *******************************************************/
 static s8 gtp_i2c_test(struct i2c_client *client)
 {
-    u8 test[3] = {GTP_REG_CONFIG_DATA >> 8, GTP_REG_CONFIG_DATA & 0xff};
+    //u8 test[6] = {GTP_REG_CONFIG_DATA >> 8, GTP_REG_CONFIG_DATA & 0xff};
+    u8 test[6] = {GTP_REG_HW_INFO >> 8, GTP_REG_HW_INFO & 0xff};
     u8 retry = 0;
     s8 ret = -1;
-  
+    u32 hw_info = 0;
+    //u8 test1[6] = {GTP_REG_HW_INFO >> 8, GTP_REG_HW_INFO & 0xff};
+
     GTP_DEBUG_FUNC();
   
     while(retry++ < 5)
     {
-        ret = gtp_i2c_read(client, test, 3);
-        if (ret > 0)
+        ret = gtp_i2c_read(client, test, sizeof(test));
+        memcpy(&hw_info,&test[2],4);
+        //printk("xmwuwh---ret=%d,hw_info=0x%x\n",ret,hw_info);
+        if ((ret) && (hw_info == 0x00900600))
         {
             return ret;
         }
+        printk("xmwuwh---ret=%d,hw_info=0x%x\n",ret,hw_info);
         GTP_ERROR("GTP i2c test failed time %d.",retry);
         msleep(10);
     }
@@ -2480,7 +2552,23 @@ static int goodix_ts_probe(struct i2c_client *client, const struct i2c_device_id
         ts->abs_y_max = GTP_MAX_HEIGHT;
         ts->int_trigger_type = GTP_INT_TRIGGER;
     }
-    
+
+    //xmwuwh @20141201 add for tp gesture gesture switch statr!
+#if GTP_GESTURE_WAKEUP
+    // Create proc file system
+    gt91xx_status_switch_proc = proc_create(GT91XX_STATUS_SWITHC_PROC_FILE, 0666, NULL, &status_switch_proc_ops);
+    if (gt91xx_status_switch_proc == NULL)
+    {
+        GTP_ERROR("create_proc_entry %s failed\n", GT91XX_STATUS_SWITHC_PROC_FILE);
+    }
+    else
+    {
+        GTP_INFO("create proc entry %s success", GT91XX_STATUS_SWITHC_PROC_FILE);
+    }
+#endif
+    //xmwuwh @20141201 add for tp gesture gesture switch end!
+
+
     // Create proc file system
     gt91xx_config_proc = proc_create(GT91XX_CONFIG_PROC_FILE, 0666, NULL, &config_proc_ops);
     if (gt91xx_config_proc == NULL)
@@ -2607,7 +2695,24 @@ static void goodix_ts_early_suspend(struct early_suspend *h)
 #endif
 
 #if GTP_GESTURE_WAKEUP
-    ret = gtp_enter_doze(ts);
+////xmwuwh @20141201 add for tp gesture gesture switch start!
+    if(justResume_status==1)
+    {
+        ret = gtp_enter_doze(ts);
+    }
+    else
+    {
+        if (ts->use_irq)
+        {
+            gtp_irq_disable(ts);
+        }
+        else
+        {
+            hrtimer_cancel(&ts->timer);
+        }
+        ret = gtp_enter_sleep(ts);
+    }
+    ////xmwuwh @20141201 add for tp gesture gesture switch end!
 #else
     if (ts->use_irq)
     {

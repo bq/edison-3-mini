@@ -4488,6 +4488,46 @@ _func_enter_;
 _func_exit_;
 }
 
+int process_p2p_cross_connect_ie(PADAPTER padapter, u8 *IEs, u32 IELength)
+{
+	int ret = _TRUE;
+	u8 * ies;
+	u32 ies_len;
+	u8 * p2p_ie;
+	u32	p2p_ielen = 0;
+	u8	p2p_attr[MAX_P2P_IE_LEN] = { 0x00 };// NoA length should be n*(13) + 2
+	u32	attr_contentlen = 0;
+
+	struct wifidirect_info	*pwdinfo = &( padapter->wdinfo );
+
+_func_enter_;
+
+	if(IELength <= _BEACON_IE_OFFSET_)
+		return ret;
+	
+	ies = IEs + _BEACON_IE_OFFSET_;
+	ies_len = IELength - _BEACON_IE_OFFSET_;
+
+	p2p_ie = rtw_get_p2p_ie( ies, ies_len, NULL, &p2p_ielen);
+	
+	while(p2p_ie)
+	{
+		// Get P2P Manageability IE.
+		if(rtw_get_p2p_attr_content( p2p_ie, p2p_ielen, P2P_ATTR_MANAGEABILITY, p2p_attr, &attr_contentlen))
+		{
+			if ((p2p_attr[0]&(BIT(0)|BIT(1))) == 0x01) {
+				ret = _FALSE; 
+			}
+			break;
+		}
+		//Get the next P2P IE
+		p2p_ie = rtw_get_p2p_ie(p2p_ie+p2p_ielen, ies_len -(p2p_ie -ies + p2p_ielen), NULL, &p2p_ielen);
+	}
+
+_func_exit_;
+	return ret;
+}
+
 #ifdef CONFIG_P2P_PS
 void process_p2p_ps_ie(PADAPTER padapter, u8 *IEs, u32 IELength)
 {

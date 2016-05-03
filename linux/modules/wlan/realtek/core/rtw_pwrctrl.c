@@ -20,7 +20,7 @@
 #define _RTW_PWRCTRL_C_
 
 #include <drv_types.h>
-
+#include <hal_com_h2c.h>
 
 int rtw_fw_ps_state(PADAPTER padapter)
 {
@@ -718,6 +718,129 @@ u8 PS_RDY_CHECK(_adapter * padapter)
 	return _TRUE;
 }
 
+#if defined(CONFIG_FWLPS_IN_IPS)
+void rtw_set_fw_in_ips_mode(PADAPTER padapter, u8 enable)
+{
+	struct hal_ops *pHalFunc = &padapter->HalFunc;
+	struct pwrctrl_priv *pwrpriv = adapter_to_pwrctl(padapter);
+	int cnt=0;
+	u32 start_time;
+	u8 val8 = 0;
+	u8 cpwm_orig, cpwm_now;
+	u8 parm[H2C_INACTIVE_PS_LEN]={0};
+
+	if (padapter->netif_up == _FALSE) {
+		DBG_871X("%s: ERROR, netif is down\n", __func__);
+		return;
+	}
+
+	if (pHalFunc->fill_h2c_cmd == NULL) {
+		DBG_871X("%s: Please hook fill_h2c_cmd first!\n", __func__);
+		return;
+	}
+
+	//u8 cmd_param; //BIT0:enable, BIT1:NoConnect32k
+	if (enable) {
+#ifdef CONFIG_BT_COEXIST
+		rtw_btcoex_IpsNotify(padapter, pwrpriv->ips_mode_req);
+#endif
+		//Enter IPS
+		DBG_871X("%s: issue H2C to FW when entering IPS\n", __func__);
+
+#ifdef CONFIG_PNO_SUPPORT
+		parm[0] = 0x03;
+		parm[1] = pwrpriv->pnlo_info->fast_scan_iterations;
+		parm[2] = pwrpriv->pnlo_info->slow_scan_period;
+#else
+		parm[0] = 0x03;
+		parm[1] = 0x0;
+		parm[2] = 0x0;
+#endif//CONFIG_PNO_SUPPORT
+
+		pHalFunc->fill_h2c_cmd(padapter, //H2C_FWLPS_IN_IPS_,
+					H2C_INACTIVE_PS_,
+					H2C_INACTIVE_PS_LEN, parm);
+		//poll 0x1cc to make sure H2C command already finished by FW; MAC_0x1cc=0 means H2C done by FW.
+		do{
+			val8 = rtw_read8(padapter, REG_HMETFR);
+			cnt++;
+			DBG_871X("%s  polling REG_HMETFR=0x%x, cnt=%d \n",
+					__func__, val8, cnt);
+			rtw_mdelay_os(10);
+		}while(cnt<100 && (val8!=0));
+
+		//H2C done, enter 32k
+		if (val8 == 0) {
+			//ser rpwm to enter 32k
+			val8 = rtw_read8(padapter, SDIO_LOCAL_BASE|SDIO_REG_HRPWM1);
+			DBG_871X("%s: read rpwm=%02x\n", __FUNCTION__, val8);
+			val8 += 0x80;
+			val8 |= BIT(0);
+			rtw_write8(padapter, SDIO_LOCAL_BASE|SDIO_REG_HRPWM1, val8);
+			DBG_871X("%s: write rpwm=%02x\n", __FUNCTION__, val8);
+			adapter_to_pwrctl(padapter)->tog = (val8 + 0x80) & 0x80;
+			cnt = val8 = 0;
+			if (parm[1] == 0 || parm[2] == 0) {
+				do {
+					val8 = rtw_read8(padapter, REG_CR);
+					cnt++;
+					DBG_871X("%s  polling 0x100=0x%x, cnt=%d \n",
+							__func__, val8, cnt);
+					DBG_871X("%s 0x08:%02x, 0x03:%02x\n",
+							__func__,
+							rtw_read8(padapter, 0x08),
+							rtw_read8(padapter, 0x03));
+					rtw_mdelay_os(10);
+				} while(cnt<20 && (val8!=0xEA));
+			}
+		}
+	} else {
+		//Leave IPS
+		DBG_871X("%s: Leaving IPS in FWLPS state\n", __func__);
+
+		//for polling cpwm
+		cpwm_orig = 0;
+		rtw_hal_get_hwreg(padapter, HW_VAR_CPWM, &cpwm_orig);
+
+		//ser rpwm
+		val8 = rtw_read8(padapter, SDIO_LOCAL_BASE|SDIO_REG_HRPWM1);
+		val8 &= 0x80;
+		val8 += 0x80;
+		val8 |= BIT(6);
+		rtw_write8(padapter, SDIO_LOCAL_BASE|SDIO_REG_HRPWM1, val8);
+		DBG_871X("%s: write rpwm=%02x\n", __FUNCTION__, val8);
+		adapter_to_pwrctl(padapter)->tog = (val8 + 0x80) & 0x80;
+
+		//do polling cpwm
+		start_time = rtw_get_current_time();
+		do {
+
+			rtw_mdelay_os(1);
+
+			rtw_hal_get_hwreg(padapter, HW_VAR_CPWM, &cpwm_now);
+			if ((cpwm_orig ^ cpwm_now) & 0x80) {
+				break;
+			}
+
+			if (rtw_get_passing_time_ms(start_time) > 100)
+			{
+				DBG_871X("%s: polling cpwm timeout when leaving IPS in FWLPS state\n", __FUNCTION__);
+				break;
+			}
+		} while (1);
+
+		parm[0] = 0x0;
+		parm[1] = 0x0;
+		parm[2] = 0x0;
+		pHalFunc->fill_h2c_cmd(padapter, H2C_INACTIVE_PS_,
+					H2C_INACTIVE_PS_LEN, parm);
+#ifdef CONFIG_BT_COEXIST
+		rtw_btcoex_IpsNotify(padapter, IPS_NONE);
+#endif
+	}
+}
+#endif //CONFIG_PNO_SUPPORT
+
 void rtw_set_ps_mode(PADAPTER padapter, u8 ps_mode, u8 smart_ps, u8 bcn_ant_mode, const char *msg)
 {
 	struct pwrctrl_priv *pwrpriv = adapter_to_pwrctl(padapter);
@@ -1123,7 +1246,7 @@ _func_enter_;
 		)
 	{ //connect
 
-		if(pwrpriv->power_mgnt == PS_MODE_ACTIVE) {
+		if(pwrpriv->pwr_mode == PS_MODE_ACTIVE) {
 			DBG_871X("%s: Driver Already Leave LPS\n",__FUNCTION__);
 			return;
 		}

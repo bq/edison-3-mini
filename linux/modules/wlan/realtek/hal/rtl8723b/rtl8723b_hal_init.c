@@ -758,7 +758,15 @@ int ReservedPage_Compare(PADAPTER Adapter,PRT_MP_FIRMWARE pFirmware,u32 BTPatchS
 {
 	u8 temp,ret,lastBTsz;
 	u32 u1bTmp=0,address_start=0,count=0,i=0;
-	u8	myBTFwBuffer[FW_8723B_SIZE];
+	u8	*myBTFwBuffer = NULL;
+
+	myBTFwBuffer = rtw_zmalloc(BTPatchSize);
+	if (myBTFwBuffer == NULL)
+	{
+		DBG_871X("%s can't be executed due to the failed malloc.\n", __FUNCTION__);
+		Adapter->mppriv.bTxBufCkFail=_TRUE;
+		return _FALSE;
+	}
 	
 	temp=rtw_read8(Adapter,0x209);
 	
@@ -769,7 +777,6 @@ int ReservedPage_Compare(PADAPTER Adapter,PRT_MP_FIRMWARE pFirmware,u32 BTPatchS
 	rtw_write32(Adapter,0x148,0x00000000);
 
 	rtw_write8(Adapter,0x106,0x69);
-
 	
 	for(i=0;i<(BTPatchSize/8);i++)
 	{
@@ -788,14 +795,14 @@ int ReservedPage_Compare(PADAPTER Adapter,PRT_MP_FIRMWARE pFirmware,u32 BTPatchS
 			rtw_msleep_os(10); // 10ms
 		}while(!(u1bTmp&BIT(23)) && count < 50);
 		
-			pFirmware->myBTFwBuffer[i*8+0]=rtw_read8(Adapter, 0x144);
-			pFirmware->myBTFwBuffer[i*8+1]=rtw_read8(Adapter, 0x145);
-			pFirmware->myBTFwBuffer[i*8+2]=rtw_read8(Adapter, 0x146); 
-			pFirmware->myBTFwBuffer[i*8+3]=rtw_read8(Adapter, 0x147);
-			pFirmware->myBTFwBuffer[i*8+4]=rtw_read8(Adapter, 0x148);
-			pFirmware->myBTFwBuffer[i*8+5]=rtw_read8(Adapter, 0x149);
-			pFirmware->myBTFwBuffer[i*8+6]=rtw_read8(Adapter, 0x14a);
-			pFirmware->myBTFwBuffer[i*8+7]=rtw_read8(Adapter, 0x14b);
+			myBTFwBuffer[i*8+0]=rtw_read8(Adapter, 0x144);
+			myBTFwBuffer[i*8+1]=rtw_read8(Adapter, 0x145);
+			myBTFwBuffer[i*8+2]=rtw_read8(Adapter, 0x146); 
+			myBTFwBuffer[i*8+3]=rtw_read8(Adapter, 0x147);
+			myBTFwBuffer[i*8+4]=rtw_read8(Adapter, 0x148);
+			myBTFwBuffer[i*8+5]=rtw_read8(Adapter, 0x149);
+			myBTFwBuffer[i*8+6]=rtw_read8(Adapter, 0x14a);
+			myBTFwBuffer[i*8+7]=rtw_read8(Adapter, 0x14b);
 	}
 	
 	rtw_write32(Adapter,0x140,address_start+5+BTPatchSize/8) ;			  
@@ -819,18 +826,23 @@ int ReservedPage_Compare(PADAPTER Adapter,PRT_MP_FIRMWARE pFirmware,u32 BTPatchS
 
 	for(i=0;i<lastBTsz;i++)
 	{
-		pFirmware->myBTFwBuffer[(BTPatchSize/8)*8+i] = rtw_read8(Adapter, (0x144+i));
+		myBTFwBuffer[(BTPatchSize/8)*8+i] = rtw_read8(Adapter, (0x144+i));
 
 	}
 
 	for(i=0;i<BTPatchSize;i++)
 	{
-		if(pFirmware->myBTFwBuffer[i]!= pFirmware->szBTFwBuffer[i])
+		if(myBTFwBuffer[i]!= pFirmware->szFwBuffer[i])
 		{
-			DBG_871X(" In direct pFirmware->myBTFwBuffer[%d]=%x , pFirmware->szBTFwBuffer=%x\n",i, pFirmware->myBTFwBuffer[i],pFirmware->szBTFwBuffer[i]);
+			DBG_871X(" In direct myBTFwBuffer[%d]=%x , pFirmware->szFwBuffer=%x\n",i, myBTFwBuffer[i],pFirmware->szFwBuffer[i]);
 			Adapter->mppriv.bTxBufCkFail=_TRUE;
 			break;
 		}
+	}
+
+	if (myBTFwBuffer != NULL)
+	{
+		rtw_mfree(myBTFwBuffer, BTPatchSize);
 	}
 
 	return _TRUE;
@@ -885,8 +897,8 @@ s32 FirmwareDownloadBT(PADAPTER padapter, PRT_MP_FIRMWARE pFirmware)
 
 		pBTFirmwareBuf = (u8*)Rtl8723BFwBTImgArray;
 		BTFirmwareLen = Rtl8723BFwBTImgArrayLength;
-		pFirmware->szBTFwBuffer = pBTFirmwareBuf;
-		pFirmware->ulBTFwLength = BTFirmwareLen;
+		pFirmware->szFwBuffer = pBTFirmwareBuf;
+		pFirmware->ulFwLength = BTFirmwareLen;
 #endif // CONFIG_EMBEDDED_FWIMG
 	}
 
@@ -968,9 +980,8 @@ s32 rtl8723b_FirmwareDownload(PADAPTER padapter, BOOLEAN  bUsedWoWLANFw)
 	RT_TRACE(_module_hal_init_c_, _drv_notice_, ("+%s, bUsedWoWLANFw:%d\n", __FUNCTION__,bUsedWoWLANFw));
 #endif
 	pFirmware = (PRT_FIRMWARE_8723B)rtw_zmalloc(sizeof(RT_FIRMWARE_8723B));
-	pBTFirmware = (PRT_FIRMWARE_8723B)rtw_zmalloc(sizeof(RT_FIRMWARE_8723B));
 
-	if(!pFirmware||!pBTFirmware)
+	if(!pFirmware)
 	{
 		rtStatus = _FAIL;
 		goto exit;
@@ -1137,6 +1148,12 @@ s32 rtl8723b_FirmwareDownload(PADAPTER padapter, BOOLEAN  bUsedWoWLANFw)
 	{
 		//rtw_write8(padapter, 0x81, rtw_read8(padapter, 0x81)|BIT0);
 		DBG_871X("rtl8723b_FirmwareDownload go to FirmwareDownloadBT !\n");
+		pBTFirmware = (PRT_FIRMWARE_8723B)rtw_zmalloc(sizeof(RT_FIRMWARE_8723B));
+		if(!pBTFirmware)
+		{
+			rtStatus = _FAIL;
+			goto exit;
+		}
 		FirmwareDownloadBT(padapter, (PRT_MP_FIRMWARE)pBTFirmware);
 	}
 #endif

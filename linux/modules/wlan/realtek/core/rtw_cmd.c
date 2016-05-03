@@ -35,7 +35,7 @@ _func_enter_;
 	_rtw_init_sema(&(pcmdpriv->cmd_queue_sema), 0);
 	//_rtw_init_sema(&(pcmdpriv->cmd_done_sema), 0);
 	_rtw_init_sema(&(pcmdpriv->terminate_cmdthread_sema), 0);
-	
+	DBG_871X_LEVEL(_drv_always_, "%s: terminate_cmdthread_sema_count=%d\n", __FUNCTION__, pcmdpriv->terminate_cmdthread_sema.count);
 	
 	_rtw_init_queue(&(pcmdpriv->cmd_queue));
 	
@@ -435,7 +435,8 @@ void rtw_stop_cmd_thread(_adapter *adapter)
 		adapter->cmdpriv.stop_req = 1;
 		_rtw_up_sema(&adapter->cmdpriv.cmd_queue_sema);
 		DBG_871X_LEVEL(_drv_always_, "%s: waiting for terminate_cmdthread_sema\n", __FUNCTION__);
-		_rtw_down_sema(&adapter->cmdpriv.terminate_cmdthread_sema);
+		_rtw_down_sema_uninterruptible(&adapter->cmdpriv.terminate_cmdthread_sema);
+		DBG_871X_LEVEL(_drv_always_, "%s: terminate_cmdthread_sema_count=%d\n", __FUNCTION__, adapter->cmdpriv.terminate_cmdthread_sema.count);
 	}
 }
 
@@ -462,6 +463,8 @@ _func_enter_;
 	pcmdpriv->stop_req = 0;
 	pcmdpriv->cmdthd_running=_TRUE;
 	_rtw_up_sema(&pcmdpriv->terminate_cmdthread_sema);
+	DBG_871X_LEVEL(_drv_always_, "%s(enter): terminate_cmdthread_sema_count=%d\n", __FUNCTION__, pcmdpriv->terminate_cmdthread_sema.count);
+	
 
 	RT_TRACE(_module_rtl871x_cmd_c_,_drv_info_,("start r871x rtw_cmd_thread !!!!\n"));
 
@@ -638,6 +641,7 @@ post_process:
 	}while(1);
 
 	_rtw_up_sema(&pcmdpriv->terminate_cmdthread_sema);
+	DBG_871X_LEVEL(_drv_always_, "%s(exit): terminate_cmdthread_sema_count=%d\n", __FUNCTION__, pcmdpriv->terminate_cmdthread_sema.count);
 
 _func_exit_;
 
