@@ -2839,6 +2839,7 @@ void rtw_dynamic_check_timer_handlder(_adapter *adapter)
 #ifdef CONFIG_CONCURRENT_MODE	
 	PADAPTER pbuddy_adapter = adapter->pbuddy_adapter;
 #endif
+    struct mlme_ext_priv	*pmlmeext = &adapter->mlmeextpriv;
 
 	if(!adapter)
 		return;	
@@ -2872,6 +2873,12 @@ void rtw_dynamic_check_timer_handlder(_adapter *adapter)
 
 #ifdef CONFIG_LPS_LCLK_WD_TIMER
 	if ((adapter_to_pwrctl(adapter)->bFwCurrentInPSMode ==_TRUE )
+        //2015.01.08
+        //BYT-CR may suspend SDIO bus when driver is in LPS because runtime_pm
+        //Therefore, driver will use rtw_dynamic_chk_wk_cmd() to do traffic_status_watchdog
+        //and linked_status_chk()when pmlmeext->retry >= 5 
+        //Using rtw_dynamic_chk_wk_cmd() will access SDIO and make SDIO wakeup.
+        && (pmlmeext->retry < 5)
 #ifdef CONFIG_BT_COEXIST
 		&& (rtw_btcoex_IsBtControlLps(adapter) == _FALSE)
 #endif		

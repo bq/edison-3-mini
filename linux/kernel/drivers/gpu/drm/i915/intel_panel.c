@@ -59,6 +59,9 @@
 #ifdef CONFIG_MRD8
 #define ENABLE_SIO_PWM
 #endif
+
+static struct drm_i915_private *gl_dev_priv;//xmtdf xmlwz add ,bug-id 0034151 
+
 extern void my_drm_ut_debug_printk(unsigned int request_level,
 			 const char *prefix,
 			 const char *function_name,
@@ -709,6 +712,10 @@ void intel_panel_disable_backlight(struct drm_device *dev)
 
 			/* disable the backlight enable signal */
 #ifndef CONFIG_MRD7
+            //xmtdf xmlwz add 20150122 ,bug-id 0034151 ,to delay backlight work 70ms,avoid the screen flickers, do not slow the wake up process
+
+            cancel_delayed_work_sync(&dev_priv->bkl_delay_enable_work);
+			//xmtdf xmlwz add end,bug-id 0034151
 			vlv_gpio_nc_write(dev_priv, 0x40E0, 0x2000CC00);
 			vlv_gpio_nc_write(dev_priv, 0x40E8, 0x00000004);
 #endif
@@ -753,6 +760,7 @@ void intel_panel_disable_backlight(struct drm_device *dev)
 #endif
 }
 #ifdef CONFIG_CRYSTAL_COVE
+/*
 static void scheduled_led_chip_programming(struct work_struct *work)
 {
 	lp855x_ext_write_byte(LP8556_CFG9,
@@ -773,8 +781,16 @@ static void scheduled_led_chip_programming(struct work_struct *work)
 	lp855x_ext_write_byte(LP8556_LEDSTREN,
 			LP8556_5LEDSTR);
 }
+*/
 #endif
-
+/* xmtdf xmlwz add 20150122 ,bug-id 0034151 ,to delay backlight work 70ms,avoid the screen flickers, do not slow the wake up process
+ */
+static void scheduled_enable_backlight(struct work_struct *work)
+{
+    vlv_gpio_nc_write(gl_dev_priv, 0x40E0, 0x2000CC00);
+	vlv_gpio_nc_write(gl_dev_priv, 0x40E8, 0x00000005);
+}
+//xmtdf xmlwz add end,bug-id 0034151
 static uint32_t compute_pwm_base(uint16_t freq)
 {
 	uint32_t base_unit;
@@ -803,7 +819,6 @@ static uint32_t compute_pwm_base(uint16_t freq)
 
 	return base_unit;
 }
-
 
 static int enable_num = 1;//[A]add by xmlwz 20141105 :avoid use low backlight when bootanimation start
 
@@ -855,8 +870,17 @@ void intel_panel_enable_backlight(struct drm_device *dev,
 /*   [A]add end xmlwz 20141105 */
 #ifndef CONFIG_MRD7
 			/* Backlight enable */
+			/* xmtdf xmlwz add 20150122 ,bug-id 0034151 ,to delay backlight work 70ms,avoid the screen flickers, do not slow the wake up process
+ */
+            #if 0
 			vlv_gpio_nc_write(dev_priv, 0x40E0, 0x2000CC00);
 			vlv_gpio_nc_write(dev_priv, 0x40E8, 0x00000005);
+            #else
+            gl_dev_priv = dev->dev_private;
+            schedule_delayed_work(&dev_priv->bkl_delay_enable_work,
+									msecs_to_jiffies(70));
+            #endif
+			//xmtdf xmlwz add end,bug-id 0034151
 #endif
 			udelay(500);
 
@@ -968,9 +992,11 @@ static void intel_panel_init_backlight(struct drm_device *dev)
 #endif
 	dev_priv->backlight.enabled = dev_priv->backlight.level != 0;
 #ifdef CONFIG_CRYSTAL_COVE
-	if (BYT_CR_CONFIG)
-		INIT_DELAYED_WORK(&dev_priv->bkl_delay_enable_work,
-				scheduled_led_chip_programming);
+	/* xmtdf xmlwz add 20150122 ,bug-id 0034151 ,to delay backlight work 70ms,avoid the screen flickers, do not slow the wake up process
+ */
+	INIT_DELAYED_WORK(&dev_priv->bkl_delay_enable_work,
+		scheduled_enable_backlight);
+	//xmtdf xmlwz add end,bug-id 0034151
 #endif
 }
 

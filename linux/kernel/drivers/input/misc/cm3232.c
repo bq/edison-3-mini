@@ -52,7 +52,7 @@ unsigned int justResume = 0;
 struct hrtimer cm3232_timer;
 static ssize_t cm3232_config_read_proc(struct file *file, char __user *page, size_t size, loff_t *ppos)
 {
-    char *ptr = page;
+    char ptr[2];
     int i;
     printk("cm3232_config_read_proc, justResume: %d \n", justResume);
     if (justResume == 0)
@@ -60,6 +60,8 @@ static ssize_t cm3232_config_read_proc(struct file *file, char __user *page, siz
     else
         ptr[0] = '1';
     ptr[1]= 0;
+//modify by zhanghf  fix BU413
+    copy_to_user(page,ptr,2);
     return 0;
 }
 static ssize_t cm3232_config_write_proc(struct file *filp, const char __user *buffer, size_t count, loff_t *off)

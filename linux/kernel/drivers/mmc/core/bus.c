@@ -170,9 +170,9 @@ static int mmc_runtime_idle(struct device *dev)
 #endif /* !CONFIG_PM_RUNTIME */
 
 static const struct dev_pm_ops mmc_bus_pm_ops = {
-	SET_RUNTIME_PM_OPS(mmc_runtime_suspend, mmc_runtime_resume,
-			mmc_runtime_idle)
-	SET_SYSTEM_SLEEP_PM_OPS(mmc_bus_suspend, mmc_bus_resume)
+	//SET_RUNTIME_PM_OPS(mmc_runtime_suspend, mmc_runtime_resume,
+	//		mmc_runtime_idle)
+	//SET_SYSTEM_SLEEP_PM_OPS(mmc_bus_suspend, mmc_bus_resume)
 };
 
 static struct bus_type mmc_bus_type = {

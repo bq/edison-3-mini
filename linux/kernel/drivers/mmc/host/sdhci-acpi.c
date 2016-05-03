@@ -531,6 +531,7 @@ static int sdhci_acpi_probe(struct platform_device *pdev)
 	c->use_runtime_pm = sdhci_acpi_flag(c, SDHCI_ACPI_RUNTIME_PM);
 	c->cd_gpio = -ENODEV;
 	c->autosuspend_delay = 0;
+	c->use_runtime_pm = false;
 
 	platform_set_drvdata(pdev, c);
 
