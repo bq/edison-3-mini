@@ -535,12 +535,10 @@ next:
 	if (ret == -2) {
 		//here sleep 1ms will cause big TP loss of TX
 		//from 50+ to 40+
-		/*if(padapter->registrypriv.wifi_spec)
+		if(padapter->registrypriv.wifi_spec)
 			rtw_msleep_os(1);
 		else
-			rtw_yield_os();*/
-		//Patch for RTWHALXT occupy too much CPU resource to cause ANR
-		rtw_msleep_os(1);
+			rtw_yield_os();
 		goto next;
 	}
 

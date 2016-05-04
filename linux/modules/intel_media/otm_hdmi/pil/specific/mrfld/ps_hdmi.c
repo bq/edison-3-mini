@@ -101,10 +101,6 @@ static hdmi_context_t *g_context = NULL;
 #define PS_MSIC_LS_EN_GPIO_PIN_NAME "HDMI_LS_EN"
 #define PS_MSIC_CPD_HPD_GPIO_PIN 0x7F
 
-/* MOOREFIELD SPECIFIC */
-#define PMIC_GPIO0_CTRL_REG_OFST	0x7E
-#define PMIC_GPIO0_CFG_VAL	0x2A
-
 /* For Merrifield, it is required that SW pull up or pull down the
  * LS_OE GPIO pin based on cable status. This is needed before
  * performing any EDID read operation on Merrifield.
@@ -130,6 +126,7 @@ static void __ps_gpio_configure_edid_read(void)
 		gpio_set_value(ctx->gpio_ls_en_pin, 0);
 	else
 		gpio_set_value(ctx->gpio_ls_en_pin, 1);
+
 	pr_debug("%s: MSIC_LS_OE pin = %d (%d)\n", __func__,
 		 gpio_get_value(ctx->gpio_ls_en_pin), new_pin_value);
 }
@@ -208,22 +205,9 @@ otm_hdmi_ret_t ps_hdmi_pci_dev_init(void *context, struct pci_dev *pdev)
 		goto exit;
 	}
 
-	/* on moorefield V0 platform, HDMI_LS_EN is driven from SHADYCOVE PMIC */
-	if (INTEL_MID_BOARD(2, PHONE, MOFD, V0, PRO)) {
-		pr_debug("configure MSIC GPIO0(HDMI_LS_EN) for MOOREFIELD V0 \
-				o/p=1 pu=50k pu/pd=enabled od=1 dir=ouptut\n");
-
-		result = intel_scu_ipc_iowrite8(PMIC_GPIO0_CTRL_REG_OFST, PMIC_GPIO0_CFG_VAL);
-
-		if(result != 0) {
-			pr_err("%s failed to configure GPIO0(HDMI_LS_EN)\n",__func__);
-			rc = OTM_HDMI_ERR_FAILED;
-			goto exit;
-		}
-	}
-
 	/* Set the GPIO based on cable status */
 	__ps_gpio_configure_edid_read();
+
 exit:
 	return rc;
 }

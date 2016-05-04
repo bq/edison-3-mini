@@ -956,7 +956,7 @@ int ov5693_t_vcm_timing(struct v4l2_subdev *sd, s32 value)
 		return dev->vcm_driver->t_vcm_timing(sd, value);
 	return 0;
 }
-
+#if 0
 struct ov5693_control ov5693_controls[] = {
 	{
 	 .qc = {
@@ -1156,7 +1156,7 @@ static int ov5693_queryctrl(struct v4l2_subdev *sd, struct v4l2_queryctrl *qc)
 
 	return 0;
 }
-
+#endif
 static struct ov5693_reg const  Normal_full[]={
 //Mirror_on_full
 {OV5693_8BIT, 0x3820, 0x00},
@@ -1300,6 +1300,220 @@ static int ov5693_t_vflip(struct v4l2_subdev *sd, int value)
 }
 
 
+static int ov5693_s_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct ov5693_device *dev = container_of(
+		ctrl->handler, struct ov5693_device, ctrl_handler);
+	struct i2c_client *client = v4l2_get_subdevdata(&dev->sd);
+	int ret = 0;
+
+	switch (ctrl->id) {
+	case V4L2_CID_VFLIP:
+		dev_info(&client->dev, "@%s: vflip:%d", __func__, ctrl->val);
+		if(ctrl->val) v_flag=1;else  v_flag=0;
+		break;
+	case V4L2_CID_HFLIP:
+		dev_info(&client->dev, "@%s: hflip:%d", __func__, ctrl->val);
+		if(ctrl->val) h_flag=1;else  h_flag=0;
+		break;
+	case V4L2_CID_FOCUS_ABSOLUTE:
+		ret = ov5693_t_focus_abs(&dev->sd, ctrl->val);
+		break;
+	case V4L2_CID_FOCUS_RELATIVE:
+		ret = ov5693_t_focus_rel(&dev->sd, ctrl->val);
+		break;
+	default:
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
+static int ov5693_g_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct ov5693_device *dev = container_of(
+		ctrl->handler, struct ov5693_device, ctrl_handler);
+	struct i2c_client *client = v4l2_get_subdevdata(&dev->sd);
+	int ret = 0;
+
+	switch (ctrl->id) {
+	case V4L2_CID_EXPOSURE_ABSOLUTE:
+		ret = ov5693_q_exposure(&dev->sd, &ctrl->val);
+		break;
+	case V4L2_CID_FOCAL_ABSOLUTE:
+		ret = ov5693_g_focal(&dev->sd, &ctrl->val);
+		break;
+	case V4L2_CID_FNUMBER_ABSOLUTE:
+		ret = ov5693_g_fnumber(&dev->sd, &ctrl->val);
+		break;
+	case V4L2_CID_FNUMBER_RANGE:
+		ret = ov5693_g_fnumber_range(&dev->sd, &ctrl->val);
+		break;
+	case V4L2_CID_FOCUS_ABSOLUTE:
+		ret = ov5693_q_focus_abs(&dev->sd, &ctrl->val);
+		break;
+	case V4L2_CID_FOCUS_STATUS:
+		ret = ov5693_q_focus_status(&dev->sd, &ctrl->val);
+		break;
+	case V4L2_CID_BIN_FACTOR_HORZ:
+		ctrl->val = ov5693_g_bin_factor_x(&dev->sd, &ctrl->val);
+		break;
+	case V4L2_CID_BIN_FACTOR_VERT:
+		ctrl->val = ov5693_g_bin_factor_y(&dev->sd, &ctrl->val);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return ret;
+}
+static const struct v4l2_ctrl_ops ctrl_ops = {
+       .s_ctrl = ov5693_s_ctrl,
+       .g_volatile_ctrl = ov5693_g_ctrl
+};
+
+struct v4l2_ctrl_config ov5693_controls[] = {
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_EXPOSURE_ABSOLUTE,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "exposure",
+		.min = 0x0,
+		.max = 0xffff,
+		.step = 0x01,
+		.def = 0x00,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_VFLIP,
+		.type = V4L2_CTRL_TYPE_BOOLEAN,
+		.name = "Flip",
+		.min = 0,
+		.max = 1,
+		.step = 1,
+		.def = 0,
+	},
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_HFLIP,
+		.type = V4L2_CTRL_TYPE_BOOLEAN,
+		.name = "Mirror",
+		.min = 0,
+		.max = 1,
+		.step = 1,
+		.def = 0,
+	},
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_FOCAL_ABSOLUTE,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "focal length",
+		.min = OV5693_FOCAL_LENGTH_DEFAULT,
+		.max = OV5693_FOCAL_LENGTH_DEFAULT,
+		.step = 0x01,
+		.def = OV5693_FOCAL_LENGTH_DEFAULT,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_FNUMBER_ABSOLUTE,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "f-number",
+		.min = OV5693_F_NUMBER_DEFAULT,
+		.max = OV5693_F_NUMBER_DEFAULT,
+		.step = 0x01,
+		.def = OV5693_F_NUMBER_DEFAULT,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_FNUMBER_RANGE,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "f-number range",
+		.min = OV5693_F_NUMBER_RANGE,
+		.max =  OV5693_F_NUMBER_RANGE,
+		.step = 0x01,
+		.def = OV5693_F_NUMBER_RANGE,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_FOCUS_ABSOLUTE,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "focus move absolute",
+		.min = 0,
+		.max = VCM_MAX_FOCUS_POS,
+		.step = 1,
+		.def = 0,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_FOCUS_RELATIVE,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "focus move relative",
+		.min = OV5693_MAX_FOCUS_NEG,
+		.max = OV5693_MAX_FOCUS_POS,
+		.step = 1,
+		.def = 0,
+	},
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_FOCUS_STATUS,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "focus status",
+		.min = 0,
+		.max = 100,	/* allow enum to grow in the future */
+		.step = 1,
+		.def = 0,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_VCM_SLEW,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "vcm slew",
+		.min = 0,
+		.max = OV5693_VCM_SLEW_STEP_MAX,
+		.step = 1,
+		.def = 0,
+	},
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_VCM_TIMEING,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "vcm step time",
+		.min = 0,
+		.max = OV5693_VCM_SLEW_TIME_MAX,
+		.step = 1,
+		.def = 0,
+	},
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_BIN_FACTOR_HORZ,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "horizontal binning factor",
+		.min = 0,
+		.max = OV5693_BIN_FACTOR_MAX,
+		.step = 1,
+		.def = 0,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_BIN_FACTOR_VERT,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "vertical binning factor",
+		.min = 0,
+		.max = OV5693_BIN_FACTOR_MAX,
+		.step = 1,
+		.def = 0,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+};
+
+#if 0
 /* ov5693 control set/get */
 static int ov5693_g_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 {
@@ -1345,6 +1559,7 @@ static int ov5693_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 
 	return ret;
 }
+#endif
 
 static int ov5693_init_registers(struct v4l2_subdev *sd)
 {
@@ -1428,8 +1643,8 @@ static int power_down(struct v4l2_subdev *sd)
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int ret = 0;
 
-	v_flag = 0;
-	h_flag = 0;
+	//v_flag = 0;
+	//h_flag = 0;
 
 	dev->focus = OV5693_INVALID_CONFIG;
 	if (NULL == dev->platform_data) {
@@ -1518,8 +1733,8 @@ static int ov5693_s_power_always_on(struct v4l2_subdev *sd, int on)
 		//ret = power_down(sd);
 		//dev->power = 0;
 		// For case camera is stream-on, and then closed without a stream-off.
-		v_flag = 0;
-		h_flag = 0;
+		//v_flag = 0;
+		//h_flag = 0;
 
 		ret = ov5693_set_suspend(sd);
 
@@ -1842,6 +2057,26 @@ static int ov5693_enum_mbus_fmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int __ov5693_init_ctrl_handler(struct ov5693_device *dev)
+{
+	struct v4l2_ctrl_handler *hdl;
+	int i;
+
+	hdl = &dev->ctrl_handler;
+
+	v4l2_ctrl_handler_init(&dev->ctrl_handler, ARRAY_SIZE(ov5693_controls));
+
+	for (i = 0; i < ARRAY_SIZE(ov5693_controls); i++)
+		v4l2_ctrl_new_custom(&dev->ctrl_handler,
+				&ov5693_controls[i], NULL);
+
+	dev->ctrl_handler.lock = &dev->input_lock;
+	dev->sd.ctrl_handler = hdl;
+	v4l2_ctrl_handler_setup(&dev->ctrl_handler);
+
+	return 0;
+}
+
 static int ov5693_s_config(struct v4l2_subdev *sd, int irq, void *platform_data)
 {
 	struct ov5693_device *dev = to_ov5693_sensor(sd);
@@ -1854,7 +2089,7 @@ static int ov5693_s_config(struct v4l2_subdev *sd, int irq, void *platform_data)
 	dev->platform_data =
 	    (struct camera_sensor_platform_data *)platform_data;
 
-	mutex_lock(&dev->input_lock);
+//	mutex_lock(&dev->input_lock); // because v4l2_ctrl_handler_free() has the same log
 	/* power off the module, then power on it in future
 	 * as first power on by board may not fulfill the
 	 * power on sequqence needed by the module
@@ -1881,8 +2116,11 @@ static int ov5693_s_config(struct v4l2_subdev *sd, int irq, void *platform_data)
 		dev_err(&client->dev, "ov5693_detect err s_config.\n");
 		goto fail_csi_cfg;
 	}
-
 	dev->otp_data = ov5693_otp_read(sd);
+
+	ret = __ov5693_init_ctrl_handler(dev);
+	if (ret)
+		v4l2_ctrl_handler_free(&dev->ctrl_handler);
 
 	/* turn off sensor, after probed */
 	ret = power_down(sd);
@@ -1890,7 +2128,7 @@ static int ov5693_s_config(struct v4l2_subdev *sd, int irq, void *platform_data)
 		dev_err(&client->dev, "ov5693 power-off err.\n");
 		goto fail_csi_cfg;
 	}
-	mutex_unlock(&dev->input_lock);
+//	mutex_unlock(&dev->input_lock);
 
 	return 0;
 
@@ -2082,9 +2320,9 @@ static const struct v4l2_subdev_core_ops ov5693_core_ops = {
 #else
 	.s_power = ov5693_s_power,
 #endif
-	.queryctrl = ov5693_queryctrl,
-	.g_ctrl = ov5693_g_ctrl,
-	.s_ctrl = ov5693_s_ctrl,
+	.queryctrl = v4l2_subdev_queryctrl,
+	.g_ctrl = v4l2_subdev_g_ctrl,
+	.s_ctrl = v4l2_subdev_s_ctrl,
 	.ioctl = ov5693_ioctl,
 };
 
@@ -2110,6 +2348,7 @@ static int ov5693_remove(struct i2c_client *client)
 
 	dev->platform_data->csi_cfg(sd, 0);
 
+	v4l2_ctrl_handler_free(&dev->ctrl_handler);
 	v4l2_device_unregister_subdev(sd);
 	media_entity_cleanup(&dev->sd.entity);
 	kfree(dev);

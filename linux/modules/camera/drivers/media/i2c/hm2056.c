@@ -39,6 +39,38 @@
 
 #include "hm2056.h"
 
+static int h_flag = 0;
+static int v_flag = 0;
+
+static enum atomisp_bayer_order hm2056_bayer_order_mapping[] = {
+        atomisp_bayer_order_grbg,
+        atomisp_bayer_order_bggr,
+        atomisp_bayer_order_rggb,
+        atomisp_bayer_order_gbrg,
+};
+
+static enum v4l2_mbus_pixelcode hm2056_translate_bayer_order(enum atomisp_bayer_order code)
+{
+	switch (code) {
+                case atomisp_bayer_order_gbrg: // 3
+                        return V4L2_MBUS_FMT_SGBRG8_1X8;
+
+                case atomisp_bayer_order_bggr: // 1
+                        return V4L2_MBUS_FMT_SBGGR8_1X8;
+
+                case atomisp_bayer_order_grbg: // 0
+                        return V4L2_MBUS_FMT_SGRBG8_1X8;
+
+                case atomisp_bayer_order_rggb: // 2
+                        return V4L2_MBUS_FMT_SRGGB8_1X8;
+
+                default:
+                        break;
+	}
+
+	return 0;
+}
+
 /* i2c read/write stuff */
 static int hm2056_read_reg(struct i2c_client *client,
 			   u16 data_length, u16 reg, u16 *val)
@@ -372,9 +404,12 @@ static int hm2056_g_hflip(struct v4l2_subdev *sd, s32* value)
 
 static int hm2056_s_vflip(struct v4l2_subdev *sd, s32 value)
 {
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	int ret;
-	u16 flip;
+        u16 index = 0;
+        u16 flip = 0;
+        int ret = 0;
+        struct i2c_client *client = v4l2_get_subdevdata(sd);
+        struct hm2056_device *dev = to_hm2056_sensor(sd);
+        struct camera_mipi_info *hm2056_info = NULL;
 
 	ret = hm2056_read_reg(client, HM2056_8BIT, 0x0006, &flip);
 	if (ret) {
@@ -394,14 +429,24 @@ static int hm2056_s_vflip(struct v4l2_subdev *sd, s32 value)
 			__func__);
 	}
 
+        index = ((v_flag) ? HM2056_FLIP_BIT : 0) | ((h_flag) ? HM2056_MIRROR_BIT : 0);
+        hm2056_info = v4l2_get_subdev_hostdata(sd);
+        if (hm2056_info) {
+                hm2056_info->raw_bayer_order = hm2056_bayer_order_mapping[index];
+                dev->format.code = hm2056_translate_bayer_order(hm2056_info->raw_bayer_order);
+        }
+
 	return ret;
 }
 
 static int hm2056_s_hflip(struct v4l2_subdev *sd, s32 value)
 {
-	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	int ret;
-	u16 flip;
+        u16 index = 0;
+        u16 flip = 0;
+        int ret = 0;
+        struct i2c_client *client = v4l2_get_subdevdata(sd);
+        struct hm2056_device *dev = to_hm2056_sensor(sd);
+        struct camera_mipi_info *hm2056_info = NULL;
 
 	ret = hm2056_read_reg(client, HM2056_8BIT, 0x0006, &flip);
 	if (ret) {
@@ -420,6 +465,13 @@ static int hm2056_s_hflip(struct v4l2_subdev *sd, s32 value)
 		dev_err(&client->dev, "%s: write 0x0006 error, aborted\n",
 			__func__);
 	}
+
+        index = ((v_flag) ? HM2056_FLIP_BIT : 0) | ((h_flag) ? HM2056_MIRROR_BIT : 0);
+        hm2056_info = v4l2_get_subdev_hostdata(sd);
+        if (hm2056_info) {
+                hm2056_info->raw_bayer_order = hm2056_bayer_order_mapping[index];
+                dev->format.code = hm2056_translate_bayer_order(hm2056_info->raw_bayer_order);
+        }
 
 	return ret;
 }
@@ -718,6 +770,20 @@ static int hm2056_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 	if ((octrl == NULL) || (octrl->tweak == NULL))
 		return -EINVAL;
 
+	switch (ctrl->id)
+	{
+		case V4L2_CID_VFLIP:
+                        v_flag = (ctrl->value) ? 1 : 0;
+                        break;
+
+		case V4L2_CID_HFLIP:
+                        h_flag = (ctrl->value) ? 1 : 0;
+                        break;
+
+		default:
+                        break;
+	};
+
 	mutex_lock(&dev->input_lock);
 	ret = octrl->tweak(sd, ctrl->value);
 	mutex_unlock(&dev->input_lock);
@@ -798,6 +864,9 @@ static int power_down(struct v4l2_subdev *sd)
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int ret = 0;
 
+        h_flag = 0;
+        v_flag = 0;
+
 	if (NULL == dev->platform_data) {
 		dev_err(&client->dev,
 			"no camera_sensor_platform_data");
@@ -849,7 +918,7 @@ static int hm2056_s_power(struct v4l2_subdev *sd, int on)
  * res->width/height smaller than w/h wouldn't be considered.
  * Returns the value of gap or -1 if fail.
  */
-#define LARGEST_ALLOWED_RATIO_MISMATCH 800
+#define LARGEST_ALLOWED_RATIO_MISMATCH 600
 static int distance(struct hm2056_resolution *res, u32 w, u32 h)
 {
 	unsigned int w_ratio = ((res->width << 13)/w);

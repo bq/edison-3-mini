@@ -363,22 +363,46 @@ struct tdls_ss_record{	//signal strength record
 	u8		is_tdls_sta;	// _TRUE: direct link sta, _FALSE: else
 };
 
+struct tdls_temp_mgmt{
+	u8	initiator;	// 0: None, 1: we initiate, 2: peer initiate
+	u8	peer_addr[ETH_ALEN];
+};
+
+#ifdef CONFIG_TDLS_CH_SW
+struct tdls_ch_switch{
+	u32	ch_sw_state;
+	ATOMIC_T	chsw_on;
+	u8	addr[ETH_ALEN];
+	u8	off_ch_num;
+	u8	ch_offset;
+	u32	cur_time;
+	u8	delay_switch_back;
+	u8	dump_stack;
+};
+#endif
+
 struct tdls_info{
 	u8					ap_prohibited;
+	u8					ch_switch_prohibited;
 	u8					link_established;
 	u8					sta_cnt;
-	u8					sta_maximum;	// 1:tdls sta is equal (NUM_STA-1), reach max direct link number; 0: else;
+	u8					sta_maximum;	/* 1:tdls sta is equal (NUM_STA-1), reach max direct link number; 0: else; */
 	struct tdls_ss_record	ss_record;
+#ifdef CONFIG_TDLS_CH_SW	
+	struct tdls_ch_switch	chsw_info;
+#endif
+
 	u8					ch_sensing;
 	u8					cur_channel;
-	u8					candidate_ch;
 	u8					collect_pkt_num[MAX_CHANNEL_NUM];
 	_lock				cmd_lock;
 	_lock				hdl_lock;
 	u8					watchdog_count;
-	u8					dev_discovered;		//WFD_TDLS: for sigma test
+	u8					dev_discovered;		/* WFD_TDLS: for sigma test */
 	u8					tdls_enable;
-	u8					external_setup;	// _TRUE: setup is handled by wpa_supplicant
+
+	/* Let wpa_supplicant to setup*/
+	u8					driver_setup;
 #ifdef CONFIG_WFD
 	struct wifi_display_info		*wfd_info;
 #endif		
@@ -391,7 +415,6 @@ struct tdls_txmgmt {
 	u16 status_code;
 	u8 *buf;
 	size_t len;
-	u8 external_support;
 };
 
 /* used for mlme_priv.roam_flags */
@@ -828,6 +851,7 @@ extern struct wlan_network* _rtw_alloc_network(struct mlme_priv *pmlmepriv);
 
 extern void _rtw_free_network(struct mlme_priv *pmlmepriv, struct wlan_network *pnetwork, u8 isfreeall);
 extern void _rtw_free_network_nolock(struct mlme_priv *pmlmepriv, struct wlan_network *pnetwork);
+extern void _rtw_free_networks_by_ssid_nolock(_adapter *padapter, u8 isfreeall, NDIS_802_11_SSID *ssid);
 
 
 extern struct wlan_network* _rtw_find_network(_queue *scanned_queue, u8 *addr);

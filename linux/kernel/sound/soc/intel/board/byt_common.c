@@ -28,7 +28,6 @@
 #include <linux/device.h>
 #include <linux/gpio.h>
 #include <linux/slab.h>
-#include <linux/vlv2_plat_clock.h>
 #include <linux/acpi_gpio.h>
 #include <acpi/acpi_bus.h>
 #include <asm/platform_byt_audio.h>
@@ -36,6 +35,7 @@
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
 #include <sound/jack.h>
+#include <asm/intel_soc_pmc.h>
 
 #include "byt_common.h"
 
@@ -106,8 +106,12 @@ int byt_set_bias_level(struct snd_soc_card *card,
 	case SND_SOC_BIAS_PREPARE:
 	case SND_SOC_BIAS_STANDBY:
 		if (card->dapm.bias_level == SND_SOC_BIAS_OFF) {
+			pmc_pc_configure(VLV2_PLAT_CLK_AUDIO,
+				PLAT_CLK_FORCE_ON);
+		/*
 			vlv2_plat_configure_clock(VLV2_PLAT_CLK_AUDIO,
 					PLAT_CLK_FORCE_ON);
+		*/
 			pr_debug("Platform clk turned ON\n");
 		}
 		card->dapm.bias_level = level;
@@ -157,8 +161,11 @@ int byt_set_bias_level_post(struct snd_soc_card *card,
 	case SND_SOC_BIAS_OFF:
 		if (codec->dapm.bias_level != SND_SOC_BIAS_OFF)
 			break;
-		vlv2_plat_configure_clock(VLV2_PLAT_CLK_AUDIO,
+		pmc_pc_configure(VLV2_PLAT_CLK_AUDIO,
+						PLAT_CLK_FORCE_OFF);
+		/* vlv2_plat_configure_clock(VLV2_PLAT_CLK_AUDIO,
 					PLAT_CLK_FORCE_OFF);
+		*/
 		pr_debug("Platform clk turned OFF\n");
 		card->dapm.bias_level = level;
 		break;
@@ -248,7 +255,7 @@ static int snd_byt_common_probe(struct platform_device *pdev)
 	struct acpi_device *device;
 	const char *hid;
 
-	pr_debug("Entry %s\n", __func__);
+	pr_info("Entry %s\n", __func__);
 
 	ctx = devm_kzalloc(&pdev->dev, sizeof(*ctx), GFP_ATOMIC);
 	if (!ctx) {
@@ -340,8 +347,17 @@ const struct dev_pm_ops snd_byt_common_pm_ops = {
 static const struct acpi_device_id byt_common_acpi_ids[] = {
 /* TODO
 for ACPI FW engineer to provide new APCI match id
+Use "TIMC0F28" to test No FW support
 */
-	{ "AMCR0F29", (kernel_ulong_t) &byt_bl_alc5645_ops},
+#ifdef CONFIG_SND_BYT_RT5645
+	{"AMCR0F29", (kernel_ulong_t) &byt_bl_alc5645_ops},
+#endif
+#ifdef CONFIG_SND_BYT_RT5651
+	{"5651x", (kernel_ulong_t) &byt_cr_rt5651_ops},
+#endif
+#ifdef CONFIG_SND_BYT_ES8396
+	{"8396x", (kernel_ulong_t) &byt_bl_es8396_ops},
+#endif
 
 	{},
 };
@@ -374,7 +390,7 @@ static struct platform_driver snd_byt_common_driver = {
 
 static int __init snd_byt_driver_init(void)
 {
-	pr_info("Baytrail Machine Driver byt_catalog_audio registerd\n");
+	pr_info("Baytrail Machine Driver byt_catalog_audio registerd [%s]\n", __func__);
 	return platform_driver_register(&snd_byt_common_driver);
 }
 late_initcall(snd_byt_driver_init);

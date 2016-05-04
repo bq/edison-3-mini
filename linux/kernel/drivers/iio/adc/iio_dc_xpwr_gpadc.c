@@ -34,7 +34,7 @@
 #include <linux/rpmsg.h>
 #include <linux/debugfs.h>
 #include <linux/mfd/intel_mid_pmic.h>
-#include <asm/dc_xpwr_gpadc.h>
+#include <linux/iio/adc/dc_xpwr_gpadc.h>
 
 #include <linux/iio/iio.h>
 #include <linux/iio/machine.h>
@@ -77,16 +77,7 @@
 #define ADC_NON_BAT_CUR_DATAL_MASK	0x0F
 
 #define ADC_TS_PIN_CNRTL_REG           0x84
-
-#ifdef CONFIG_BATTERY_TYPE
-#if defined(CONFIG_BATTERY_BT_B0BFQ)
 #define ADC_TS_PIN_ON                  0xE2
-#elif defined(CONFIG_BATTERY_BT_E002H)
-#define ADC_TS_PIN_ON                  0xE2
-#endif
-#else
-#define ADC_TS_PIN_ON                  0xF2
-#endif
 
 #define DEV_NAME			"dollar_cove_adc"
 
@@ -136,11 +127,13 @@ static const struct iio_chan_spec const dc_xpwr_adc_channels[] = {
 
 static struct iio_map iio_maps[] = {
 	ADC_MAP("CH0", "THERMAL", "BATTEMP"),
-	ADC_MAP("CH1", "byt_cr_thermal", "PMICTEMP"),
-	ADC_MAP("CH2", "byt_cr_thermal", "SYSTEMP0"),
+	ADC_MAP("CH1", "THERMAL", "PMICTEMP"),
+	ADC_MAP("CH2", "THERMAL", "SYSTEMP0"),
 	ADC_MAP("CH3", "CURRENT", "BATCCUR"),
 	ADC_MAP("CH4", "CURRENT", "BATDCUR"),
 	ADC_MAP("CH5", "VIBAT", "VBAT"),
+	ADC_MAP("CH1", "byt_cr_thermal", "PMICTEMP"),
+	ADC_MAP("CH2", "byt_cr_thermal", "SYSTEMP0"),
 };
 
 /**
@@ -159,13 +152,14 @@ static int iio_dc_xpwr_gpadc_sample(struct iio_dev *indio_dev,
 {
 	struct gpadc_info *info = iio_priv(indio_dev);
 	int i;
-	u8 buf[2];
+	u8 th, tl;
+
 	mutex_lock(&info->lock);
 	for (i = 0; i < GPADC_CH_NUM; i++) {
 		if (ch & (1 << i)) {
-			/*change to multibyte read since the address is continious*/
-			intel_mid_pmic_read_multi(gpadc_regmaps[i].rslth, 2, buf);
-			res->data[i] = (buf[0] << 4) + ((buf[1] >> 4) & 0x0F);
+			th = intel_mid_pmic_readb(gpadc_regmaps[i].rslth);
+			tl = intel_mid_pmic_readb(gpadc_regmaps[i].rsltl);
+			res->data[i] = (th << 4) + (tl & 0x0F);
 		}
 	}
 
@@ -290,7 +284,6 @@ err_free_device:
 static int dc_xpwr_gpadc_remove(struct platform_device *pdev)
 {
 	struct iio_dev *indio_dev = platform_get_drvdata(pdev);
-	struct gpadc_info *info = iio_priv(indio_dev);
 
 	iio_device_unregister(indio_dev);
 	iio_map_array_unregister(indio_dev);

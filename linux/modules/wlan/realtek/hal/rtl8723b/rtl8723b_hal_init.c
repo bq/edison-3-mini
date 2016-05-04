@@ -980,7 +980,7 @@ s32 rtl8723b_FirmwareDownload(PADAPTER padapter, BOOLEAN  bUsedWoWLANFw)
 	RT_TRACE(_module_hal_init_c_, _drv_notice_, ("+%s, bUsedWoWLANFw:%d\n", __FUNCTION__,bUsedWoWLANFw));
 #endif
 	pFirmware = (PRT_FIRMWARE_8723B)rtw_zmalloc(sizeof(RT_FIRMWARE_8723B));
-
+	
 	if(!pFirmware)
 	{
 		rtStatus = _FAIL;
@@ -4413,27 +4413,41 @@ Hal_EfuseParseAntennaDiversity_8723B(
 	IN	BOOLEAN			AutoLoadFail
 	)
 {
-#if 0
-	HAL_DATA_TYPE	*pHalData = GET_HAL_DATA(pAdapter);
-	
-	if(!AutoLoadFail)
-	{
-		// Antenna Diversity setting.
-		pHalData->AntDivCfg = (hwinfo[RF_OPTION1_8723A]&0x18)>>3;
+#ifdef CONFIG_ANTENNA_DIVERSITY
+	PHAL_DATA_TYPE		pHalData = GET_HAL_DATA(pAdapter);
+	struct registry_priv	*registry_par = &pAdapter->registrypriv;
 
-		if(BT_1Ant(pAdapter))
-			pHalData->AntDivCfg = 0;
-		pHalData->ReverseDPDT = (hwinfo[RF_OPTION1_8723A]&BIT5) >> 5;
-	}
-	else
-	{
+	if (pHalData->EEPROMBluetoothAntNum == Ant_x1){
 		pHalData->AntDivCfg = 0;
-		pHalData->ReverseDPDT = 1;
 	}
-	
-	RT_TRACE(_module_hci_hal_init_c_, _drv_info_, ("EEPROM SWAS: bHwAntDiv = %x, TRxAntDivType = %x\n", 
-                                                pHalData->AntDivCfg, pHalData->TRxAntDivType));
-#endif	
+	else{
+		if(registry_par->antdiv_cfg == 2)// 0:OFF , 1:ON, 2:By EFUSE
+			pHalData->AntDivCfg = 1;  
+		else
+			pHalData->AntDivCfg = registry_par->antdiv_cfg;
+	}
+
+	//if (REGISTRY(pAdapter,bEfusePriorityAuto) == TRUE)
+	if(registry_par->antdiv_type == 0)// If TRxAntDivType is AUTO in advanced setting, use EFUSE value instead.
+	{
+		pHalData->TRxAntDivType = hwinfo[EEPROM_RFE_OPTION_8723B];
+		if (pHalData->TRxAntDivType == 0xFF)
+			pHalData->TRxAntDivType = S0S1_SW_ANTDIV;//GetRegAntDivType(pAdapter);
+		else if (pHalData->TRxAntDivType == 0x10)
+			pHalData->TRxAntDivType = S0S1_SW_ANTDIV; //intrnal switch S0S1
+		else if (pHalData->TRxAntDivType == 0x11)		
+			pHalData->TRxAntDivType = S0S1_SW_ANTDIV; //intrnal switch S0S1
+		else
+			DBG_8192C("%s: efuse[0x%x]=0x%02x is unknown type\n",
+				__FUNCTION__, EEPROM_RFE_OPTION_8723B, pHalData->TRxAntDivType);
+	}
+	else{
+		pHalData->TRxAntDivType = registry_par->antdiv_type ;//GetRegAntDivType(pAdapter);
+	}
+
+	DBG_8192C("%s: AntDivCfg=%d, AntDivType=%d\n",
+		__FUNCTION__, pHalData->AntDivCfg, pHalData->TRxAntDivType);
+#endif
 }
 
 VOID
@@ -4834,6 +4848,19 @@ static void rtl8723b_fill_default_txdesc(
 #if defined(CONFIG_USB_TX_AGGREGATION) || defined(CONFIG_SDIO_HCI) || defined(CONFIG_GSPI_HCI)
 		ptxdesc->usb_txagg_num = pxmitframe->agg_num;
 #endif
+
+#ifdef CONFIG_TDLS
+#ifdef CONFIG_XMIT_ACK
+		/* CCX-TXRPT ack for xmit mgmt frames. */
+		if (pxmitframe->ack_report) {
+			#ifdef DBG_CCX
+			DBG_8192C("%s set spe_rpt\n", __func__);
+			#endif
+			ptxdesc->spe_rpt = 1;
+			ptxdesc->sw_define = (u8)(GET_PRIMARY_ADAPTER(padapter)->xmitpriv.seq_no);
+		}
+#endif /* CONFIG_XMIT_ACK */
+#endif
 	}
 	else if (pxmitframe->frame_tag == MGNT_FRAMETAG)
 	{
@@ -4989,6 +5016,10 @@ void rtl8723b_update_txdesc(struct xmit_frame *pxmitframe, u8 *pbuf)
 	pdesc->txdw14 = cpu_to_le32(pdesc->txdw14);
 	pdesc->txdw15 = cpu_to_le32(pdesc->txdw15);
 #endif
+
+#ifdef CONFIG_ANTENNA_DIVERSITY
+	ODM_SetTxAntByTxInfo(&GET_HAL_DATA(padapter)->odmpriv, pbuf, pxmitframe->attrib.mac_id);
+#endif // CONFIG_ANTENNA_DIVERSITY
 
 #if defined(CONFIG_USB_HCI) || defined(CONFIG_SDIO_HCI) || defined(CONFIG_GSPI_HCI)
 	rtl8723b_cal_txdesc_chksum(pdesc);
@@ -6536,22 +6567,6 @@ _func_enter_;
 #ifdef CONFIG_TDLS
 		case HW_VAR_TDLS_WRCR:
 			rtw_write32(padapter, REG_RCR, rtw_read32(padapter, REG_RCR)&(~RCR_CBSSID_DATA ));
-			break;
-		case HW_VAR_TDLS_INIT_CH_SEN:
-			{
-				rtw_write32(padapter, REG_RCR, rtw_read32(padapter, REG_RCR)&(~ RCR_CBSSID_DATA )&(~RCR_CBSSID_BCN ));
-				rtw_write16(padapter, REG_RXFLTMAP2,0xffff);
-
-				//disable update TSF
-				rtw_write8(padapter, REG_BCN_CTRL, rtw_read8(padapter, REG_BCN_CTRL)|DIS_TSF_UDT);
-			}
-			break;
-		case HW_VAR_TDLS_DONE_CH_SEN:
-			{
-				//enable update TSF
-				rtw_write8(padapter, REG_BCN_CTRL, rtw_read8(padapter, REG_BCN_CTRL)&(~ DIS_TSF_UDT));
-				rtw_write32(padapter, REG_RCR, rtw_read32(padapter, REG_RCR)|(RCR_CBSSID_BCN ));
-			}
 			break;
 		case HW_VAR_TDLS_RS_RCR:
 			rtw_write32(padapter, REG_RCR, rtw_read32(padapter, REG_RCR)|(RCR_CBSSID_DATA));

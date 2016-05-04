@@ -30,6 +30,11 @@
 #include <sp.h>
 #include "ia_css_circbuf_comm.h"
 #include "ia_css_circbuf_desc.h"
+#ifdef __SP
+#include "event_handler.sp.h"
+/* We should not #define SP_FILE_ID here, because we are in a header file. */
+#include "ia_css_sp_assert_level.sp.h"
+#endif
 
 /****************************************************************
  *
@@ -288,10 +293,12 @@ STORAGE_CLASS_INLINE void ia_css_circbuf_write(
 	OP___assert(cb != NULL);
 	OP___assert(cb->desc != NULL);
 
-	if (ia_css_circbuf_is_full(cb)) {
-		/* Cannot continue as the queue is full*/
-		OP_std_break();
-	}
+	/* Cannot continue as the queue is full*/
+#ifdef __SP
+	SP_ASSERT_FATAL(!ia_css_circbuf_is_full(cb));
+#else
+	assert(!ia_css_circbuf_is_full(cb));
+#endif
 
 	ia_css_circbuf_elem_cpy(&elem, &cb->elems[cb->desc->end]);
 
@@ -350,5 +357,37 @@ STORAGE_CLASS_INLINE uint32_t ia_css_circbuf_get_free_elems(
 STORAGE_CLASS_EXTERN uint32_t ia_css_circbuf_peek(
 	ia_css_circbuf_t *cb,
 	int offset);
+
+/**
+ * @brief Get an element in Circular Buffer.
+ *
+ * @param cb	 The pointer to the circular buffer.
+ * @param offset Offset to the element.
+ *
+ * @return the elements value.
+ */
+STORAGE_CLASS_EXTERN uint32_t ia_css_circbuf_peek_from_start(
+	ia_css_circbuf_t *cb,
+	int offset);
+
+/**
+ * @brief Increase Size of a Circular Buffer.
+ * Use 'CAUTION' before using this function, This was added to
+ * support / fix issue with increasing size for tagger only
+ *
+ * @param cb The pointer to the circular buffer.
+ * @param sz_delta delta increase for new size
+ * @param elems (optional) pointers to new additional elements
+ *		cb element array size will not be increased dynamically,
+ * 		but new elements should be added at the end to existing
+ * 		cb element array which if of max_size >= new size
+ *
+ * @return	true on succesfully increasing the size
+ * 			false on failure
+ */
+STORAGE_CLASS_EXTERN bool ia_css_circbuf_increase_size(
+		ia_css_circbuf_t *cb,
+		unsigned int sz_delta,
+		ia_css_circbuf_elem_t *elems);
 
 #endif /*_IA_CSS_CIRCBUF_H */

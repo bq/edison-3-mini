@@ -54,7 +54,7 @@ static u8 boe_init_sequence_11[]      = {0xF5, 0x84, 0x2F, 0x2F, 0x5F, 0xAB, 0x9
 static u8 boe_init_sequence_12[]			= {0xEE, 0x25, 0x00, 0x25, 0x00, 0x25, 0x00, 0x25, 0x00};
 static u8 boe_init_sequence_13[]			= {0xEF, 0x34, 0x12, 0x98, 0xBA, 0x20, 0x00, 0x24, 0x80};
 static u8 boe_init_sequence_14[]			= {0xF7, 0x0E, 0x0E, 0x0A, 0x0A, 0x0F, 0x0F, 0x0B, 0x0B, 0x05, 0x07, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x0C, 0x0C, 0x08, 0x08, 0x0D, 0x0D, 0x09, 0x09, 0x04, 0x06, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01};
-static u8 boe_init_sequence_15[]      = {0xBC, 0x01, 0x4E, 0x0A}; 
+static u8 boe_init_sequence_15[]      = {0xBC, 0x01, 0x4E, 0x0A};
 static u8 boe_init_sequence_16[]      = {0xE1, 0x03, 0x10, 0x1C, 0xA0, 0x10};
 static u8 boe_init_sequence_17[]      = {0xF6, 0x60, 0x21, 0xA6, 0x00, 0x00, 0x00};
 static u8 boe_init_sequence_18[]      = {0xFE, 0x00, 0x0D, 0x03, 0x21, 0x00, 0x48};
@@ -67,7 +67,7 @@ static u8 boe_init_sequence_24[]      = {0xFA, 0x20, 0x34, 0x24, 0x27, 0x19, 0x1
 static u8 boe_init_sequence_25[]      = {0xB0, 0x11};
 static u8 boe_init_sequence_26[]      = {0xFB, 0x1E, 0x34, 0x22, 0x25, 0x17, 0x19, 0x1D, 0x1A, 0x19, 0x20, 0x1F, 0x1E, 0x20, 0x1E, 0x1E, 0x1F, 0x22};
 static u8 boe_init_sequence_27[]      = {0xFA, 0x1C, 0x34, 0x1C, 0x1F, 0x13, 0x17, 0x1A, 0x18, 0x18, 0x1E, 0x20, 0x21, 0x21, 0x21, 0x23, 0x22, 0x2A};
-static u8 boe_init_sequence_28[]      = {0xFB, 0x1A, 0x34, 0x1A, 0x1D, 0x11, 0x15, 0x18, 0x16, 0x16, 0x1C, 0x20, 0x20, 0x20, 0x1F, 0x23, 0x23, 0x2B};	
+static u8 boe_init_sequence_28[]      = {0xFB, 0x1A, 0x34, 0x1A, 0x1D, 0x11, 0x15, 0x18, 0x16, 0x16, 0x1C, 0x20, 0x20, 0x20, 0x1F, 0x23, 0x23, 0x2B};
 static u8 boe_init_sequence_c3[]      = {0xC3, 0x40, 0x00, 0x28};
 
 void m080wx01b_send_otp_cmds(struct intel_dsi_device *dsi)
@@ -138,6 +138,7 @@ static struct drm_display_mode *m080wx01b_get_modes(
 	struct intel_dsi_device *dsi)
 {
 	struct drm_display_mode *mode = NULL;
+	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
 	DRM_DEBUG_KMS("\n");
 	/* Allocate */
 	mode = kzalloc(sizeof(*mode), GFP_KERNEL);
@@ -162,7 +163,7 @@ static struct drm_display_mode *m080wx01b_get_modes(
 	mode->vrefresh = 60;
 	mode->clock =  mode->vrefresh * mode->vtotal *
 	mode->htotal / 1000;
-
+	intel_dsi->pclk = mode->clock;
 	/* Configure */
 	drm_mode_set_name(mode);
 	drm_mode_set_crtcinfo(mode, 0);
@@ -170,7 +171,6 @@ static struct drm_display_mode *m080wx01b_get_modes(
 
 	return mode;
 }
-
 
 static bool m080wx01b_get_hw_state(struct intel_dsi_device *dev)
 {
@@ -229,10 +229,9 @@ static int m080wx01b_mode_valid(struct intel_dsi_device *dsi,
 
 static void m080wx01b_dpms(struct intel_dsi_device *dsi, bool enable)
 {
-//	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-
 	DRM_DEBUG_KMS("\n");
 }
+
 static void m080wx01b_enable(struct intel_dsi_device *dsi)
 {
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
@@ -244,6 +243,7 @@ static void m080wx01b_enable(struct intel_dsi_device *dsi)
 	msleep(5);
 	dsi_vc_dcs_write_0(intel_dsi, 0, 0x29);
 }
+
 static void m080wx01b_disable(struct intel_dsi_device *dsi)
 {
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
@@ -258,8 +258,6 @@ static void m080wx01b_disable(struct intel_dsi_device *dsi)
 bool m080wx01b_init(struct intel_dsi_device *dsi)
 {
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-//	struct drm_device *dev = intel_dsi->base.base.dev;
-//	struct drm_i915_private *dev_priv = dev->dev_private;
 
 	/* create private data, slam to dsi->dev_priv. could support many panels
 	 * based on dsi->name. This panal supports both command and video mode,
@@ -301,15 +299,15 @@ bool m080wx01b_init(struct intel_dsi_device *dsi)
 	/* BTA sending at the last blanking line of VFP is disabled */
 	intel_dsi->video_frmt_cfg_bits = 1<<3;
 	intel_dsi->lane_count = 4;
+	intel_dsi->port = 0; /* PORT_A by default */
+	intel_dsi->burst_mode_ratio = 100;
 
 	intel_dsi->backlight_off_delay = 20;
 	intel_dsi->send_shutdown = true;
 	intel_dsi->shutdown_pkt_delay = 20;
-	//dev_priv->mipi.panel_bpp = 24;
 
 	return true;
 }
-
 
 /* Callbacks. We might not need them all. */
 struct intel_dsi_dev_ops mjk_m080wx01b_dsi_display_ops = {
@@ -328,5 +326,4 @@ struct intel_dsi_dev_ops mjk_m080wx01b_dsi_display_ops = {
 	.enable = m080wx01b_enable,
 	.disable = m080wx01b_disable,
 	.send_otp_cmds = m080wx01b_send_otp_cmds,
-
 };

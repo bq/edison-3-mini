@@ -17,14 +17,14 @@
 #include <asm/intel-mid.h>
 #include <media/v4l2-subdev.h>
 #include <linux/mfd/intel_mid_pmic.h>
-#include <linux/vlv2_plat_clock.h>
+#include <asm/intel_soc_pmc.h>
 #include "platform_camera.h"
 #include "platform_ov8858.h"
 
 /* workround - pin defined for byt */
 #define CAMERA_0_RESET 119 //meng 0924 :MCSI_GPIO[09]
 #define CAMERA_0_PWDN 123 //MCSI_GPIO[06]-active low to power down in P1
-#ifdef CONFIG_VLV2_PLAT_CLK 
+#ifdef CONFIG_INTEL_SOC_PMC 
 #define OSC_CAM0_CLK 0x0
 #define CLK_19P2MHz 0x1
 #endif
@@ -123,14 +123,14 @@ static int ov8858_flisclk_ctrl(struct v4l2_subdev *sd, int flag)
 {
 	static const unsigned int clock_khz = 19200;
 
-#ifdef CONFIG_VLV2_PLAT_CLK
+#ifdef CONFIG_INTEL_SOC_PMC
 	if (flag) {
 		int ret;
-		ret = vlv2_plat_set_clock_freq(OSC_CAM0_CLK, CLK_19P2MHz);
+		ret = pmc_pc_set_freq(OSC_CAM0_CLK, CLK_19P2MHz);
 		if (ret)
 			return ret;
 	}
-	return vlv2_plat_configure_clock(OSC_CAM0_CLK, flag);
+	return pmc_pc_configure(OSC_CAM0_CLK, flag);
 #endif
 	if (intel_mid_identify_cpu() != INTEL_MID_CPU_CHIP_VALLEYVIEW2)
 		return intel_scu_ipc_osc_clk(OSC_CLK_CAM0,

@@ -2595,6 +2595,7 @@ static int sep_interrupt_process(struct sep_drvdata *drvdata)
 		    irq_mask & SEP_HOST_GPR_IRQ_MASK(DX_SEP_REQUEST_GPR_IDX)) {
 			dx_sep_req_handler(drvdata);
 		}
+
 		cause_reg &= ~SEP_HOST_GPR_IRQ_MASK(DX_SEP_REQUEST_GPR_IDX);
 	}
 
@@ -3938,9 +3939,8 @@ static const struct file_operations sep_fops = {
 	.write = sep_write,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = sep_compat_ioctl,
-#else
-	.unlocked_ioctl = sep_ioctl,
 #endif
+	.unlocked_ioctl = sep_ioctl,
 };
 
 /**
@@ -4142,7 +4142,6 @@ static int rpmb_agent(void *unused)
 	u8 in_buf[RPMB_FRAME_LENGTH];
 	u8 *out_buf = NULL;
 	u32 in_buf_size = RPMB_FRAME_LENGTH;
-	u32 timeout = INT_MAX;
 	/* structure to pass to the eMMC driver's RPMB API */
 	struct mmc_ioc_rpmb_req req2emmc;
 
@@ -4159,13 +4158,11 @@ static int rpmb_agent(void *unused)
 	}
 
 	while (1) {
-		/* Block until called by SEP */
-		do {
-			pr_info("RPMB AGENT BLOCKED\n");
-			ret = dx_sep_req_wait_for_request(RPMB_AGENT_ID,
-					in_buf, &in_buf_size, timeout);
-		} while (ret == -EAGAIN);
 
+		/* Block until called by SEP */
+		pr_info("RPMB AGENT BLOCKED\n");
+		ret = dx_sep_req_wait_for_request(RPMB_AGENT_ID,
+				in_buf, &in_buf_size);
 		if (ret) {
 			pr_err("WAIT FAILED %d\n", ret);
 			break;
@@ -4252,7 +4249,7 @@ static int sep_setup(struct device *dev,
 	struct sep_drvdata *drvdata = NULL;
 	enum dx_sep_state sep_state;
 	int rc = 0;
-	int i;
+	int i, init_flag = INIT_FW_FLAG;
 	/* Create kernel thread for RPMB agent */
 	static struct task_struct *rpmb_thread;
 	char thread_name[] = "rpmb_agent";
@@ -4380,6 +4377,14 @@ static int sep_setup(struct device *dev,
 		if (unlikely(rc != 0))
 			goto failed5;
 	}
+
+	if (sep_state == DX_SEP_STATE_DONE_FW_INIT) {
+		/*If fw init was done change the state to reload driver state*/
+		rc = sepinit_reload_driver_state(drvdata);
+		if (unlikely(rc != 0))
+			goto failed5;
+	}
+
 	sepinit_get_fw_props(drvdata);
 	if (drvdata->fw_ver != EXPECTED_FW_VER) {
 		pr_warn("Expected FW version %u.%u.%u but got %u.%u.%u\n",
@@ -4424,7 +4429,7 @@ static int sep_setup(struct device *dev,
 		drvdata->queue[i].sep_data = drvdata;
 		mutex_init(&drvdata->queue[i].desc_queue_sequencer);
 		drvdata->queue[i].desc_queue =
-		    desc_q_create(i, &drvdata->queue[i]);
+		    desc_q_create(i, &drvdata->queue[i], sep_state);
 		if (drvdata->queue[i].desc_queue == DESC_Q_INVALID_HANDLE) {
 			pr_err("Unable to allocate desc_q object (%d)\n", i);
 			rc = -ENOMEM;
@@ -4450,7 +4455,18 @@ static int sep_setup(struct device *dev,
 		}
 	}
 
-	rc = sepinit_do_fw_init(drvdata);
+	if (sep_state != DX_SEP_STATE_DONE_FW_INIT) {
+		rc = sepinit_do_fw_init(drvdata, init_flag);
+	} else {
+		init_flag = INIT_SEP_SWQ_FLAG;
+		/*In case the sep state is DONE perform update counter
+		  of the queues */
+		for (i = 0; i < drvdata->num_of_desc_queues; i++)
+			desc_q_cntr_set(drvdata->queue[i].desc_queue);
+
+		rc = sepinit_do_fw_init(drvdata, init_flag);
+	}
+
 	if (unlikely(rc != 0))
 		goto failed7;
 

@@ -9,7 +9,6 @@
 #include <linux/irq.h>
 #include <linux/module.h>
 
-
 #ifndef _IIO_TRIGGER_H_
 #define _IIO_TRIGGER_H_
 
@@ -145,5 +144,4 @@ void iio_trigger_free(struct iio_trigger *trig);
 struct iio_trigger;
 struct iio_trigger_ops;
 #endif
-
 #endif /* _IIO_TRIGGER_H_ */

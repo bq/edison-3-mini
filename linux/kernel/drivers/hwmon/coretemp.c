@@ -680,7 +680,7 @@ static int __cpuinit create_core_attrs(struct temp_data *tdata,
 					"temp%d_threshold2_triggered" };
 
 	for (i = 0; i < tdata->attr_size; i++) {
-		snprintf(tdata->attr_name[i], sizeof(tdata->attr_name[i]),
+		snprintf(tdata->attr_name[i], CORETEMP_NAME_LENGTH,
 				names[i], attr_no);
 		sysfs_attr_init(&tdata->sd_attrs[i].dev_attr.attr);
 		tdata->sd_attrs[i].dev_attr.attr.name = tdata->attr_name[i];

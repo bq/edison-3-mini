@@ -38,7 +38,6 @@
 #include <linux/mfd/intel_mid_pmic.h>
 #include <asm/dc_xpwr_pwrsrc.h>
 #include <linux/gpio.h>
-#include <linux/usb/dwc3-intel-mid.h>
 
 #define DC_PS_STAT_REG			0x00
 #define PS_STAT_VBUS_TRIGGER		(1 << 0)
@@ -90,13 +89,7 @@
 #define DC_BC12_IRQ_CFG_REG		0x45
 #define BC12_IRQ_CFG_MASK		0x3
 
-#if defined(CONFIG_MALATA_E1008) || defined(CONFIG_MALATA_E1008_3G)
-#define DC_XPWR_CHARGE_CUR_DCP		2000
-#elif defined(CONFIG_MALATA_E8005)  // xmsxm modified @ 2014-09-28, temporarily use project building-switch to avoid affecting other projects.
 #define DC_XPWR_CHARGE_CUR_DCP		1500
-#else
-#define DC_XPWR_CHARGE_CUR_DCP		2000
-#endif
 #define DC_XPWR_CHARGE_CUR_CDP		1500
 #define DC_XPWR_CHARGE_CUR_SDP		100
 
@@ -154,7 +147,7 @@ static void dc_xpwr_pwrsrc_log_rsi(struct platform_device *pdev,
 	while (rsi_info) {
 		bit_select = (1 << i);
 		if (val & bit_select) {
-			dev_info(&pdev->dev, "%s\n", rsi_info);
+			dev_dbg(&pdev->dev, "%s\n", rsi_info);
 			clear_mask |= bit_select;
 		}
 		rsi_info = pwrsrc_rsi_info[++i];
@@ -206,24 +199,22 @@ static int handle_chrg_det_event(struct dc_pwrsrc_info *info)
 
 	ret = intel_mid_pmic_readb(DC_PS_STAT_REG);
 	if (ret < 0) {
-		dev_info(&info->pdev->dev, "get vbus stat error\n");
+		dev_err(&info->pdev->dev, "get vbus stat error\n");
 		return ret;
 	}
 
 	if ((ret & PS_STAT_VBUS_PRESENT) && !info->id_short) {
-		dev_info(&info->pdev->dev, "VBUS present\n");
+		dev_dbg(&info->pdev->dev, "VBUS present\n");
 		vbus_attach = true;
 	} else {
-		dev_info(&info->pdev->dev, "VBUS NOT present\n");
+		dev_dbg(&info->pdev->dev, "VBUS NOT present\n");
 		vbus_attach = false;
-#if 0 //fixed:in low power charging, pluging or unpluging in charger, can't charging by xmyyq
 		cable_props.ma = 0;
-#endif
 		cable_props.chrg_evt = POWER_SUPPLY_CHARGER_EVENT_DISCONNECT;
 		goto notify_otg_em;
 	}
 
-	// xmsxm add @ 2014-11-19  --start--, detect charger type again to fix that USB host sometimes couldn't be recognized.
+	// xmsxm add @ 2015-02-13  --start--, detect charger type again to fix that USB host sometimes couldn't be recognized.
 	if (vbus_attach) {
 		u8 reg;
 		msleep(100);
@@ -240,7 +231,7 @@ static int handle_chrg_det_event(struct dc_pwrsrc_info *info)
 		/*wait for detection done*/
 		msleep(300);
 	}
-	// xmsxm add @ 2014-11-19  --end--, detect charger type again to fix that USB host sometimes couldn't be recognized.
+	// xmsxm add @ 2015-02-13  --end--, detect charger type again to fix that USB host sometimes couldn't be recognized.
 
 	/* check charger detection completion status */
 	ret = intel_mid_pmic_readb(DC_BC_GLOBAL_REG);
@@ -259,13 +250,13 @@ static int handle_chrg_det_event(struct dc_pwrsrc_info *info)
 	else
 		stat = ret;
 
-	dev_info(&info->pdev->dev, "Stat:%x, Cfg:%x\n", stat, cfg);
+	dev_dbg(&info->pdev->dev, "Stat:%x, Cfg:%x\n", stat, cfg);
 
 	chrg_type = (stat & DET_STAT_MASK) >> DET_STAT_POS;
 	info->is_sdp = false;
 
 	if (chrg_type == DET_STAT_SDP) {
-		dev_info(&info->pdev->dev,
+		dev_dbg(&info->pdev->dev,
 				"SDP cable connecetd\n");
 		notify_otg = true;
 		vbus_mask = 1;
@@ -275,7 +266,7 @@ static int handle_chrg_det_event(struct dc_pwrsrc_info *info)
 		cable_props.chrg_type = POWER_SUPPLY_CHARGER_TYPE_USB_SDP;
 		cable_props.ma = DC_XPWR_CHARGE_CUR_SDP;
 	} else if (chrg_type == DET_STAT_CDP) {
-		dev_info(&info->pdev->dev,
+		dev_dbg(&info->pdev->dev,
 				"CDP cable connecetd\n");
 		notify_otg = true;
 		vbus_mask = 1;
@@ -284,7 +275,7 @@ static int handle_chrg_det_event(struct dc_pwrsrc_info *info)
 		cable_props.chrg_type = POWER_SUPPLY_CHARGER_TYPE_USB_CDP;
 		cable_props.ma = DC_XPWR_CHARGE_CUR_CDP;
 	} else if (chrg_type == DET_STAT_DCP) {
-		dev_info(&info->pdev->dev,
+		dev_dbg(&info->pdev->dev,
 				"DCP cable connecetd\n");
 		notify_charger = true;
 		cable_props.chrg_evt = POWER_SUPPLY_CHARGER_EVENT_CONNECT;
@@ -327,7 +318,7 @@ notify_otg_em:
 			}
 #endif
 			atomic_notifier_call_chain(&info->otg->notifier,
-						   USB_EVENT_VBUS, &vbus_mask);
+						USB_EVENT_VBUS, &vbus_mask);
 		}
 
 		if (notify_charger)
@@ -404,6 +395,7 @@ static int dc_pwrsrc_handle_otg_notification(struct notifier_block *nb,
 			gpio_direction_output(info->pdata->mux_gpio, !info->id_short);
 		}
 #endif
+
 		break;
 	case USB_EVENT_ENUMERATED:
 		/*
@@ -475,13 +467,12 @@ static int pwrsrc_extcon_registration(struct dc_pwrsrc_info *info)
 		dev_err(&info->pdev->dev, "extcon registration failed!!\n");
 		kfree(info->edev);
 	} else {
-		dev_info(&info->pdev->dev, "extcon registration success!!\n");
+		dev_dbg(&info->pdev->dev, "extcon registration success!!\n");
 	}
 
 	return ret;
 }
 
-extern void *dc_xpwr_pwrsrc_pdata(void *info);
 static int dc_xpwr_pwrsrc_probe(struct platform_device *pdev)
 {
 	struct dc_pwrsrc_info *info;
@@ -494,11 +485,10 @@ static int dc_xpwr_pwrsrc_probe(struct platform_device *pdev)
 	}
 
 	info->pdev = pdev;
-#ifdef CONFIG_ACPI
-	info->pdata = dc_xpwr_pwrsrc_pdata(NULL);
-#else
 	info->pdata = pdev->dev.platform_data;
-#endif
+	if (!info->pdata)
+		return -ENODEV;
+
 	platform_set_drvdata(pdev, info);
 
 	dc_xpwr_pwrsrc_log_rsi(pdev, pwr_up_down_info,
@@ -541,8 +531,6 @@ static int dc_xpwr_pwrsrc_probe(struct platform_device *pdev)
 		ret = handle_pwrsrc_event(info);
 	if (ret < 0)
 		dev_warn(&info->pdev->dev, "error in PWRSRC evt handling\n");
-
-	dwc3_trigger_gpio_id_check();
 
 	return 0;
 

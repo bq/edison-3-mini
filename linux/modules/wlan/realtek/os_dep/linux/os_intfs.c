@@ -886,12 +886,10 @@ u32 rtw_start_drv_threads(_adapter *padapter)
 #endif //CONFIG_CONCURRENT_MODE
 	{
 		padapter->cmdThread = kthread_run(rtw_cmd_thread, padapter, "RTW_CMD_THREAD");
-	    if(IS_ERR(padapter->cmdThread)) {
+	        if(IS_ERR(padapter->cmdThread))
 			_status = _FAIL;
-		} else {
+		else
 			_rtw_down_sema_uninterruptible(&padapter->cmdpriv.terminate_cmdthread_sema); //wait for cmd_thread to run
-			DBG_871X_LEVEL(_drv_always_, "%s: terminate_cmdthread_sema_count=%d\n", __FUNCTION__, padapter->cmdpriv.terminate_cmdthread_sema.count);
-		}
 	}
 
 
@@ -1012,7 +1010,7 @@ u8 rtw_init_default_value(_adapter *padapter)
 	RTW_ENABLE_FUNC(padapter, DF_RX_BIT);
 	RTW_ENABLE_FUNC(padapter, DF_TX_BIT);
 	padapter->bLinkInfoDump = 0;
-	padapter->bNotifyChannelChange = 0;
+	padapter->bNotifyChannelChange = _FALSE;
 #ifdef CONFIG_P2P
 	padapter->bShowGetP2PState = 1;
 #endif
@@ -2391,7 +2389,7 @@ int  ips_netdrv_open(_adapter *padapter)
 #ifndef CONFIG_IPS_CHECK_IN_WD
 	rtw_set_pwr_state_check_timer(adapter_to_pwrctl(padapter));
 #endif		
-  	_set_timer(&padapter->mlmepriv.dynamic_chk_timer,5000);
+  	_set_timer(&padapter->mlmepriv.dynamic_chk_timer,2000);
 
 	 return _SUCCESS;
 
@@ -3032,7 +3030,7 @@ void rtw_dev_unload(PADAPTER padapter)
 		if (padapter->bSurpriseRemoved == _FALSE)
 		{
 #ifdef CONFIG_BT_COEXIST
-			rtw_btcoex_IpsNotify(padapter, pwrctl->ips_mode_req);
+			rtw_btcoex_IpsNotify(padapter, IPS_NORMAL);
 #endif
 #ifdef CONFIG_WOWLAN
 			if (pwrctl->bSupportRemoteWakeup == _TRUE && 
@@ -3261,9 +3259,9 @@ int rtw_suspend_ap_wow(_adapter *padapter)
 	struct net_device *pnetdev = padapter->pnetdev;
 	#ifdef CONFIG_CONCURRENT_MODE
 	struct net_device *pbuddy_netdev;
-	#endif	
+	#endif
 	struct dvobj_priv *psdpriv = padapter->dvobj;
-	struct debug_priv *pdbgpriv = &psdpriv->drv_dbg;	
+	struct debug_priv *pdbgpriv = &psdpriv->drv_dbg;
 	struct pwrctrl_priv *pwrpriv = adapter_to_pwrctl(padapter);
 	struct wowlan_ioctl_param poidparam;
 	u8 ps_mode;
@@ -3276,7 +3274,7 @@ int rtw_suspend_ap_wow(_adapter *padapter)
 	DBG_871X("wowlan_ap_mode: %d\n", pwrpriv->wowlan_ap_mode);
 	
 	if(pnetdev)
-		rtw_netif_stop_queue(pnetdev);	
+		rtw_netif_stop_queue(pnetdev);
 	#ifdef CONFIG_CONCURRENT_MODE
 	if (rtw_buddy_adapter_up(padapter)) {
 		pbuddy_netdev = padapter->pbuddy_adapter->pnetdev;
@@ -3730,8 +3728,8 @@ _func_enter_;
 	pwrpriv->wowlan_mode =_FALSE;
 
 	//clean driver side wake up reason.
-    //2014.09.29 Adam PNO wakeup patch
-    //pwrpriv->wowlan_wake_reason = 0;
+	//2014.09.29 Adam PNO wakeup patch
+	//pwrpriv->wowlan_wake_reason = 0;
 exit:
 	DBG_871X("<== "FUNC_ADPT_FMT" exit....\n", FUNC_ADPT_ARG(padapter));
 _func_exit_;
@@ -4012,10 +4010,11 @@ int rtw_resume_common(_adapter *padapter)
 	u32 start_time = rtw_get_current_time();
 	struct pwrctrl_priv *pwrpriv = adapter_to_pwrctl(padapter);
 	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
-    //2014.09.29 Adam PNO wakeup patch
-    struct rtw_wdev_priv *pwdev_priv = adapter_wdev_data(padapter);
-    _irqL				irqL;
-    int PNOWakeupScanWaitCnt = 0;
+	//2014.09.29 Adam PNO wakeup patch
+	struct rtw_wdev_priv *pwdev_priv = adapter_wdev_data(padapter);
+	_irqL				irqL;
+	int PNOWakeupScanWaitCnt = 0;
+	
 	_func_enter_;
 
 	DBG_871X_LEVEL(_drv_always_, "resume start\n");
@@ -4068,34 +4067,32 @@ int rtw_resume_common(_adapter *padapter)
 		pwrpriv->pno_in_resume = _FALSE;
 	#endif
 	}
-    //2014.09.29 Adam PNO wakeup patch
-    //After PNO wakeup, driver have to do 
-    //1. rtw_sitesurvey_cmd() : scan and update bssid information to kernel
-    //2. cfg80211_sched_scan_results() : trigger application to re-connect AP
-    if (pwrpriv->wowlan_wake_reason == RX_PNOWakeUp)
-    {
-        
+	//2014.09.29 Adam PNO wakeup patch
+	if (pwrpriv->wowlan_wake_reason == RX_PNOWakeUp)
+	{
+      
 		_enter_critical_bh(&pmlmepriv->lock, &irqL);
 		rtw_sitesurvey_cmd(padapter, NULL, 0, NULL, 0);
 		_exit_critical_bh(&pmlmepriv->lock, &irqL);
-        
-        for(PNOWakeupScanWaitCnt = 0;PNOWakeupScanWaitCnt<10;PNOWakeupScanWaitCnt++)
-        {
-            if(check_fwstate(pmlmepriv, _FW_UNDER_SURVEY) == _FALSE)
-            {
-                break;
-            }
-            rtw_msleep_os(1000);
+     
+		for(PNOWakeupScanWaitCnt = 0;PNOWakeupScanWaitCnt<10;PNOWakeupScanWaitCnt++)
+		{
+			if(check_fwstate(pmlmepriv, _FW_UNDER_SURVEY) == _FALSE)
+			{
+				break;
+			}
+			rtw_msleep_os(1000);
 
-        }
-        
-        _enter_critical_bh(&pmlmepriv->lock, &irqL);
-        cfg80211_sched_scan_results(padapter->rtw_wdev->wiphy);
-        _exit_critical_bh(&pmlmepriv->lock, &irqL);
-        
-        
-    }
-    pwrpriv->wowlan_wake_reason = 0;
+		}
+     
+			_enter_critical_bh(&pmlmepriv->lock, &irqL);
+			cfg80211_sched_scan_results(padapter->rtw_wdev->wiphy);
+			_exit_critical_bh(&pmlmepriv->lock, &irqL);
+			   
+			   
+	}
+	pwrpriv->wowlan_wake_reason = 0;
+
 	DBG_871X_LEVEL(_drv_always_, "%s:%d in %d ms\n", __FUNCTION__ ,ret,
 		rtw_get_passing_time_ms(start_time));
 

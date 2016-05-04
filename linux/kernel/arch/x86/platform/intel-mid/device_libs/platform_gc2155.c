@@ -19,7 +19,7 @@
 #include <asm/intel-mid.h>
 #include <media/v4l2-subdev.h>
 #include <linux/mfd/intel_mid_pmic.h>
-#include <linux/vlv2_plat_clock.h>
+#include <asm/intel_soc_pmc.h>
 #include "platform_camera.h"
 #include "platform_gc2155.h"
 
@@ -27,7 +27,7 @@
 #define CAMERA_0_RESET 119
 #define CAMERA_0_PWDN 123
 #define AFVCC28_EN 118
-#ifdef CONFIG_VLV2_PLAT_CLK
+#ifdef CONFIG_INTEL_SOC_PMC
 #define OSC_CAM0_CLK 0x0
 #define CLK_19P2MHz 0x1
 #endif
@@ -289,13 +289,13 @@ static int gc2155_flisclk_ctrl(struct v4l2_subdev *sd, int flag)
 {
 	static const unsigned int clock_khz = 19200;
 	int ret = 0;
-#ifdef CONFIG_VLV2_PLAT_CLK
+#ifdef CONFIG_INTEL_SOC_PMC
 	if (flag) {
-		ret = vlv2_plat_set_clock_freq(OSC_CAM0_CLK, 0x1 /*CLK_19P2MHz*/);
+		ret = pmc_pc_set_freq(OSC_CAM0_CLK, 0x1 /*CLK_19P2MHz*/);
 		if (ret)
 			return ret;
 	}
-	ret = vlv2_plat_configure_clock(OSC_CAM0_CLK, flag);
+	ret = pmc_pc_configure(OSC_CAM0_CLK, flag);
 #endif
 	return ret;
 }

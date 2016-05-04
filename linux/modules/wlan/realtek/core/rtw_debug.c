@@ -21,7 +21,7 @@
 
 #include <drv_types.h>
 
-u32 GlobalDebugLevel = _drv_debug_;
+u32 GlobalDebugLevel = _drv_err_;
 
 #ifdef CONFIG_DEBUG_RTL871X
 
@@ -59,6 +59,10 @@ u32 GlobalDebugLevel = _drv_debug_;
 #endif /* CONFIG_DEBUG_RTL871X */
 
 #include <rtw_version.h>
+
+#ifdef CONFIG_TDLS
+#define TDLS_DBG_INFO_SPACE_BTWN_ITEM_AND_VALUE	41
+#endif
 
 void dump_drv_version(void *sel)
 {
@@ -1390,6 +1394,436 @@ ssize_t proc_set_sreset(struct file *file, const char __user *buffer, size_t cou
 	
 }
 #endif /* DBG_CONFIG_ERROR_DETECT */
+
+#ifdef CONFIG_TDLS
+static int proc_tdls_display_tdls_function_info(struct seq_file *m)
+{
+	struct net_device *dev = m->private;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	struct tdls_info *ptdlsinfo = &padapter->tdlsinfo;
+	u8 SpaceBtwnItemAndValue = TDLS_DBG_INFO_SPACE_BTWN_ITEM_AND_VALUE;
+	u8 SpaceBtwnItemAndValueTmp = 0;
+	BOOLEAN FirstMatchFound = _FALSE;
+	int j= 0;
+	
+	DBG_871X_SEL_NL(m, "============[TDLS Function Info]============\n");
+	DBG_871X_SEL_NL(m, "%-*s = %s\n", SpaceBtwnItemAndValue, "TDLS Prohibited", (ptdlsinfo->ap_prohibited == _TRUE) ? "_TRUE" : "_FALSE");
+	DBG_871X_SEL_NL(m, "%-*s = %s\n", SpaceBtwnItemAndValue, "TDLS Channel Switch Prohibited", (ptdlsinfo->ch_switch_prohibited == _TRUE) ? "_TRUE" : "_FALSE");
+	DBG_871X_SEL_NL(m, "%-*s = %s\n", SpaceBtwnItemAndValue, "TDLS Link Established", (ptdlsinfo->link_established == _TRUE) ? "_TRUE" : "_FALSE");
+	DBG_871X_SEL_NL(m, "%-*s = %d/%d\n", SpaceBtwnItemAndValue, "TDLS STA Num (Linked/Allowed)", ptdlsinfo->sta_cnt, MAX_ALLOWED_TDLS_STA_NUM);
+	DBG_871X_SEL_NL(m, "%-*s = %s\n", SpaceBtwnItemAndValue, "TDLS Allowed STA Num Reached", (ptdlsinfo->sta_maximum == _TRUE) ? "_TRUE" : "_FALSE");
+
+#ifdef CONFIG_TDLS_CH_SW
+	DBG_871X_SEL_NL(m, "%-*s =", SpaceBtwnItemAndValue, "TDLS CH SW State");
+	if (ptdlsinfo->chsw_info.ch_sw_state == TDLS_STATE_NONE)
+	{
+		DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValueTmp, " ", "TDLS_STATE_NONE");
+	}
+	else
+	{
+		for (j = 0; j < 32; j++)
+		{
+			if (ptdlsinfo->chsw_info.ch_sw_state & BIT(j))
+			{
+				if (FirstMatchFound ==  _FALSE)
+				{
+					SpaceBtwnItemAndValueTmp = 1;
+					FirstMatchFound = _TRUE;
+				}
+				else
+				{
+					SpaceBtwnItemAndValueTmp = SpaceBtwnItemAndValue + 3;
+				}
+				switch (BIT(j))
+				{
+					case TDLS_INITIATOR_STATE:
+						DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValueTmp, " ", "TDLS_INITIATOR_STATE");
+						break;
+					case TDLS_RESPONDER_STATE:
+						DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValueTmp, " ", "TDLS_RESPONDER_STATE");
+						break;
+					case TDLS_LINKED_STATE:
+						DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValueTmp, " ", "TDLS_LINKED_STATE");
+						break;
+					case TDLS_WAIT_PTR_STATE:		
+						DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValueTmp, " ", "TDLS_WAIT_PTR_STATE");
+						break;
+					case TDLS_ALIVE_STATE:		
+						DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValueTmp, " ", "TDLS_ALIVE_STATE");
+						break;
+					case TDLS_CH_SWITCH_ON_STATE:	
+						DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValueTmp, " ", "TDLS_CH_SWITCH_ON_STATE");
+						break;
+					case TDLS_PEER_AT_OFF_STATE:		
+						DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValueTmp, " ", "TDLS_PEER_AT_OFF_STATE");
+						break;
+					case TDLS_CH_SW_INITIATOR_STATE:		
+						DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValueTmp, " ", "TDLS_CH_SW_INITIATOR_STATE");
+						break;
+					case TDLS_WAIT_CH_RSP_STATE:		
+						DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValue, " ", "TDLS_WAIT_CH_RSP_STATE");
+						break;
+					default:
+						DBG_871X_SEL_NL(m, "%-*sBIT(%d)\n", SpaceBtwnItemAndValueTmp, " ", j);
+						break;
+				}
+			}
+		}
+	}
+
+	DBG_871X_SEL_NL(m, "%-*s = %s\n", SpaceBtwnItemAndValue, "TDLS CH SW On", (ATOMIC_READ(&ptdlsinfo->chsw_info.chsw_on) == _TRUE) ? "_TRUE" : "_FALSE");
+	DBG_871X_SEL_NL(m, "%-*s = %d\n", SpaceBtwnItemAndValue, "TDLS CH SW Off-Channel Num", ptdlsinfo->chsw_info.off_ch_num);
+	DBG_871X_SEL_NL(m, "%-*s = %d\n", SpaceBtwnItemAndValue, "TDLS CH SW Channel Offset", ptdlsinfo->chsw_info.ch_offset);
+	DBG_871X_SEL_NL(m, "%-*s = %d\n", SpaceBtwnItemAndValue, "TDLS CH SW Current Time", ptdlsinfo->chsw_info.cur_time);
+	DBG_871X_SEL_NL(m, "%-*s = %s\n", SpaceBtwnItemAndValue, "TDLS CH SW Delay Switch Back", (ptdlsinfo->chsw_info.delay_switch_back == _TRUE) ? "_TRUE" : "_FALSE");
+	DBG_871X_SEL_NL(m, "%-*s = %d\n", SpaceBtwnItemAndValue, "TDLS CH SW Dump Back", ptdlsinfo->chsw_info.dump_stack);
+#endif
+
+	DBG_871X_SEL_NL(m, "%-*s = %s\n", SpaceBtwnItemAndValue, "TDLS Device Discovered", (ptdlsinfo->dev_discovered == _TRUE) ? "_TRUE" : "_FALSE");
+	DBG_871X_SEL_NL(m, "%-*s = %s\n", SpaceBtwnItemAndValue, "TDLS Enable", (ptdlsinfo->tdls_enable == _TRUE) ? "_TRUE" : "_FALSE");
+	DBG_871X_SEL_NL(m, "%-*s = %s\n", SpaceBtwnItemAndValue, "TDLS Driver Setup", (ptdlsinfo->driver_setup == _TRUE) ? "_TRUE" : "_FALSE");
+	
+	return 0;
+}
+
+static int proc_tdls_display_network_info(struct seq_file *m)
+{
+	struct net_device *dev = m->private;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	struct mlme_priv *pmlmepriv = &(padapter->mlmepriv);
+	struct mlme_ext_priv *pmlmeext = &padapter->mlmeextpriv;
+	struct wlan_network *cur_network = &(pmlmepriv->cur_network);
+	int i = 0;
+	u8 SpaceBtwnItemAndValue = TDLS_DBG_INFO_SPACE_BTWN_ITEM_AND_VALUE;
+
+	/* Display the linked AP/GO info */
+	DBG_871X_SEL_NL(m, "============[Associated AP/GO Info]============\n");
+	
+	if ((pmlmepriv->fw_state & WIFI_STATION_STATE) && (pmlmepriv->fw_state & _FW_LINKED))
+	{
+	DBG_871X_SEL_NL(m, "%-*s = %s\n", SpaceBtwnItemAndValue, "BSSID", cur_network->network.Ssid.Ssid);
+	DBG_871X_SEL_NL(m, "%-*s = "MAC_FMT"\n", SpaceBtwnItemAndValue, "Mac Address", MAC_ARG(cur_network->network.MacAddress));
+	
+	DBG_871X_SEL_NL(m, "%-*s = ", SpaceBtwnItemAndValue, "Wireless Mode");
+	for (i = 0; i < 8; i++)
+	{
+		if (pmlmeext->cur_wireless_mode & BIT(i))
+		{
+			switch (BIT(i))
+			{
+				case WIRELESS_11B: 
+					DBG_871X_SEL_NL(m, "%4s", "11B ");
+					break;
+				case WIRELESS_11G:
+					DBG_871X_SEL_NL(m, "%4s", "11G ");
+					break;
+				case WIRELESS_11A:
+					DBG_871X_SEL_NL(m, "%4s", "11A ");
+					break;
+				case WIRELESS_11_24N:
+					DBG_871X_SEL_NL(m, "%7s", "11_24N ");
+					break;
+				case WIRELESS_11_5N:
+					DBG_871X_SEL_NL(m, "%6s", "11_5N ");
+					break;
+				case WIRELESS_AUTO:
+					DBG_871X_SEL_NL(m, "%5s", "AUTO ");
+					break;
+				case WIRELESS_11AC:
+					DBG_871X_SEL_NL(m, "%5s", "11AC ");
+					break;
+			}
+		}
+	}
+	DBG_871X_SEL_NL(m, "\n");
+
+	DBG_871X_SEL_NL(m, "%-*s = ", SpaceBtwnItemAndValue, "Privacy");
+	switch (padapter->securitypriv.dot11PrivacyAlgrthm)
+	{
+		case _NO_PRIVACY_:
+			DBG_871X_SEL_NL(m, "%s\n", "NO PRIVACY");
+			break;
+		case _WEP40_:	
+			DBG_871X_SEL_NL(m, "%s\n", "WEP 40");
+			break;
+		case _TKIP_:
+			DBG_871X_SEL_NL(m, "%s\n", "TKIP");
+			break;
+		case _TKIP_WTMIC_:
+			DBG_871X_SEL_NL(m, "%s\n", "TKIP WTMIC");
+			break;
+		case _AES_:				
+			DBG_871X_SEL_NL(m, "%s\n", "AES");
+			break;
+		case _WEP104_:
+			DBG_871X_SEL_NL(m, "%s\n", "WEP 104");
+			break;
+		case _WEP_WPA_MIXED_:
+			DBG_871X_SEL_NL(m, "%s\n", "WEP/WPA Mixed");
+			break;
+		case _SMS4_:
+			DBG_871X_SEL_NL(m, "%s\n", "SMS4");
+			break;
+#ifdef CONFIG_IEEE80211W
+		case _BIP_:
+			DBG_871X_SEL_NL(m, "%s\n", "BIP");
+			break;	
+#endif //CONFIG_IEEE80211W
+	}
+	
+	DBG_871X_SEL_NL(m, "%-*s = %d\n", SpaceBtwnItemAndValue, "Channel", pmlmeext->cur_channel);
+	DBG_871X_SEL_NL(m, "%-*s = ", SpaceBtwnItemAndValue, "Channel Offset");
+	switch (pmlmeext->cur_ch_offset)
+	{
+		case HAL_PRIME_CHNL_OFFSET_DONT_CARE:
+			DBG_871X_SEL_NL(m, "%s\n", "N/A");
+			break;
+		case HAL_PRIME_CHNL_OFFSET_LOWER:
+			DBG_871X_SEL_NL(m, "%s\n", "Lower");
+			break;
+		case HAL_PRIME_CHNL_OFFSET_UPPER:
+			DBG_871X_SEL_NL(m, "%s\n", "Upper");
+			break;
+	}
+	
+	DBG_871X_SEL_NL(m, "%-*s = ", SpaceBtwnItemAndValue, "Bandwidth Mode");
+	switch (pmlmeext->cur_bwmode)
+	{
+		case CHANNEL_WIDTH_20:
+			DBG_871X_SEL_NL(m, "%s\n", "20MHz");
+			break;
+		case CHANNEL_WIDTH_40:
+			DBG_871X_SEL_NL(m, "%s\n", "40MHz");
+			break;
+		case CHANNEL_WIDTH_80:
+			DBG_871X_SEL_NL(m, "%s\n", "80MHz");
+			break;
+		case CHANNEL_WIDTH_160:
+			DBG_871X_SEL_NL(m, "%s\n", "160MHz");
+			break;
+		case CHANNEL_WIDTH_80_80:
+			DBG_871X_SEL_NL(m, "%s\n", "80MHz + 80MHz");
+			break;
+	}
+				}
+				else
+				{
+		DBG_871X_SEL_NL(m, "No association with AP/GO exists!\n");
+				}
+	
+	return 0;
+}
+
+static int proc_tdls_display_tdls_sta_info(struct seq_file *m)
+{
+	struct net_device *dev = m->private;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	struct sta_priv *pstapriv = &padapter->stapriv;
+	struct tdls_info *ptdlsinfo = &padapter->tdlsinfo;
+	struct sta_info *psta;
+	int i = 0, j = 0;
+	_irqL irqL;
+	_list	*plist, *phead;
+	u8 SpaceBtwnItemAndValue = TDLS_DBG_INFO_SPACE_BTWN_ITEM_AND_VALUE;
+	u8 SpaceBtwnItemAndValueTmp = 0;
+	u8 NumOfTdlsStaToShow = 0;
+	BOOLEAN FirstMatchFound = _FALSE;
+	
+	/* Search for TDLS sta info to display */
+	_enter_critical_bh(&pstapriv->sta_hash_lock, &irqL);
+	for (i=0; i< NUM_STA; i++)
+	{
+		phead = &(pstapriv->sta_hash[i]);
+		plist = get_next(phead);	
+		while ((rtw_end_of_queue_search(phead, plist)) == _FALSE)
+		{
+				psta = LIST_CONTAINOR(plist, struct sta_info, hash_list);
+				plist = get_next(plist);
+				if (psta->tdls_sta_state != TDLS_STATE_NONE)
+				{
+					/* We got one TDLS sta info to show */
+					DBG_871X_SEL_NL(m, "============[TDLS Peer STA Info: STA %d]============\n", ++NumOfTdlsStaToShow);
+					DBG_871X_SEL_NL(m, "%-*s = "MAC_FMT"\n", SpaceBtwnItemAndValue, "Mac Address", MAC_ARG(psta->hwaddr));
+					DBG_871X_SEL_NL(m, "%-*s =", SpaceBtwnItemAndValue, "TDLS STA State");
+					SpaceBtwnItemAndValueTmp = 0;
+					FirstMatchFound = _FALSE;
+					for (j = 0; j < 32; j++)
+					{
+						if (psta->tdls_sta_state & BIT(j))
+						{
+							if (FirstMatchFound ==  _FALSE)
+							{
+								SpaceBtwnItemAndValueTmp = 1;
+								FirstMatchFound = _TRUE;
+							}
+							else
+							{
+								SpaceBtwnItemAndValueTmp = SpaceBtwnItemAndValue + 3;
+							}
+							switch (BIT(j))
+							{
+								case TDLS_INITIATOR_STATE:
+									DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValueTmp, " ", "TDLS_INITIATOR_STATE");
+									break;
+								case TDLS_RESPONDER_STATE:
+									DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValueTmp, " ", "TDLS_RESPONDER_STATE");
+									break;
+								case TDLS_LINKED_STATE:
+									DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValueTmp, " ", "TDLS_LINKED_STATE");
+									break;
+								case TDLS_WAIT_PTR_STATE:		
+									DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValueTmp, " ", "TDLS_WAIT_PTR_STATE");
+									break;
+								case TDLS_ALIVE_STATE:		
+									DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValueTmp, " ", "TDLS_ALIVE_STATE");
+									break;
+								case TDLS_CH_SWITCH_ON_STATE:	
+									DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValueTmp, " ", "TDLS_CH_SWITCH_ON_STATE");
+									break;
+								case TDLS_PEER_AT_OFF_STATE:		
+									DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValueTmp, " ", "TDLS_PEER_AT_OFF_STATE");
+									break;
+								case TDLS_CH_SW_INITIATOR_STATE:		
+									DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValueTmp, " ", "TDLS_CH_SW_INITIATOR_STATE");
+									break;
+								case TDLS_WAIT_CH_RSP_STATE:		
+									DBG_871X_SEL_NL(m, "%-*s%s\n", SpaceBtwnItemAndValue, " ", "TDLS_WAIT_CH_RSP_STATE");
+									break;
+								default:
+									DBG_871X_SEL_NL(m, "%-*sBIT(%d)\n", SpaceBtwnItemAndValueTmp, " ", j);
+									break;
+							}
+						}
+					}
+
+					DBG_871X_SEL_NL(m, "%-*s = ", SpaceBtwnItemAndValue, "Wireless Mode");
+					for (j = 0; j < 8; j++)
+					{
+						if (psta->wireless_mode & BIT(j))
+						{
+							switch (BIT(j))
+							{
+								case WIRELESS_11B: 
+									DBG_871X_SEL_NL(m, "%4s", "11B ");
+									break;
+								case WIRELESS_11G:
+									DBG_871X_SEL_NL(m, "%4s", "11G ");
+									break;
+								case WIRELESS_11A:
+									DBG_871X_SEL_NL(m, "%4s", "11A ");
+									break;
+								case WIRELESS_11_24N:
+									DBG_871X_SEL_NL(m, "%7s", "11_24N ");
+									break;
+								case WIRELESS_11_5N:
+									DBG_871X_SEL_NL(m, "%6s", "11_5N ");
+									break;
+								case WIRELESS_AUTO:
+									DBG_871X_SEL_NL(m, "%5s", "AUTO ");
+									break;
+								case WIRELESS_11AC:
+									DBG_871X_SEL_NL(m, "%5s", "11AC ");
+									break;
+							}
+						}
+					}
+					DBG_871X_SEL_NL(m, "\n");
+
+					DBG_871X_SEL_NL(m, "%-*s = ", SpaceBtwnItemAndValue, "Bandwidth Mode");
+					switch (psta->bw_mode)
+					{
+						case CHANNEL_WIDTH_20:
+							DBG_871X_SEL_NL(m, "%s\n", "20MHz");
+							break;
+						case CHANNEL_WIDTH_40:
+							DBG_871X_SEL_NL(m, "%s\n", "40MHz");
+							break;
+						case CHANNEL_WIDTH_80:
+							DBG_871X_SEL_NL(m, "%s\n", "80MHz");
+							break;
+						case CHANNEL_WIDTH_160:
+							DBG_871X_SEL_NL(m, "%s\n", "160MHz");
+							break;
+						case CHANNEL_WIDTH_80_80:
+							DBG_871X_SEL_NL(m, "%s\n", "80MHz + 80MHz");
+							break;
+					}
+
+					DBG_871X_SEL_NL(m, "%-*s = ", SpaceBtwnItemAndValue, "Privacy");
+					switch (psta->dot118021XPrivacy)
+					{
+						case _NO_PRIVACY_:
+							DBG_871X_SEL_NL(m, "%s\n", "NO PRIVACY");
+							break;
+						case _WEP40_:	
+							DBG_871X_SEL_NL(m, "%s\n", "WEP 40");
+							break;
+						case _TKIP_:
+							DBG_871X_SEL_NL(m, "%s\n", "TKIP");
+							break;
+						case _TKIP_WTMIC_:
+							DBG_871X_SEL_NL(m, "%s\n", "TKIP WTMIC");
+							break;
+						case _AES_:				
+							DBG_871X_SEL_NL(m, "%s\n", "AES");
+							break;
+						case _WEP104_:
+							DBG_871X_SEL_NL(m, "%s\n", "WEP 104");
+							break;
+						case _WEP_WPA_MIXED_:
+							DBG_871X_SEL_NL(m, "%s\n", "WEP/WPA Mixed");
+							break;
+						case _SMS4_:
+							DBG_871X_SEL_NL(m, "%s\n", "SMS4");
+							break;
+#ifdef CONFIG_IEEE80211W
+						case _BIP_:
+							DBG_871X_SEL_NL(m, "%s\n", "BIP");
+							break;
+#endif //CONFIG_IEEE80211W
+					}
+
+					DBG_871X_SEL_NL(m, "%-*s = %d sec/%d sec\n", SpaceBtwnItemAndValue, "TPK Lifetime (Current/Expire)", psta->TPK_count, psta->TDLS_PeerKey_Lifetime);
+					DBG_871X_SEL_NL(m, "%-*s = %llu\n", SpaceBtwnItemAndValue, "Tx Packets Over Direct Link", psta->sta_stats.tx_pkts);
+					DBG_871X_SEL_NL(m, "%-*s = %llu\n", SpaceBtwnItemAndValue, "Rx Packets Over Direct Link", psta->sta_stats.rx_data_pkts);
+				}
+		}
+	}
+	_exit_critical_bh(&pstapriv->sta_hash_lock, &irqL);
+	if (NumOfTdlsStaToShow == 0)
+	{
+		DBG_871X_SEL_NL(m, "============[TDLS Peer STA Info]============\n");
+		DBG_871X_SEL_NL(m, "No TDLS direct link exists!\n");
+	}
+
+	return 0;
+}
+
+int proc_get_tdls_info(struct seq_file *m, void *v)
+{
+	struct net_device *dev = m->private;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(dev);
+	struct mlme_priv *pmlmepriv = &(padapter->mlmepriv);
+	struct mlme_ext_priv *pmlmeext = &padapter->mlmeextpriv;
+	struct wlan_network *cur_network = &(pmlmepriv->cur_network);
+	struct sta_priv *pstapriv = &padapter->stapriv;
+	struct tdls_info *ptdlsinfo = &padapter->tdlsinfo;
+	struct sta_info *psta;
+	int i = 0, j = 0;
+	_irqL irqL;
+	_list	*plist, *phead;
+	u8 SpaceBtwnItemAndValue = 41;
+	u8 SpaceBtwnItemAndValueTmp = 0;
+	u8 NumOfTdlsStaToShow = 0;
+	BOOLEAN FirstMatchFound = _FALSE;
+
+	proc_tdls_display_tdls_function_info(m);
+	proc_tdls_display_network_info(m);
+	proc_tdls_display_tdls_sta_info(m);	
+
+	return 0;
+}
+#endif
 
 #endif
 

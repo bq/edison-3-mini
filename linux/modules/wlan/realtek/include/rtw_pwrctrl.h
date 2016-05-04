@@ -64,6 +64,7 @@ enum Power_Mgnt
 #ifdef CONFIG_PNO_SUPPORT
 #define MAX_PNO_LIST_COUNT 16
 #define MAX_SCAN_LIST_COUNT 14 //2.4G only
+#define MAX_HIDDEN_AP 8		//8 hidden AP
 #endif
 
 /*
@@ -205,12 +206,14 @@ typedef enum _PS_DENY_REASON
 typedef struct pno_nlo_info
 {
 	u32 fast_scan_period;				//Fast scan period
-	u32	ssid_num;				//number of entry
+	u8	ssid_num;				//number of entry
+	u8	hidden_ssid_num;
 	u32	slow_scan_period;			//slow scan period
 	u32	fast_scan_iterations;			//Fast scan iterations
 	u8	ssid_length[MAX_PNO_LIST_COUNT];	//SSID Length Array
 	u8	ssid_cipher_info[MAX_PNO_LIST_COUNT];	//Cipher information for security
 	u8	ssid_channel_info[MAX_PNO_LIST_COUNT];	//channel information
+	u8	loc_probe_req[MAX_HIDDEN_AP];		//loc_probeReq
 }pno_nlo_info_t;	
 
 typedef struct pno_ssid {

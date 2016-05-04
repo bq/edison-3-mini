@@ -1057,7 +1057,7 @@ void _rtw_up_sema(_sema	*sema)
 
 void _rtw_down_sema_uninterruptible(_sema *sema)
 {
-	down(sema);
+    down(sema);
 }
 
 u32 _rtw_down_sema(_sema *sema)

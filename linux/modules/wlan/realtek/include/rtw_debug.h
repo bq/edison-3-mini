@@ -249,26 +249,26 @@ extern void rtl871x_cedbg(const char *fmt, ...);
 #if	defined(_dbgdump)
 	#undef DBG_871X
 	#define DBG_871X(...)     do {\
-        if (GlobalDebugLevel >= _drv_debug_) \
-        { \
-		    _dbgdump(DRIVER_PREFIX __VA_ARGS__);\
-        } \
+		if (GlobalDebugLevel >= _drv_debug_) \
+		{ \
+			_dbgdump(DRIVER_PREFIX __VA_ARGS__);\
+		} \
 	}while(0)
 
 	#undef MSG_8192C
 	#define MSG_8192C(...)     do {\
-        if (GlobalDebugLevel >= _drv_debug_) \
-        { \
-		    _dbgdump(DRIVER_PREFIX __VA_ARGS__);\
-        } \
+		if (GlobalDebugLevel >= _drv_debug_) \
+		{ \
+			_dbgdump(DRIVER_PREFIX __VA_ARGS__);\
+		} \
 	}while(0)
 
 	#undef DBG_8192C
 	#define DBG_8192C(...)     do {\
-        if (GlobalDebugLevel >= _drv_debug_) \
-        { \
-		    _dbgdump(DRIVER_PREFIX __VA_ARGS__);\
-        } \
+		if (GlobalDebugLevel >= _drv_debug_) \
+		{ \
+			_dbgdump(DRIVER_PREFIX __VA_ARGS__);\
+		} \
 	}while(0)
 #endif /* defined(_dbgdump) */
 #endif /* CONFIG_DEBUG */
@@ -425,6 +425,10 @@ ssize_t proc_set_odm_dbg_level(struct file *file, const char __user *buffer, siz
 
 int proc_get_odm_adaptivity(struct seq_file *m, void *v);
 ssize_t proc_set_odm_adaptivity(struct file *file, const char __user *buffer, size_t count, loff_t *pos, void *data);
+
+#ifdef CONFIG_TDLS
+int proc_get_tdls_info(struct seq_file *m, void *v);
+#endif
 
 #endif /* CONFIG_PROC_DEBUG */
 

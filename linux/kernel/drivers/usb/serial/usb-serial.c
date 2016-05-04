@@ -707,6 +707,46 @@ static const struct tty_port_operations serial_port_ops = {
 	.shutdown		= serial_port_shutdown,
 };
 
+
+struct modem_device{
+        char *name;
+        struct device dev;
+		struct usb_device *udev;
+};
+
+struct modem_device *modem_dev = NULL;
+static ssize_t modem_autosuspend_set(struct device *dev,
+                                 struct device_attribute *attr,
+                                 const char *buf, size_t count)
+{
+		int enabled = 0;
+		struct usb_device *udev = to_usb_device(dev);
+		
+		sscanf(buf, "%d", &enabled);
+		
+		pr_info("wgq[%s][%d]\n",__func__,enabled);
+		
+		if(modem_dev != NULL){
+			if(enabled){
+				if(modem_dev->udev != NULL){
+					usb_enable_autosuspend(modem_dev->udev);
+					device_set_wakeup_enable(&modem_dev->udev->dev, 1);
+				}
+			}
+			else{
+				if(modem_dev->udev != NULL){
+					usb_disable_autosuspend(modem_dev->udev);
+					device_set_wakeup_enable(&modem_dev->udev->dev, 0);
+				}
+			}
+		}
+				
+		return count;
+}
+
+
+static DEVICE_ATTR(modem_autosuspend, 0777, NULL, modem_autosuspend_set);
+
 static int usb_serial_probe(struct usb_interface *interface,
 			       const struct usb_device_id *id)
 {
@@ -1060,6 +1100,12 @@ static int usb_serial_probe(struct usb_interface *interface,
 	serial->disconnected = 0;
 
 	usb_serial_console_init(minor);
+	usb_enable_autosuspend(dev);
+	device_set_wakeup_enable(&dev->dev, 1);
+	if(modem_dev != NULL)
+	{
+		modem_dev->udev = dev;
+	}
 exit:
 	module_put(type->driver.owner);
 	return 0;
@@ -1076,6 +1122,11 @@ static void usb_serial_disconnect(struct usb_interface *interface)
 	struct usb_serial *serial = usb_get_intfdata(interface);
 	struct device *dev = &interface->dev;
 	struct usb_serial_port *port;
+
+	if(modem_dev != NULL)
+	{
+		modem_dev->udev = NULL;
+	}
 
 	usb_serial_console_disconnect(serial);
 
@@ -1222,6 +1273,7 @@ static struct usb_driver usb_serial_driver = {
 	.supports_autosuspend =	1,
 };
 
+
 static int __init usb_serial_init(void)
 {
 	int i;
@@ -1275,6 +1327,17 @@ static int __init usb_serial_init(void)
 		goto exit_generic;
 	}
 
+	modem_dev = kzalloc(sizeof(struct modem_device), GFP_KERNEL);
+	if (modem_dev == NULL) {
+		pr_err("%s - out of memory modem_device\n", __func__);
+		goto exit_generic;
+	}
+	
+	dev_set_name(&modem_dev->dev, "modem_dev");
+	device_register(&modem_dev->dev);
+	
+	device_create_file(&(modem_dev->dev), &dev_attr_modem_autosuspend);
+
 	return result;
 
 exit_generic:
@@ -1295,6 +1358,8 @@ exit_bus:
 
 static void __exit usb_serial_exit(void)
 {
+	device_remove_file(&(modem_dev->dev), &dev_attr_modem_autosuspend);
+
 	usb_serial_console_exit();
 
 	usb_serial_generic_deregister();

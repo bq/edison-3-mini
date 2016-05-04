@@ -20,6 +20,7 @@
 #define _RTW_PWRCTRL_C_
 
 #include <drv_types.h>
+#include <hal_data.h>
 #include <hal_com_h2c.h>
 
 int rtw_fw_ps_state(PADAPTER padapter)
@@ -158,6 +159,9 @@ int ips_leave(_adapter * padapter)
 	}
 #endif //DBG_CHECK_FW_PS_STATE
 	_exit_pwrlock(&pwrpriv->lock);
+
+	if (_SUCCESS == ret)
+		ODM_DMReset(&GET_HAL_DATA(padapter)->odmpriv);
 
 #ifdef CONFIG_BT_COEXIST
 	if (_SUCCESS == ret)
@@ -616,8 +620,8 @@ _func_enter_;
 #endif // !CONFIG_RTL8723A
 				pwrpriv->cpwm_tog = cpwm_now & PS_TOGGLE;
 #ifdef DBG_CHECK_FW_PS_STATE
-				//DBG_871X("%s: polling cpwm OK! poll_cnt=%d, cpwm_orig=%02x, cpwm_now=%02x , 0x100=0x%x\n"
-				//, __FUNCTION__,poll_cnt, cpwm_orig, cpwm_now, rtw_read8(padapter, REG_CR));
+				DBG_871X("%s: polling cpwm OK! poll_cnt=%d, cpwm_orig=%02x, cpwm_now=%02x , 0x100=0x%x\n"
+				, __FUNCTION__,poll_cnt, cpwm_orig, cpwm_now, rtw_read8(padapter, REG_CR));
 				if(rtw_fw_ps_state(padapter) == _FAIL)
 				{
 					DBG_871X("leave 32k but fw state in 32k\n");
@@ -2294,7 +2298,7 @@ _func_enter_;
 	pwrctrlpriv->pnlo_info = NULL;
 	pwrctrlpriv->pscan_info = NULL;
 	pwrctrlpriv->pno_ssid_list = NULL;
-	pwrctrlpriv->pno_in_resume = _TRUE;
+	pwrctrlpriv->pno_in_resume = _TRUE;//
 #endif
 
 _func_exit_;

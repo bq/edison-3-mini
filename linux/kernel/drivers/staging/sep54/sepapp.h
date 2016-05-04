@@ -30,6 +30,11 @@
 #include "dx_driver_abi.h"
 #include "dx_driver.h"
 
+enum ied_status {
+	ied_status_enable = 0,
+	ied_status_disable
+};
+
 /* Global drvdata to be used by kernel clients via dx_sepapp_ API */
 int sep_ioctl_sepapp_session_open(struct sep_client_ctx *client_ctx,
 				  unsigned long arg);
@@ -46,5 +51,10 @@ int sepapp_session_close(struct sep_op_ctx *op_ctx, int session_id);
 
 int sepapp_image_verify(u8 *addr, ssize_t size, u32 key_index, u32 magic_num);
 
+int sepapp_key_validity_check(u8 *addr, ssize_t size, u32 flag);
+
 int sepapp_hdmi_status(u8 status, u8 bksv[5]);
+
+int sepapp_drm_playback(enum ied_status status);
+
 #endif /*_SEPAPP_H_*/

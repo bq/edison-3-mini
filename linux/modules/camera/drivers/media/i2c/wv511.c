@@ -100,7 +100,9 @@ int wv511_t_focus_abs(struct v4l2_subdev *sd, s32 value)
 	int ret;
 
 	value = min(value, wv511_MAX_FOCUS_POS);
-	ret = wv511_t_focus_vcm(sd, wv511_MAX_FOCUS_POS - value);
+//modify by zhanghf 20150514 fix mantis bug 0035940    
+	//ret = wv511_t_focus_vcm(sd, wv511_MAX_FOCUS_POS - value);
+	ret = wv511_t_focus_vcm(sd, value);
 	if (ret == 0) {
 		wv511_dev.number_of_steps = value - wv511_dev.focus;
 		wv511_dev.focus = value;

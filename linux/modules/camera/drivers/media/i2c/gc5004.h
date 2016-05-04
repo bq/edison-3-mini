@@ -34,6 +34,7 @@
 #include <media/v4l2-chip-ident.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
+#include <media/v4l2-ctrls.h>
 
 #define I2C_MSG_LENGTH		0x2
 
@@ -695,6 +696,7 @@ struct gc5004_device {
 	struct v4l2_subdev sd;
 	struct media_pad pad;
 	struct v4l2_mbus_framefmt format;
+	struct v4l2_ctrl_handler ctrl_handler;
 	struct camera_sensor_platform_data *platform_data;
 	struct mutex input_lock; /* serialize sensor's ioctl */
 	int fmt_idx;

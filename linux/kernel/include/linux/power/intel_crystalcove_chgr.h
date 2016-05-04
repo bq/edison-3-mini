@@ -47,4 +47,3 @@ struct crystalcove_chgr_pdata {
 };
 
 #endif	/* __INTEL_CRYSTALCOVE_CHGR_H__ */
-

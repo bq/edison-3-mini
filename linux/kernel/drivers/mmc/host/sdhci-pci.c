@@ -100,6 +100,7 @@ struct sdhci_pci_slot {
 	bool			dev_power;
 	struct mutex		power_lock;
 	bool			dma_enabled;
+	unsigned int		tuning_count;
 };
 
 struct sdhci_pci_chip {
@@ -647,6 +648,7 @@ static int byt_emmc_probe_slot(struct sdhci_pci_slot *slot)
 			MMC_CAP2_CACHE_CTRL;
 		slot->host->mmc->qos = kzalloc(sizeof(struct pm_qos_request),
 				GFP_KERNEL);
+		slot->tuning_count = 8;
 		break;
 	default:
 		break;
@@ -781,7 +783,6 @@ static const struct sdhci_pci_fixes sdhci_intel_byt_emmc = {
 static const struct sdhci_pci_fixes sdhci_intel_byt_sdio = {
 	.quirks2	= SDHCI_QUIRK2_HOST_OFF_CARD_ON |
 		SDHCI_QUIRK2_PRESET_VALUE_BROKEN | SDHCI_QUIRK2_FAKE_VDD,
-/*Marvell CWS module request continuous SDIO clock, turn off RUNTIME PM for marvell chip*/
 #ifndef CONFIG_MMC_MRVL_CWS
 	.allow_runtime_pm = true,
 #endif
@@ -835,6 +836,7 @@ static int intel_mrfl_mmc_probe_slot(struct sdhci_pci_slot *slot)
 					SDHCI_QUIRK2_TUNING_POLL;
 		}
 		mrfl_ioapic_rte_reg_addr_map(slot);
+		slot->tuning_count = 8;
 		break;
 	case INTEL_MRFL_SD:
 		slot->host->quirks2 |= SDHCI_QUIRK2_WAIT_FOR_IDLE;
@@ -870,14 +872,28 @@ static void intel_mrfl_mmc_remove_slot(struct sdhci_pci_slot *slot, int dead)
 			iounmap(slot->host->rte_addr);
 }
 
+static int intel_mrfl_mmc_suspend(struct sdhci_pci_chip *chip)
+{
+	int i;
+
+	if (PCI_FUNC(chip->pdev->devfn) != INTEL_MRFL_SD)
+		return 0;
+
+	/* Clear SDHCI host POWER CONTROL bit 0 to disable sd_lvl_enb */
+	for (i = 0; i < chip->num_slots; i++)
+		sdhci_writeb(chip->slots[i]->host, 0, SDHCI_POWER_CONTROL);
+
+	return 0;
+}
+
 static const struct sdhci_pci_fixes sdhci_intel_mrfl_mmc = {
 	.quirks		= SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC,
-	.quirks2	= SDHCI_QUIRK2_BROKEN_AUTO_CMD23 |
-				SDHCI_QUIRK2_HIGH_SPEED_SET_LATE |
+	.quirks2	= SDHCI_QUIRK2_HIGH_SPEED_SET_LATE |
 				SDHCI_QUIRK2_PRESET_VALUE_BROKEN,
 	.allow_runtime_pm = true,
 	.probe_slot	= intel_mrfl_mmc_probe_slot,
 	.remove_slot	= intel_mrfl_mmc_remove_slot,
+	.suspend	= intel_mrfl_mmc_suspend,
 };
 
 static int intel_moor_emmc_probe_slot(struct sdhci_pci_slot *slot)
@@ -889,7 +905,8 @@ static int intel_moor_emmc_probe_slot(struct sdhci_pci_slot *slot)
 	sdhci_alloc_panic_host(slot->host);
 
 	slot->host->mmc->caps2 |= MMC_CAP2_POLL_R1B_BUSY |
-				MMC_CAP2_INIT_CARD_SYNC;
+				MMC_CAP2_INIT_CARD_SYNC |
+				MMC_CAP2_CACHE_CTRL;
 
 	/* Enable HS200 and HS400 */
 	slot->host->mmc->caps2 |= MMC_CAP2_HS200_1_8V_SDR |
@@ -899,7 +916,12 @@ static int intel_moor_emmc_probe_slot(struct sdhci_pci_slot *slot)
 		slot->host->mmc->caps2 |= MMC_CAP2_HS400_1_8V_DDR;
 	}
 
-	if (slot->data)
+	/* Enable Packed Command */
+	slot->host->mmc->caps2 |= MMC_CAP2_PACKED_CMD;
+
+	slot->host->quirks2 |= SDHCI_QUIRK2_TUNING_POLL;
+
+	if (slot->data) {
 		if (slot->data->platform_quirks & PLFM_QUIRK_NO_HIGH_SPEED) {
 			slot->host->quirks2 |= SDHCI_QUIRK2_DISABLE_HIGH_SPEED;
 			slot->host->mmc->caps &= ~MMC_CAP_1_8V_DDR;
@@ -910,9 +932,12 @@ static int intel_moor_emmc_probe_slot(struct sdhci_pci_slot *slot)
 			}
 		}
 
-	if (slot->data)
 		if (slot->data->platform_quirks & PLFM_QUIRK_NO_EMMC_BOOT_PART)
 			slot->host->mmc->caps2 |= MMC_CAP2_BOOTPART_NOACC;
+
+		slot->host->mmc->tpru = slot->data->tpru;
+		slot->host->mmc->tramp = slot->data->tramp;
+	}
 
 	return 0;
 }
@@ -925,6 +950,7 @@ static int intel_moor_sd_probe_slot(struct sdhci_pci_slot *slot)
 {
 	int ret = 0;
 
+	slot->host->mmc->caps2 |= MMC_CAP2_FIXED_NCRC;
 	if (slot->data)
 		if (slot->data->platform_quirks & PLFM_QUIRK_NO_HOST_CTRL_HW)
 			ret = -ENODEV;
@@ -942,6 +968,10 @@ static int intel_moor_sdio_probe_slot(struct sdhci_pci_slot *slot)
 
 	slot->host->mmc->caps |= MMC_CAP_NONREMOVABLE;
 
+	/* SDR104 tuning (which is an expensive operation) is done when resuming,
+	   so increase the auto suspend delay to 200ms */
+	slot->chip->autosuspend_delay = 200;
+
 	if (slot->data)
 		if (slot->data->platform_quirks & PLFM_QUIRK_NO_HOST_CTRL_HW)
 			ret = -ENODEV;
@@ -955,8 +985,7 @@ static void intel_moor_sdio_remove_slot(struct sdhci_pci_slot *slot, int dead)
 
 static const struct sdhci_pci_fixes sdhci_intel_moor_emmc = {
 	.quirks		= SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC,
-	.quirks2	= SDHCI_QUIRK2_BROKEN_AUTO_CMD23 |
-				SDHCI_QUIRK2_HIGH_SPEED_SET_LATE,
+	.quirks2	= SDHCI_QUIRK2_HIGH_SPEED_SET_LATE,
 	.allow_runtime_pm = true,
 	.probe_slot	= intel_moor_emmc_probe_slot,
 	.remove_slot	= intel_moor_emmc_remove_slot,
@@ -964,8 +993,7 @@ static const struct sdhci_pci_fixes sdhci_intel_moor_emmc = {
 
 static const struct sdhci_pci_fixes sdhci_intel_moor_sd = {
 	.quirks		= SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC,
-	.quirks2	= SDHCI_QUIRK2_BROKEN_AUTO_CMD23 |
-				SDHCI_QUIRK2_HIGH_SPEED_SET_LATE,
+	.quirks2	= SDHCI_QUIRK2_HIGH_SPEED_SET_LATE,
 	.allow_runtime_pm = true,
 	.probe_slot	= intel_moor_sd_probe_slot,
 	.remove_slot	= intel_moor_sd_remove_slot,
@@ -973,10 +1001,11 @@ static const struct sdhci_pci_fixes sdhci_intel_moor_sd = {
 
 static const struct sdhci_pci_fixes sdhci_intel_moor_sdio = {
 	.quirks		= SDHCI_QUIRK_NO_ENDATTR_IN_NOPDESC,
-	.quirks2	= SDHCI_QUIRK2_BROKEN_AUTO_CMD23 |
-				SDHCI_QUIRK2_HIGH_SPEED_SET_LATE |
+	.quirks2	= SDHCI_QUIRK2_HIGH_SPEED_SET_LATE |
 				SDHCI_QUIRK2_FAKE_VDD |
-				SDHCI_QUIRK2_PRESET_VALUE_BROKEN,
+				SDHCI_QUIRK2_PRESET_VALUE_BROKEN |
+				SDHCI_QUIRK2_WA_LNP |
+				SDHCI_QUIRK2_BCM_WIFI_WA,
 	.allow_runtime_pm = true,
 	.probe_slot	= intel_moor_sdio_probe_slot,
 	.remove_slot	= intel_moor_sdio_remove_slot,
@@ -1918,36 +1947,8 @@ static void  sdhci_platform_reset_exit(struct sdhci_host *host, u8 mask)
 static int sdhci_pci_get_tuning_count(struct sdhci_host *host)
 {
 	struct sdhci_pci_slot *slot = sdhci_priv(host);
-	int tuning_count = 0;
 
-	switch (slot->chip->pdev->device) {
-	case PCI_DEVICE_ID_INTEL_BYT_EMMC45:
-		tuning_count = 4; /* using 8 seconds, this can be tuning */
-		break;
-	case PCI_DEVICE_ID_INTEL_MRFL_MMC:
-		tuning_count = 8; /* using 128 seconds, this can be tuning */
-		break;
-	default:
-		break;
-	}
-
-	return tuning_count;
-}
-
-static int sdhci_pci_get_timeout_timer_count(struct sdhci_host *host)
-{
-	struct sdhci_pci_slot *slot = sdhci_priv(host);
-	int timeout_timer_count = SDHCI_REQ_TIMEOUT_TIMER_CNT_MAX;
-
-	switch (slot->chip->pdev->device) {
-	case PCI_DEVICE_ID_INTEL_MRFL_MMC:
-		timeout_timer_count = 4; /* To avoid Android UI ANR error */
-		break;
-	default:
-		break;
-	}
-
-	return timeout_timer_count;
+	return slot->tuning_count;
 }
 
 static int sdhci_gpio_buf_check(struct sdhci_host *host, unsigned int clk)
@@ -1983,7 +1984,6 @@ static const struct sdhci_ops sdhci_pci_ops = {
 	.get_tuning_count = sdhci_pci_get_tuning_count,
 	.gpio_buf_check = sdhci_gpio_buf_check,
 	.gpio_buf_dump = sdhci_gpio_buf_dump,
-	.get_timeout_timer_count = sdhci_pci_get_timeout_timer_count,
 };
 
 /*****************************************************************************\

@@ -48,6 +48,7 @@ static struct regulator_init_data v2p85s_data = {
 		.valid_ops_mask		= REGULATOR_CHANGE_STATUS |
 						REGULATOR_CHANGE_VOLTAGE,
 		.valid_modes_mask	= REGULATOR_MODE_NORMAL,
+		.boot_on		= 1,
 	},
 	.num_consumer_supplies	= ARRAY_SIZE(v2p85s_consumer),
 	.consumer_supplies	= v2p85s_consumer,
@@ -78,6 +79,7 @@ static struct regulator_init_data v2p85sx_data = {
 		.max_uV			= 2900000,
 		.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
 		.valid_modes_mask	= REGULATOR_MODE_NORMAL,
+		.boot_on		= 1,
 	},
 	.num_consumer_supplies	= ARRAY_SIZE(v2p85sx_consumer),
 	.consumer_supplies	= v2p85sx_consumer,
@@ -98,44 +100,43 @@ static struct platform_device v2p85sx_device = {
 };
 
 /***********V3P3S REGUATOR platform data*************/
-static struct regulator_consumer_supply v3p3s_consumer[] = {
-	/* Add consumer list here like below..
-	 * REGULATOR_SUPPLY("usbregu", "usbreg0"),
-	 */
+static struct regulator_consumer_supply v3p3sx_consumer[] = {
+/* Add consumers here */
+	REGULATOR_SUPPLY("v3p3sx", "0000:00:02.0"), /* Display drm */
+	REGULATOR_SUPPLY("v3p3sx", "1-0035"), /* smb347 charger */
 };
-#if !(defined(CONFIG_MRD7) || defined(CONFIG_MRD8))
-static struct pmic_regulator_gpio_en v3p3s_gpio_data = {
+
+static struct pmic_regulator_gpio_en v3p3sx_gpio_data = {
 	.gpio = GPIO_3P3SX_EN,
 	.init_gpio_state = GPIOF_OUT_INIT_HIGH,
 };
-#endif
-static struct regulator_init_data v3p3s_data = {
+
+static struct regulator_init_data v3p3sx_data = {
 	.constraints = {
-		.name = "v3p3s",
+		.name = "v3p3sx",
 		.min_uV			= 3332000,
 		.max_uV			= 3332000,
 		.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
 		.valid_modes_mask	= REGULATOR_MODE_NORMAL,
+		.boot_on		= 1,
 	},
-	.num_consumer_supplies	= ARRAY_SIZE(v3p3s_consumer),
-	.consumer_supplies	= v3p3s_consumer,
+	.num_consumer_supplies	= ARRAY_SIZE(v3p3sx_consumer),
+	.consumer_supplies	= v3p3sx_consumer,
 };
 
-static struct intel_pmic_info v3p3s_info = {
-	.pmic_reg   = V3P3SCNT_ADDR,
-	.init_data  = &v3p3s_data,
-	.table_len  = ARRAY_SIZE(V3P3S_VSEL_TABLE),
-	.table      = V3P3S_VSEL_TABLE,
-#if !(defined(CONFIG_MRD7) || defined(CONFIG_MRD8))
-	.en_pin	=  &v3p3s_gpio_data,
-#endif
+static struct intel_pmic_info v3p3sx_info = {
+	.pmic_reg   = V3P3SXCNT_ADDR,
+	.init_data  = &v3p3sx_data,
+	.table_len  = ARRAY_SIZE(V3P3SX_VSEL_TABLE),
+	.table      = V3P3SX_VSEL_TABLE,
+	.en_pin	=  &v3p3sx_gpio_data,
 };
 
-static struct platform_device v3p3s_device = {
+static struct platform_device v3p3sx_device = {
 	.name = "intel_regulator",
-	.id = V3P3S,
+	.id = V3P3SX,
 	.dev = {
-		.platform_data = &v3p3s_info,
+		.platform_data = &v3p3sx_info,
 	},
 };
 
@@ -149,6 +150,7 @@ static struct regulator_init_data v1p8s_data = {
 		.max_uV			= 1817000,
 		.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
 		.valid_modes_mask	= REGULATOR_MODE_NORMAL,
+		.boot_on		= 1,
 	},
 	.num_consumer_supplies	= ARRAY_SIZE(v1p8s_consumer),
 	.consumer_supplies	= v1p8s_consumer,
@@ -179,6 +181,7 @@ static struct regulator_init_data v1p8sx_data = {
 		.max_uV			= 1817000,
 		.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
 		.valid_modes_mask	= REGULATOR_MODE_NORMAL,
+		.boot_on		= 1,
 	},
 	.num_consumer_supplies	= ARRAY_SIZE(v1p8sx_consumer),
 	.consumer_supplies	= v1p8sx_consumer,
@@ -209,6 +212,7 @@ static struct regulator_init_data vsys_s_data = {
 		.max_uV			= 4200000,
 		.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
 		.valid_modes_mask	= REGULATOR_MODE_NORMAL,
+		.boot_on		= 1,
 	},
 	.num_consumer_supplies	= ARRAY_SIZE(vsys_s_consumer),
 	.consumer_supplies	= vsys_s_consumer,
@@ -228,99 +232,92 @@ static struct platform_device vsys_s_device = {
 	},
 };
 
-/**************** Regulator Devices for FFD8 ******************/
+/* v1p0a regulator platform data */
+static struct regulator_consumer_supply v1p0a_consumer[] = {
+/* Add consumers */
+};
+static struct regulator_init_data v1p0a_data = {
+	.constraints = {
+		.name = "v1p0a",
+		.min_uV			= 900000,
+		.max_uV			= 1100000,
+		.valid_ops_mask		= REGULATOR_CHANGE_STATUS |
+						REGULATOR_CHANGE_VOLTAGE,
+		.valid_modes_mask	= REGULATOR_MODE_NORMAL,
+		.boot_on		= 1,
+	},
+	.num_consumer_supplies	= ARRAY_SIZE(v1p0a_consumer),
+	.consumer_supplies	= v1p0a_consumer,
+};
+
+static struct intel_pmic_info v1p0a_info = {
+	.pmic_reg   = V1P0ACNT_ADDR,
+	.init_data  = &v1p0a_data,
+	.table_len  = ARRAY_SIZE(V1P0A_VSEL_TABLE),
+	.table      = V1P0A_VSEL_TABLE,
+};
+static struct platform_device v1p0a_device = {
+	.name = "intel_regulator",
+	.id = V1P0A,
+	.dev = {
+		.platform_data = &v1p0a_info,
+	},
+};
+
+/* v1p8a regulator platform data */
+static struct regulator_consumer_supply v1p8a_consumer[] = {
+/* Add consumers */
+};
+static struct regulator_init_data v1p8a_data = {
+	.constraints = {
+		.name = "v1p8a",
+		.min_uV			= 1620000,
+		.max_uV			= 1980000,
+		.valid_ops_mask		= REGULATOR_CHANGE_STATUS |
+						REGULATOR_CHANGE_VOLTAGE,
+		.valid_modes_mask	= REGULATOR_MODE_NORMAL,
+		.boot_on		= 1,
+	},
+	.num_consumer_supplies	= ARRAY_SIZE(v1p8a_consumer),
+	.consumer_supplies	= v1p8a_consumer,
+};
+
+static struct intel_pmic_info v1p8a_info = {
+	.pmic_reg   = V1P8ACNT_ADDR,
+	.init_data  = &v1p8a_data,
+	.table_len  = ARRAY_SIZE(V1P8A_VSEL_TABLE),
+	.table      = V1P8A_VSEL_TABLE,
+};
+static struct platform_device v1p8a_device = {
+	.name = "intel_regulator",
+	.id = V1P8A,
+	.dev = {
+		.platform_data = &v1p8a_info,
+	},
+};
+
 static struct platform_device *byt_t_ffd8_regulator_devices[] __initdata = {
 	&v2p85s_device,
 	&v2p85sx_device,
-	&v3p3s_device,
+	&v3p3sx_device,
 	&v1p8s_device,
 	&v1p8sx_device,
 	&vsys_s_device,
+	&v1p0a_device,
+	&v1p8a_device,
 };
 
 /**************** Regulator Devices for BYTCRV2.0 ******************/
 static struct platform_device *byt_t_crv20_regulator_devices[] __initdata = {
 	&v2p85s_device,
 	&v2p85sx_device,
-	&v3p3s_device,
+	&v3p3sx_device,
 	&v1p8s_device,
 	&v1p8sx_device,
 	&vsys_s_device,
 };
 
-/****************DCOVEX LDO2 RAIL Platform Data********************/
-
-static struct regulator_consumer_supply dcovex_ldo2_consumer[] = {
-	REGULATOR_SUPPLY("vmmc", "80860F14:01"),
-	/* Add More Consumers here */
-};
-
-static struct regulator_init_data dcovex_ldo2_data = {
-	.constraints = {
-		.name			= "LDO_2",
-		.min_uV			= 1800000,
-		.max_uV			= 3300000,
-		.valid_ops_mask		= REGULATOR_CHANGE_VOLTAGE |
-						REGULATOR_CHANGE_STATUS,
-		.valid_modes_mask	= REGULATOR_MODE_NORMAL,
-	},
-	.num_consumer_supplies	= ARRAY_SIZE(dcovex_ldo2_consumer),
-	.consumer_supplies	= dcovex_ldo2_consumer,
-};
-
-static struct dcovex_regulator_info dcovex_ldo2 = {
-	.init_data = &dcovex_ldo2_data,
-};
-
-static struct platform_device dcovex_ldo2_device = {
-	.name = "dcovex_regulator",
-	.id = DCOVEX_ID_LDO2,
-	.dev = {
-		.platform_data = &dcovex_ldo2,
-	},
-};
-
-/****************DCOVEX GPIO_1 RAIL Platform Data ********************/
-static struct regulator_consumer_supply dcovex_gpio1_consumer[] = {
-	REGULATOR_SUPPLY("vqmmc", "80860F14:01"),
-	/* Add More Consumers here */
-};
-
-static struct regulator_init_data dcovex_gpio1_data = {
-	.constraints = {
-		.name			= "GPIO_1",
-		.min_uV			= 1800000,
-		.max_uV			= 3300000,
-		.valid_ops_mask		= REGULATOR_CHANGE_VOLTAGE |
-						REGULATOR_CHANGE_STATUS,
-		.valid_modes_mask	= REGULATOR_MODE_NORMAL,
-	},
-	.num_consumer_supplies	= ARRAY_SIZE(dcovex_gpio1_consumer),
-	.consumer_supplies	= dcovex_gpio1_consumer,
-};
-
-static struct dcovex_regulator_info dcovex_gpio1 = {
-	.init_data = &dcovex_gpio1_data,
-};
-
-static struct platform_device dcovex_gpio1_device = {
-	.name = "dcovex_regulator",
-	.id = DCOVEX_ID_GPIO1,
-	.dev = {
-		.platform_data = &dcovex_gpio1,
-	},
-};
-
-/**************** Regulator Devices for BYTCRV2.1 ******************/
-static struct platform_device *byt_t_crv21_regulator_devices[] __initdata = {
-	&dcovex_ldo2_device,
-	&dcovex_gpio1_device,
-};
-
-
-
-/****************DCOVEX LDO2 RAIL Platform Data for CRV2.2****************/
-
+/****************DCOVEX LDO8 RAIL Platform Data for CRV2.2****************/
 static struct regulator_consumer_supply dcovet_ldo8_consumer[] = {
 	REGULATOR_SUPPLY("vmmc", "80860F14:01"),
 	/* Add More Consumers here */
@@ -412,12 +409,6 @@ static int __init regulator_init(void)
 			pr_info("Regulator Devices Found for BYTCRv2.0 (RHM)\n");
 			platform_add_devices(byt_t_crv20_regulator_devices,
 				ARRAY_SIZE(byt_t_crv20_regulator_devices));
-		}
-
-		else if (regulator_find_i2c_client_by_name(REGULATOR_PMIC_HID_XPR)) {
-			pr_info("Regulator Devices Found for BYTCRv2.1 (XPR)\n");
-			platform_add_devices(byt_t_crv21_regulator_devices,
-				ARRAY_SIZE(byt_t_crv21_regulator_devices));
 		}
 
 		else if (regulator_find_i2c_client_by_name(REGULATOR_PMIC_HID_TEIN)) {

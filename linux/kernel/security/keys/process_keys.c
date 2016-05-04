@@ -792,7 +792,7 @@ long join_session_keyring(const char *name)
 		ret = PTR_ERR(keyring);
 		goto error2;
 	} else if (keyring == new->session_keyring) {
-	  key_put(keyring); /* [A]Partner Security Advisory (#2016-01), xmwyq, 20160301 */
+	  key_put(keyring); /* [A]fixed BU-905, xmwyq, 20160301 */
 		ret = 0;
 		goto error2;
 	}

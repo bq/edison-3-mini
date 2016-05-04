@@ -149,7 +149,7 @@ static int smsc375x_detect_dev(struct smsc375x_chip *chip)
 	static bool notify_otg, notify_charger;
 	static char *cable;
 	static struct power_supply_cable_props cable_props;
-	int stat, cfg, ret, vbus_mask = 0, i;
+	int stat, cfg, ret, vbus_mask = 0;
 	u8 chrg_type;
 	bool vbus_attach = false;
 
@@ -187,33 +187,16 @@ static int smsc375x_detect_dev(struct smsc375x_chip *chip)
 		return ret;
 	}
 	/* check charger detection completion status */
-#ifndef CONFIG_MRD7
 	ret = smsc375x_read_reg(client, SMSC375X_REG_STAT);
 	if (ret < 0)
 		goto dev_det_i2c_failed;
 	else
 		stat = ret;
-#else
-	for (i = 0; i < 10; i++) {
-		ret = smsc375x_read_reg(client, SMSC375X_REG_STAT);
-		if (ret < 0)
-			goto dev_det_i2c_failed;
-		else
-			stat = ret;
-		if (stat & STAT_CHRG_DET_DONE) {
-			dev_info(&chip->client->dev, "index i:%d\n", i);
-			break;
-		} else {
-			msleep(250);
-		}
-	}
-#endif
 
 	if (!(stat & STAT_CHRG_DET_DONE)) {
 		dev_info(&chip->client->dev, "DET failed");
-		return -EFAULT;
+		return -EOPNOTSUPP;
 	}
-
 
 	ret = smsc375x_read_reg(client, SMSC375X_REG_CFG);
 	if (ret < 0)
@@ -225,6 +208,12 @@ static int smsc375x_detect_dev(struct smsc375x_chip *chip)
 
 	chrg_type = stat & STAT_CHRG_TYPE_MASK;
 	chip->is_sdp = false;
+
+	/* Enabling the OVP switch on VBUS to draw maximum current */
+	ret = smsc375x_write_reg(client, SMSC375X_REG_CFG,
+			(cfg | (CFG_OVERRIDE_VBUS | CFG_EN_OVP_SWITCH)));
+	if (ret < 0)
+		goto dev_det_i2c_failed;
 
 	if (chrg_type == STAT_CHRG_TYPE_SDP) {
 		dev_info(&chip->client->dev,
@@ -255,6 +244,13 @@ static int smsc375x_detect_dev(struct smsc375x_chip *chip)
 			(chrg_type == STAT_CHRG_TYPE_SE1H)) {
 		dev_info(&chip->client->dev,
 				"DCP/SE1 cable connecetd\n");
+		/* Driving Vdat_src pin as the PET expects the voltage on DP
+		 * to remain >0.5V for the duration of the time VBUS is valid
+		 */
+		ret = smsc375x_write_reg(client, SMSC375X_REG_CHRG_CFG,
+				(CHRG_CFG_I2C_CNTL | CHRG_CFG_EN_VDAT_SRC));
+		if (ret < 0)
+			goto dev_det_i2c_failed;
 		notify_charger = true;
 		cable = SMSC375X_EXTCON_DCP;
 		cable_props.chrg_evt = POWER_SUPPLY_CHARGER_EVENT_CONNECT;
@@ -291,13 +287,8 @@ notify_otg_em:
 	} else {
 		if (notify_otg) {
 			/* close mux path to enable device mode */
-#ifdef CONFIG_MRD7
-			ret = smsc375x_write_reg(client, SMSC375X_REG_CFG,
-					(cfg & ~CFG_EN_MUX2) | CFG_EN_MUX1);
-#else
 			ret = smsc375x_write_reg(client, SMSC375X_REG_CFG,
 					(cfg & ~CFG_EN_MUX1) | CFG_EN_MUX2);
-#endif
 			if (ret < 0)
 				goto dev_det_i2c_failed;
 			atomic_notifier_call_chain(&chip->otg->notifier,
@@ -334,12 +325,7 @@ static irqreturn_t smsc375x_irq_handler(int irq, void *data)
 
 	dev_info(&chip->client->dev, "SMSC USB INT!\n");
 
-#ifdef CONFIG_MRD7
-	/* INT functionality of smsc375x is not stable */
-	/* smsc375x_detect_dev(chip); */
-#else
 	smsc375x_detect_dev(chip);
-#endif
 
 	pm_runtime_put_sync(&chip->client->dev);
 	return IRQ_HANDLED;
@@ -349,9 +335,8 @@ static void smsc375x_otg_event_worker(struct work_struct *work)
 {
 	struct smsc375x_chip *chip =
 	    container_of(work, struct smsc375x_chip, otg_work);
-	int ret, cfg;
+	int ret;
 
-#ifndef CONFIG_MRD7
 	pm_runtime_get_sync(&chip->client->dev);
 
 	if (chip->id_short)
@@ -371,25 +356,6 @@ static void smsc375x_otg_event_worker(struct work_struct *work)
 	schedule_work(&chip->vbus_work);
 
 	pm_runtime_put_sync(&chip->client->dev);
-#else
-	/* wait for dc_xpwr_charger to enable the boost */
-	msleep(100);
-
-	cfg = smsc375x_read_reg(chip->client, SMSC375X_REG_CFG);
-	if (cfg < 0)
-		goto dev_det_i2c_failed;
-
-	ret = smsc375x_write_reg(chip->client, SMSC375X_REG_CFG,
-				 (cfg & ~CFG_EN_MUX1) | CFG_EN_MUX2);
-	if (ret < 0)
-		goto dev_det_i2c_failed;
-
-	return;
-
-dev_det_i2c_failed:
-	dev_err(&chip->client->dev, "failed to switch MUX to host side\n");
-	return;
-#endif
 }
 
 static int smsc375x_handle_otg_notification(struct notifier_block *nb,
@@ -469,7 +435,6 @@ static void smsc375x_pwrsrc_event_worker(struct work_struct *work)
 	 * So we are reading the status register as WA
 	 * to invoke teh MUX INT in case of connect events.
 	 */
-#ifndef CONFIG_MRD7
 	if (!chip->pdata->is_vbus_online()) {
 		ret = smsc375x_detect_dev(chip);
 	} else {
@@ -482,9 +447,7 @@ static void smsc375x_pwrsrc_event_worker(struct work_struct *work)
 	}
 	if (ret < 0)
 		dev_warn(&chip->client->dev, "pwrsrc evt error\n");
-#else
-	smsc375x_detect_dev(chip);
-#endif
+
 	pm_runtime_put_sync(&chip->client->dev);
 }
 

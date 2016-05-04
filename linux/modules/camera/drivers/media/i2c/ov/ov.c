@@ -698,10 +698,16 @@ static int __try_res(struct ov_device *dev,
 
 	/* aspect ratio calculate, could be optimized further... */
 	ratio_required = src_w * 1000 / src_h;
-	if (ratio_required  < RATIO_3_TO_2)
+
+	if (ratio_required < RATIO_3_TO_2) {
 		ratio_mapped = RATIO_4_3;
-	else
-		ratio_mapped = RATIO_3_2 | RATIO_16_9;
+	}
+	else if (ratio_required < RATIO_16_TO_9) {
+		ratio_mapped = RATIO_3_2;
+	}
+	else {
+		ratio_mapped = RATIO_16_9;
+	}
 
 	/* find out the max res which fit the aspect ratio requirement */
 	for (i = 0; i < dev->product_info->num_res; i++) {

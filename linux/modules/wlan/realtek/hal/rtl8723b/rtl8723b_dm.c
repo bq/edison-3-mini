@@ -309,6 +309,7 @@ static void Update_ODM_ComInfo_8723b(PADAPTER	Adapter)
 {
 	struct mlme_ext_priv	*pmlmeext = &Adapter->mlmeextpriv;
 	struct mlme_priv		*pmlmepriv = &Adapter->mlmepriv;
+	struct dvobj_priv *dvobj = adapter_to_dvobj(Adapter);
 	struct pwrctrl_priv *pwrctrlpriv = adapter_to_pwrctl(Adapter);
 	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(Adapter);
 	PDM_ODM_T		pDM_Odm = &(pHalData->odmpriv);
@@ -358,15 +359,15 @@ static void Update_ODM_ComInfo_8723b(PADAPTER	Adapter)
 
 	ODM_CmnInfoUpdate(pDM_Odm,ODM_CMNINFO_ABILITY,pdmpriv->InitODMFlag);
 
-	ODM_CmnInfoHook(pDM_Odm,ODM_CMNINFO_TX_UNI,&(Adapter->xmitpriv.tx_bytes));
-	ODM_CmnInfoHook(pDM_Odm,ODM_CMNINFO_RX_UNI,&(Adapter->recvpriv.rx_bytes));
+	ODM_CmnInfoHook(pDM_Odm,ODM_CMNINFO_TX_UNI,&(dvobj->traffic_stat.tx_bytes));
+	ODM_CmnInfoHook(pDM_Odm,ODM_CMNINFO_RX_UNI,&(dvobj->traffic_stat.rx_bytes));
 	ODM_CmnInfoHook(pDM_Odm,ODM_CMNINFO_WM_MODE,&(pmlmeext->cur_wireless_mode));
 	ODM_CmnInfoHook(pDM_Odm,ODM_CMNINFO_SEC_CHNL_OFFSET,&(pHalData->nCur40MhzPrimeSC));
 	ODM_CmnInfoHook(pDM_Odm,ODM_CMNINFO_SEC_MODE,&(Adapter->securitypriv.dot11PrivacyAlgrthm));
 	ODM_CmnInfoHook(pDM_Odm,ODM_CMNINFO_BW,&(pHalData->CurrentChannelBW ));
 	ODM_CmnInfoHook(pDM_Odm,ODM_CMNINFO_CHNL,&( pHalData->CurrentChannel));
 	ODM_CmnInfoHook(pDM_Odm,ODM_CMNINFO_NET_CLOSED,&( Adapter->net_closed));
-	ODM_CmnInfoHook(pDM_Odm,ODM_CMNINFO_MP_MODE,&(Adapter->registrypriv.mp_mode));
+	//ODM_CmnInfoHook(pDM_Odm,ODM_CMNINFO_MP_MODE,&(Adapter->registrypriv.mp_mode));
 	ODM_CmnInfoHook(pDM_Odm,ODM_CMNINFO_BAND,&(pHalData->CurrentBandType));
 	ODM_CmnInfoHook(pDM_Odm,ODM_CMNINFO_FORCED_IGI_LB,&(pHalData->u1ForcedIgiLb));
 	//================= only for 8192D   =================
@@ -721,11 +722,7 @@ void rtl8723b_init_dm_priv(IN PADAPTER Adapter)
 	PDM_ODM_T 		podmpriv = &pHalData->odmpriv;
 	_rtw_memset(pdmpriv, 0, sizeof(struct dm_priv));
 	Init_ODM_ComInfo_8723b(Adapter);
-#ifdef CONFIG_SW_ANTENNA_DIVERSITY
-	//_init_timer(&(pdmpriv->SwAntennaSwitchTimer),  Adapter->pnetdev , odm_SW_AntennaSwitchCallback, Adapter);
 	ODM_InitAllTimers(podmpriv );
-#endif
-
 }
 
 void rtl8723b_deinit_dm_priv(IN PADAPTER Adapter)
@@ -733,9 +730,6 @@ void rtl8723b_deinit_dm_priv(IN PADAPTER Adapter)
 	PHAL_DATA_TYPE	pHalData = GET_HAL_DATA(Adapter);
 	struct dm_priv	*pdmpriv = &pHalData->dmpriv;
 	PDM_ODM_T 		podmpriv = &pHalData->odmpriv;
-#ifdef CONFIG_SW_ANTENNA_DIVERSITY
-	//_cancel_timer_ex(&pdmpriv->SwAntennaSwitchTimer);
 	ODM_CancelAllTimers(podmpriv);
-#endif
 }
 

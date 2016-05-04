@@ -82,10 +82,10 @@
 
 #define DC_FG_VLTFW_REG			0x3C
 #define FG_VLTFW_N5C			0xD3	/* -5 DegC */
-/*#define FG_VLTFW_0C			0xA5*/	/* 0 DegC */
+#define FG_VLTFW_0C			0xA5	/* 0 DegC */
 #define DC_FG_VHTFW_REG			0x3D
 #define FG_VHTFW_60C			0x13	/* 60 DegC */
-/*#define FG_VHTFW_56C			0x15*/	/* 56 DegC */
+#define FG_VHTFW_56C			0x15	/* 56 DegC */
 
 #define DC_TEMP_IRQ_CFG_REG		0x42
 #define TEMP_IRQ_CFG_QWBTU		(1 << 0)
@@ -97,7 +97,7 @@
 #define DC_FG_IRQ_CFG_REG		0x43
 #define FG_IRQ_CFG_LOWBATT_WL2		(1 << 0)
 #define FG_IRQ_CFG_LOWBATT_WL1		(1 << 1)
-#define FG_IRQ_CFG_LOWBATT_MASK		0x3
+#define FG_IRQ_CFG_LOWBATT_MASK		0x1
 
 #define DC_LOWBAT_IRQ_STAT_REG		0x4B
 #define LOWBAT_IRQ_STAT_LOWBATT_WL2	(1 << 0)
@@ -152,8 +152,9 @@
 #define FG_LOW_CAP_THR1_MASK		0xf0	/* 5% tp 20% */
 #define FG_LOW_CAP_THR1_VAL		0xa0	/* 15 perc */
 #define FG_LOW_CAP_THR2_MASK		0x0f	/* 0% to 15% */
-#define FG_LOW_CAP_WARN_THR		14	/* 14 perc */
-#define FG_LOW_CAP_CRIT_THR		4	/* 4 perc */
+#define FG_LOW_CAP_WARN1_THR		15	/* 15 perc */
+#define FG_LOW_CAP_WARN2_THR		10	/* 10 perc */
+#define FG_LOW_CAP_CRIT_THR		5	/* 5 perc */
 #define FG_LOW_CAP_SHDN_THR		0	/* 0 perc */
 
 #define DC_FG_TUNING_CNTL0		0xE8
@@ -173,8 +174,12 @@
 #define ADC_TO_PMICTEMP(a)		(a - 267)
 
 #define STATUS_MON_DELAY_JIFFIES	(HZ * 60)	/*60 sec */
+#define STATUS_MON_DELAY_10MES      (HZ * 10)   /*10 sec */
 
 #define DC_FG_INTR_NUM			6
+
+#define THERM_CURVE_MAX_SAMPLES		18
+#define THERM_CURVE_MAX_VALUES		4
 
 /* No of times we should retry on -EAGAIN error */
 #define NR_RETRY_CNT	3
@@ -202,11 +207,12 @@ struct pmic_fg_info {
 	int			status;
 	int			btemp;
 	int			health;
+	int			ext_set_cap;
 	/* Worker to monitor status and faults */
 	struct delayed_work status_monitor;
 };
 
-struct pmic_fg_info *info_ptr;
+static struct pmic_fg_info *info_ptr;
 
 static enum power_supply_property pmic_fg_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
@@ -226,22 +232,33 @@ static enum power_supply_property pmic_fg_props[] = {
 	POWER_SUPPLY_PROP_MAX_TEMP,
 };
 
-static int pmic_fg_reg_readmul(struct pmic_fg_info *info, int reg, u8 len, u8 *buf)
-{
-	int ret, i;
+/*
+ * This array represents the Battery Pack thermistor
+ * temperature and corresponding ADC value limits
+ */
+static int const therm_curve_data[THERM_CURVE_MAX_SAMPLES]
+	[THERM_CURVE_MAX_VALUES] = {
+	/* {temp_max, temp_min, adc_max, adc_min} */
+	{-15, -20, 508 , 401 },
+	{-10, -15, 401 , 318 },
+	{-5, -10, 318 , 254 },
+	{0, -5, 254 , 205 },
+	{5, 0, 205 , 166 },
+	{10, 5, 166 , 135 },
+	{15, 10, 135 , 110 },
+	{20, 15, 110 , 91 },
+	{25, 20, 91 , 75 },
+	{30, 25, 75 , 62 },
+	{35, 30, 62 , 52 },
+	{40, 35, 52 , 44 },
+	{45, 40, 44 , 37 },
+	{50, 45, 37 , 31 },
+	{55, 50, 31 , 27 },
+	{60, 55, 27 , 23 },
+	{65, 60, 23 , 19 },
+	{70, 65, 19 , 17 },
+};
 
-	for (i = 0; i < NR_RETRY_CNT; i++) {
-		ret = intel_mid_pmic_read_multi(reg, len, buf);
-		if (ret == -EAGAIN || ret == -ETIMEDOUT)
-			continue;
-		else
-			break;
-	}
-	if (ret < 0)
-		dev_err(&info->pdev->dev, "pmic multi reg read err:%d\n", ret);
-
-	return ret;
-}
 
 static int pmic_fg_reg_setb(struct pmic_fg_info *info, int reg, u8 mask)
 {
@@ -249,7 +266,7 @@ static int pmic_fg_reg_setb(struct pmic_fg_info *info, int reg, u8 mask)
 
        ret = intel_mid_pmic_setb(reg, mask);
        if (ret < 0)
-               dev_err(&info->pdev->dev, "pmic reg set mask err:%d\n", ret);
+			dev_err(&info->pdev->dev, "pmic reg set mask err:%d\n", ret);
        return ret;
 }
 
@@ -259,10 +276,11 @@ static int pmic_fg_reg_clearb(struct pmic_fg_info *info, int reg, u8 mask)
 
        ret = intel_mid_pmic_clearb(reg, mask);
        if (ret < 0)
-               dev_err(&info->pdev->dev, "pmic reg set mask err:%d\n", ret);
+			dev_err(&info->pdev->dev, "pmic reg set mask err:%d\n", ret);
 
        return ret;
 }
+
 
 static int pmic_fg_reg_readb(struct pmic_fg_info *info, int reg)
 {
@@ -298,25 +316,8 @@ static int pmic_fg_reg_writeb(struct pmic_fg_info *info, int reg, u8 val)
 	return ret;
 }
 
-static char special_reg[] = {0xBC, 0xE2, 0xE0, 0xBA, 0x56, 0x58, 0x5A, 0x78, 0x7A, 0x7C};
-
-static int reg_is_special(char reg)
-{
-	int i, sum;
-	sum = sizeof(special_reg);
-	for(i = 0; i < sum; i++)
-		if (reg == special_reg[i])
-			return true;
-	return false;
-}
-
-#define PMIC_NUM_REG       0xEF
-#define NR_RETRY_CNT       3
-int pmic_register = 0;
-
 static void pmic_fg_dump_init_regs(struct pmic_fg_info *info)
 {
-#if 0
 	int i;
 
 	dev_info(&info->pdev->dev, "reg:%x, val:%x\n",
@@ -344,40 +345,48 @@ static void pmic_fg_dump_init_regs(struct pmic_fg_info *info)
 	dev_info(&info->pdev->dev, "reg:%x, val:%x\n",
 				DC_FG_RDC0_REG,
 				pmic_fg_reg_readb(info, DC_FG_RDC0_REG));
-#else
-	int i = 0, j = 0;
-	int ret = 0;
-	u8 buf[2];
-	for (i = 0; i < PMIC_NUM_REG; ++i) {
-		pmic_register = i;
-		if (reg_is_special(pmic_register)){
-			for (j = 0; j < NR_RETRY_CNT; j++) {
-				ret = pmic_fg_reg_readmul(info, pmic_register, 2, buf);
-				if (ret == -EAGAIN || ret == -ETIMEDOUT)
-					continue;
-				else
-					break;
+}
 
-			}
-			if (ret < 0)
-				dev_dbg(&info->pdev->dev, "pmic_reg multi read err:%d\n", ret);
-			dev_info(&info->pdev->dev, "reg:%x, val:%x\n", pmic_register, buf[0]);
-			dev_info(&info->pdev->dev, "reg:%x, val:%x\n", pmic_register + 1, buf[1]);
-			i++;
-		} else {
-			for (j = 0; j < NR_RETRY_CNT; j++) {
-				ret = pmic_fg_reg_readb(info, pmic_register);
-				if (ret == -EAGAIN || ret == -ETIMEDOUT)
-					continue;
-				else
-					break;
-			}
-			if (ret < 0)
-				dev_dbg(&info->pdev->dev, "pmic_reg read err:%d\n", ret);
-			dev_info(&info->pdev->dev, "reg:%x, val:%x\n", pmic_register, ret);
+static int conv_adc_temp(int adc_val, int adc_max, int adc_diff, int temp_diff)
+{
+	int ret;
+
+	ret = (adc_max - adc_val) * temp_diff;
+	return ret / adc_diff;
+}
+
+static bool is_valid_temp_adc_range(int val, int min, int max)
+{
+	if (val > min && val <= max)
+		return true;
+	else
+		return false;
+}
+
+static int dc_xpwr_get_batt_temp(int adc_val, int *temp)
+{
+	int i;
+
+	for (i = 0; i < THERM_CURVE_MAX_SAMPLES; i++) {
+		/* linear approximation for battery pack temperature */
+		if (is_valid_temp_adc_range(adc_val, therm_curve_data[i][3],
+					    therm_curve_data[i][2])) {
+
+			*temp = conv_adc_temp(adc_val, therm_curve_data[i][2],
+					     therm_curve_data[i][2] -
+					     therm_curve_data[i][3],
+					     therm_curve_data[i][0] -
+					     therm_curve_data[i][1]);
+
+			*temp += therm_curve_data[i][1];
+			break;
 		}
 	}
-#endif
+
+	if (i >= THERM_CURVE_MAX_SAMPLES)
+		return -ERANGE;
+
+	return 0;
 
 }
 
@@ -430,7 +439,7 @@ vbatt_read_fail:
 
 static int pmic_fg_get_current(struct pmic_fg_info *info, int *cur)
 {
-	int ret, raw_val, sign;
+	int ret = 0, raw_val, sign;
 	int pwr_stat;
 
 	pwr_stat = pmic_fg_reg_readb(info, DC_PS_STAT_REG);
@@ -467,7 +476,7 @@ static int pmic_fg_get_btemp(struct pmic_fg_info *info, int *btemp)
 	 * by deviding the ADC code with 10 and pass it to
 	 * the Thermistor look up function.
 	 */
-	ret = info->pdata->batt_adc_to_temp(raw_val / 10, btemp);
+	ret = dc_xpwr_get_batt_temp(raw_val / 10, btemp);
 	if (ret < 0)
 		dev_warn(&info->pdev->dev, "ADC conversion error%d\n", ret);
 	else
@@ -480,16 +489,21 @@ btemp_read_fail:
 static int pmic_fg_get_vocv(struct pmic_fg_info *info, int *vocv)
 {
 	int ret, value;
-	u8 buf[2];
+
 	/*
 	 * OCV readings are 12-bit length. So Read
 	 * the MSB first left-shift by 4 bits and
 	 * read the lower nibble.
 	 */
-	ret = pmic_fg_reg_readmul(info, DC_FG_OCVH_REG, 2, buf);
+	ret = pmic_fg_reg_readb(info, DC_FG_OCVH_REG);
 	if (ret < 0)
 		goto vocv_read_fail;
-	value = (buf[0] << 4) | (buf[1] & 0xf);
+	value = ret << 4;
+
+	ret = pmic_fg_reg_readb(info, DC_FG_OCVL_REG);
+	if (ret < 0)
+		goto vocv_read_fail;
+	value |= (ret & 0xf);
 
 	*vocv = ADC_TO_VBATT(value);
 vocv_read_fail:
@@ -570,17 +584,24 @@ health_read_fail:
 static int pmic_fg_get_charge_now(struct pmic_fg_info *info, int *value)
 {
 	int ret;
-	u8 buf[2];
+
+	ret = pmic_fg_reg_readb(info, DC_FG_CC_MTR1_REG);
+	if (ret < 0)
+		goto pmic_fg_cnow_err;
+
+	*value = (ret & FG_CC_MTR1_VAL_MASK) << 8;
+
 	/*
 	 * higher byte and lower byte reads should be
 	 * back to back to get successful lower byte result.
 	 */
-
-	ret = pmic_fg_reg_readmul(info, DC_FG_CC_MTR1_REG, 2, buf);
+	pmic_fg_reg_readb(info, DC_FG_CC_MTR1_REG);
+	ret = pmic_fg_reg_readb(info, DC_FG_CC_MTR0_REG);
 	if (ret < 0)
 		goto pmic_fg_cnow_err;
-	*value = ((buf[0] & FG_CC_MTR1_VAL_MASK) << 8) | (buf[1] & FG_CC_MTR0_VAL_MASK);
+	*value |= (ret & FG_CC_MTR0_VAL_MASK);
 	*value *= FG_DES_CAP_RES_LSB;
+
 	return 0;
 
 pmic_fg_cnow_err:
@@ -590,13 +611,23 @@ pmic_fg_cnow_err:
 static int pmic_fg_get_charge_full(struct pmic_fg_info *info, int *value)
 {
 	int ret;
-	u8 buf[2];
 
-	ret = pmic_fg_reg_readmul(info, DC_FG_DES_CAP1_REG, 2, buf);
+	ret = pmic_fg_reg_readb(info, DC_FG_DES_CAP1_REG);
 	if (ret < 0)
 		goto pmic_fg_cfull_err;
-	*value = ((buf[0] & FG_DES_CAP1_VAL_MASK) << 8 ) | (buf[1] & FG_DES_CAP0_VAL_MASK);
+	*value = (ret & FG_DES_CAP1_VAL_MASK) << 8;
+
+	/*
+	 * higher byte and lower byte reads should be
+	 * back to back to get successful lower byte result.
+	 */
+	pmic_fg_reg_readb(info, DC_FG_DES_CAP1_REG);
+	ret = pmic_fg_reg_readb(info, DC_FG_DES_CAP0_REG);
+	if (ret < 0)
+		goto pmic_fg_cfull_err;
+	*value |= (ret & FG_DES_CAP0_VAL_MASK);
 	*value *= FG_DES_CAP_RES_LSB;
+
 	return 0;
 
 pmic_fg_cfull_err:
@@ -651,6 +682,16 @@ static int pmic_fg_get_battery_property(struct power_supply *psy,
 			val->intval = 0;
 		break;
 	case POWER_SUPPLY_PROP_CAPACITY:
+		/*
+		 * Check whether the capacity is set externally or not. If the
+		 * capacity value is set externally, use same as the SOC value
+		 * for the battery level usage.
+		 */
+		if ((info->ext_set_cap) >= 0 && (info->ext_set_cap <= 100)) {
+			val->intval = info->ext_set_cap;
+			break;
+		}
+
 		if (info->status == POWER_SUPPLY_STATUS_FULL)
 			val->intval = 100;
 		else {
@@ -716,6 +757,10 @@ static int pmic_fg_set_battery_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_STATUS:
 		info->status = val->intval;
 		break;
+	case POWER_SUPPLY_PROP_CAPACITY:
+		if ((val->intval >= 0) && (val->intval <= 100))
+			info->ext_set_cap = val->intval;
+		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -728,35 +773,51 @@ static int pmic_fg_set_battery_property(struct power_supply *psy,
 static int pmic_fg_update_config_params(struct pmic_fg_info *info)
 {
 	int ret, i;
-	u8 buf[2];
 
-	ret = pmic_fg_reg_readmul(info, DC_FG_DES_CAP1_REG, 2, buf);
+	ret = pmic_fg_reg_readb(info, DC_FG_DES_CAP1_REG);
 	if (ret < 0)
-		goto fg_save_cfg_fail;
-	else {
-		info->cfg->cap1 = buf[0];
-		info->cfg->cap0 = buf[1];
-	}
+		goto fg_svae_cfg_fail;
+	info->cfg->cap1 = ret;
 
-	ret = pmic_fg_reg_readmul(info, DC_FG_RDC1_REG, 2, buf);
+	/*
+	 * higher byte and lower byte reads should be
+	 * back to back to get successful lower byte result.
+	 */
+	pmic_fg_reg_readb(info, DC_FG_DES_CAP1_REG);
+	ret = pmic_fg_reg_readb(info, DC_FG_DES_CAP0_REG);
 	if (ret < 0)
-		goto fg_save_cfg_fail;
-	else {
-		info->cfg->rdc1 = buf[0];
-		info->cfg->rdc0 = buf[1];
-	}
+		goto fg_svae_cfg_fail;
+	else
+		info->cfg->cap0 = ret;
+
+	ret = pmic_fg_reg_readb(info, DC_FG_RDC1_REG);
+	if (ret < 0)
+		goto fg_svae_cfg_fail;
+	else
+		info->cfg->rdc1 = ret;
+
+	/*
+	 * higher byte and lower byte reads should be
+	 * back to back to get successful lower byte result.
+	 */
+	pmic_fg_reg_readb(info, DC_FG_RDC1_REG);
+	ret = pmic_fg_reg_readb(info, DC_FG_RDC0_REG);
+	if (ret < 0)
+		goto fg_svae_cfg_fail;
+	else
+		info->cfg->rdc0 = ret;
 
 	for (i = 0; i < BAT_CURVE_SIZE; i++) {
 		ret = pmic_fg_reg_readb(info, DC_FG_OCV_CURVE_REG + i);
 		if (ret < 0)
-			goto fg_save_cfg_fail;
+			goto fg_svae_cfg_fail;
 		else
 			info->cfg->bat_curve[i] = ret;
 	}
 
 	return 0;
 
-fg_save_cfg_fail:
+fg_svae_cfg_fail:
 	return ret;
 }
 
@@ -781,8 +842,9 @@ static void pmic_fg_status_monitor(struct work_struct *work)
 	present_health = pmic_fg_battery_health(info);
 	mutex_unlock(&info->lock);
 
-	pr_info("[%s] BATTERY: status = %d, temperature = %d, health = %d\n", 
-			__func__, info->status, info->btemp, info->health);
+	pr_info("[%s] BATTERY: status = %d, temperature = %d, health = %d, present_cap = %d\n",
+			__func__, info->status, info->btemp, info->health,present_cap);
+
 	/*
 	 *PSY change event is sent only upon change in
 	 *health,cap,temp.
@@ -865,11 +927,16 @@ static int pmic_fg_set_lowbatt_thresholds(struct pmic_fg_info *info)
 	}
 	ret = (ret & FG_REP_CAP_VAL_MASK);
 
+	if (ret > FG_LOW_CAP_WARN1_THR)
+		reg_val = FG_LOW_CAP_WARN1_THR;
+	else if (ret > FG_LOW_CAP_WARN2_THR)
+		reg_val = FG_LOW_CAP_WARN2_THR;
+	else if (ret > FG_LOW_CAP_CRIT_THR)
+		reg_val = FG_LOW_CAP_CRIT_THR;
 	/*set low battery alert, which is 14% for the first level,
 	 * 4% and 0% for the sencond level, the value will impact PMIC auto calibration
 	 * this default value is recommended by PMIC vendor*/
 	if (ret > FG_LOW_CAP_CRIT_THR) {
-		reg_val = FG_LOW_CAP_CRIT_THR;
 		ret = pmic_fg_reg_readb(info, DC_FG_TUNING_CNTL4);
 		if (ret < 0) {
 			dev_err(&info->pdev->dev, "%s:read err:%d\n", __func__, ret);
@@ -943,25 +1010,33 @@ static int pmic_fg_program_design_cap(struct pmic_fg_info *info)
 {
 	int ret;
 	int cap1, cap0;
-	u8 buf[2];
+/*
+	ret = pmic_fg_reg_writeb(info, DC_FG_DES_CAP1_REG, info->pdata->cap1);
+	if (ret < 0)
+		goto fg_prog_descap_fail;
+*/
+       cap1 = pmic_fg_reg_readb(info, DC_FG_DES_CAP1_REG);
+       if (cap1 < 0) {
+				dev_warn(&info->pdev->dev, "CAP1 reg read err!!\n");
+				return ret;
+      }
+       cap0 = pmic_fg_reg_readb(info, DC_FG_DES_CAP0_REG);
 
-	ret = pmic_fg_reg_readmul(info, DC_FG_DES_CAP1_REG, 2, buf);
-	if (ret < 0) {
-		dev_warn(&info->pdev->dev, "CAP reg read error\n");
-		return ret;
-	}
+       if (cap1 == info->cfg->cap1 && cap0 == info->cfg->cap0) {
+				dev_info(&info->pdev->dev, "FG data is already initialized\n");
+				return 0;
+       } else {
+				dev_info(&info->pdev->dev, "FG data need to be initialized\n");
+       }
 
-	if (buf[0] == info->cfg->cap1 && buf[1] == info->cfg->cap0) {
-		dev_info(&info->pdev->dev, "design cap is already initialized\n");
-		return 0;
-	} else {
-		dev_info(&info->pdev->dev, "design cap need to be initialized\n");
-	}
+       /*Disable coulomb meter*/
+       ret = pmic_fg_reg_clearb(info, DC_FG_CNTL_REG, FG_CNTL_CC_EN);
 
-	//Disable coulomb meter
-	ret = pmic_fg_reg_clearb(info, DC_FG_CNTL_REG, FG_CNTL_CC_EN);
-	ret = pmic_fg_reg_writeb(info, DC_FG_DES_CAP1_REG, info->cfg->cap1);
-	ret = pmic_fg_reg_writeb(info, DC_FG_DES_CAP0_REG, info->cfg->cap0);
+       ret = pmic_fg_reg_writeb(info, DC_FG_DES_CAP1_REG, info->cfg->cap1);
+
+
+		ret = pmic_fg_reg_writeb(info, DC_FG_DES_CAP0_REG, info->cfg->cap0);
+
 	ret = pmic_fg_reg_setb(info, DC_FG_CNTL_REG, FG_CNTL_CC_EN);
 
 	return 0;
@@ -986,23 +1061,27 @@ static int pmic_fg_program_rdc_vals(struct pmic_fg_info *info)
 {
 	int ret;
 	int rdc1, rdc0;
-	u8 buf[2];
 
-	ret = pmic_fg_reg_readmul(info, DC_FG_RDC1_REG, 2, buf);
-	if (ret < 0) {
-		dev_warn(&info->pdev->dev, "RDC reg read error\n");
-		return ret;
-	}
 
-	if (buf[0] == info->cfg->rdc1 && buf[1] == info->cfg->rdc0) {
-		dev_info(&info->pdev->dev, "RDC is already initialized\n");
-		return 0;
-	} else {
-		dev_info(&info->pdev->dev, "RDC need to be initialized\n");
-	}
+       rdc1 = pmic_fg_reg_readb(info, DC_FG_RDC1_REG);
+       if (rdc1 < 0) {
+				dev_warn(&info->pdev->dev, "RDC1 reg read err!!\n");
+				return ret;
+       }
+       rdc0 = pmic_fg_reg_readb(info, DC_FG_RDC1_REG);
 
-	ret = pmic_fg_reg_writeb(info, DC_FG_RDC1_REG, info->cfg->rdc1);
+       if (rdc1 == info->cfg->rdc1 && rdc0 == info->cfg->rdc0) {
+				dev_info(&info->pdev->dev, "RDC is already initialized\n");
+				return 0;
+       } else {
+				dev_info(&info->pdev->dev, "RDC need to be initialized\n");
+       }
+
+       ret = pmic_fg_reg_writeb(info, DC_FG_RDC1_REG, info->cfg->rdc1);
+
 	ret = pmic_fg_reg_writeb(info, DC_FG_RDC0_REG, info->cfg->rdc0);
+
+
 	ret = pmic_fg_reg_clearb(info, DC_FG_TUNING_CNTL4, (1<<3));
 	ret = pmic_fg_reg_setb(info, DC_FG_TUNING_CNTL4, (1<<4));
 
@@ -1022,11 +1101,21 @@ static void pmic_fg_init_config_regs(struct pmic_fg_info *info)
 	if (ret < 0) {
 		dev_warn(&info->pdev->dev, "FG CNTL reg read err!!\n");
 	} else if ((ret & FG_CNTL_OCV_ADJ_EN) && (ret & FG_CNTL_CAP_ADJ_EN)) {
-		dev_info(&info->pdev->dev, "FG data is already initialized\n");
+		dev_info(&info->pdev->dev,
+			"FG data except the OCV curve is initialized\n");
+		/*
+		 * ocv curve will be set to default values
+		 * at every boot, so it is needed to explicitly write
+		 * the ocv curve data for each boot
+		 */
+		ret = pmic_fg_program_ocv_curve(info);
+		if (ret < 0)
+			dev_err(&info->pdev->dev,
+				"set ocv curve fail:%d\n", ret);
 		/* comment the following for FW may have touched the regsiters */
-		/* info->fg_init_done = true; */
-		/* pmic_fg_dump_init_regs(info); */
-		/* return; */
+		/*info->fg_init_done = true;*/
+		/*pmic_fg_dump_init_regs(info);*/
+		/*return;*/
 	} else {
 		dev_info(&info->pdev->dev, "FG data need to be initialized\n");
 	}
@@ -1052,7 +1141,7 @@ static void pmic_fg_init_config_regs(struct pmic_fg_info *info)
 	if (ret < 0)
 		dev_err(&info->pdev->dev, "lowbatt thr set fail:%d\n", ret);
 
-	ret = pmic_fg_reg_writeb(info, DC_FG_CNTL_REG, 0xf7);
+	ret = pmic_fg_reg_writeb(info, DC_FG_CNTL_REG, 0xff);
 	if (ret < 0)
 		dev_err(&info->pdev->dev, "gauge cntl set fail:%d\n", ret);
 
@@ -1106,14 +1195,13 @@ static int pmic_fg_save_fg_params(struct dc_xpwr_fg_cfg *cfg, int len)
 
 static int pmic_fg_set_config_params(struct dc_xpwr_fg_cfg *cfg, int len)
 {
-	int ret;
-
 	if (!info_ptr)
 		return -ENODEV;
 
-	info_ptr->cfg = kzalloc(sizeof(struct dc_xpwr_fg_cfg), GFP_KERNEL);
+	info_ptr->cfg = kmalloc(sizeof(struct dc_xpwr_fg_cfg), GFP_KERNEL);
 	if (!info_ptr->cfg)
 		return -ENOMEM;
+
 	memcpy(info_ptr->cfg, cfg, sizeof(struct dc_xpwr_fg_cfg));
 	mutex_lock(&info_ptr->lock);
 	pmic_fg_init_config_regs(info_ptr);
@@ -1136,9 +1224,9 @@ static void pmic_fg_init_hw_regs(struct pmic_fg_info *info)
 static void pmic_fg_init_psy(struct pmic_fg_info *info)
 {
 	info->status = POWER_SUPPLY_STATUS_DISCHARGING;
+	info->ext_set_cap = -EINVAL;
 }
 
-extern void *dollarcove_fg_pdata(void *info);
 static int pmic_fg_probe(struct platform_device *pdev)
 {
 	struct pmic_fg_info *info;
@@ -1151,11 +1239,10 @@ static int pmic_fg_probe(struct platform_device *pdev)
 	}
 
 	info->pdev = pdev;
-#ifdef CONFIG_ACPI
-	info->pdata = dollarcove_fg_pdata(NULL);
-#else
 	info->pdata = pdev->dev.platform_data;
-#endif
+	if (!info->pdata)
+		return -ENODEV;
+
 	platform_set_drvdata(pdev, info);
 	mutex_init(&info->lock);
 	INIT_DELAYED_WORK(&info->status_monitor, pmic_fg_status_monitor);
@@ -1180,7 +1267,7 @@ static int pmic_fg_probe(struct platform_device *pdev)
 	/* register fuel gauge interrupts */
 	pmic_fg_init_irq(info);
 	pmic_fg_init_hw_regs(info);
-	schedule_delayed_work(&info->status_monitor, STATUS_MON_DELAY_JIFFIES);
+	schedule_delayed_work(&info->status_monitor, STATUS_MON_DELAY_10MES);
 	return 0;
 }
 
@@ -1217,8 +1304,7 @@ static int pmic_fg_resume(struct device *dev)
 
 	dev_dbg(dev, "%s called\n", __func__);
 
-	power_supply_changed(&info->bat);
-	schedule_delayed_work(&info->status_monitor, STATUS_MON_DELAY_JIFFIES);
+	schedule_delayed_work(&info->status_monitor, 0);
 	return 0;
 }
 

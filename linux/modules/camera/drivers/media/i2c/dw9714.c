@@ -154,10 +154,11 @@ int dw9714_t_focus_vcm(struct v4l2_subdev *sd, u16 val)
 int dw9714_t_focus_abs(struct v4l2_subdev *sd, s32 value)
 {
 	int ret;
-
-	value = min(value, DW9714_MAX_FOCUS_POS);
-	ret = dw9714_t_focus_vcm(sd, DW9714_MAX_FOCUS_POS - value);
-	//ret = dw9714_t_focus_vcm(sd, value);
+//modify by zhanghf :filter the negative value;
+    value = clamp(value,0, DW9714_MAX_FOCUS_POS);
+    //modify by zhanghf 20150519 fix mantis bug 0035940  
+	//ret = dw9714_t_focus_vcm(sd, DW9714_MAX_FOCUS_POS - value);
+	ret = dw9714_t_focus_vcm(sd, value);
 	if (ret == 0) {
 		dw9714_dev.number_of_steps = value - dw9714_dev.focus;
 		dw9714_dev.focus = value;

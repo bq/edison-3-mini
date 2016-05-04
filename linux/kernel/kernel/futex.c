@@ -1274,19 +1274,20 @@ static int futex_requeue(u32 __user *uaddr1, unsigned int flags,
 	u32 curval2;
 
 	if (requeue_pi) {
-                /*
-                 * Requeue PI only works on two distinct uaddrs. This
-                 * check is only valid for private futexes. See below.
-                 */
-                if (uaddr1 == uaddr2)
-                        return -EINVAL;
-                /*
-                 * requeue_pi requires a pi_state, try to allocate it now
-                 * without any locks in case it fails.
-                 */
-                if (refill_pi_state_cache())
-                        return -ENOMEM;
-                /*
+		/*
+		 * Requeue PI only works on two distinct uaddrs. This
+		 * check is only valid for private futexes. See below.
+		 */
+		if (uaddr1 == uaddr2)
+			return -EINVAL;
+
+		/*
+		 * requeue_pi requires a pi_state, try to allocate it now
+		 * without any locks in case it fails.
+		 */
+		if (refill_pi_state_cache())
+			return -ENOMEM;
+		/*
 		 * requeue_pi must wake as many tasks as it can, up to nr_wake
 		 * + nr_requeue, since it acquires the rt_mutex prior to
 		 * returning to userspace, so as to not leave the rt_mutex with
@@ -1312,23 +1313,23 @@ retry:
 
 	ret = get_futex_key(uaddr1, flags & FLAGS_SHARED, &key1, VERIFY_READ);
 	if (unlikely(ret != 0))
-                goto out;
-        ret = get_futex_key(uaddr2, flags & FLAGS_SHARED, &key2,
-                        requeue_pi ? VERIFY_WRITE : VERIFY_READ);
-        if (unlikely(ret != 0))
-                goto out_put_key1;
+		goto out;
+	ret = get_futex_key(uaddr2, flags & FLAGS_SHARED, &key2,
+			    requeue_pi ? VERIFY_WRITE : VERIFY_READ);
+	if (unlikely(ret != 0))
+		goto out_put_key1;
 
-        /*
-         * The check above which compares uaddrs is not sufficient for
-         * shared futexes. We need to compare the keys:
-         */
-        if (requeue_pi && match_futex(&key1, &key2)) {
-                ret = -EINVAL;
-                goto out_put_keys;
-        }
+	/*
+	 * The check above which compares uaddrs is not sufficient for
+	 * shared futexes. We need to compare the keys:
+	 */
+	if (requeue_pi && match_futex(&key1, &key2)) {
+		ret = -EINVAL;
+		goto out_put_keys;
+	}
 
-        hb1 = hash_futex(&key1);
-        hb2 = hash_futex(&key2);
+	hb1 = hash_futex(&key1);
+	hb2 = hash_futex(&key2);
 
 retry_private:
 	double_lock_hb(hb1, hb2);
@@ -2345,19 +2346,19 @@ static int futex_wait_requeue_pi(u32 __user *uaddr, unsigned int flags,
 	 * count.
 	 */
 	ret = futex_wait_setup(uaddr, val, flags, &q, &hb);
-        if (ret)
-                goto out_key2;
+	if (ret)
+		goto out_key2;
 
-        /*
-         *       * The check above which compares uaddrs is not sufficient for
-         *               * shared futexes. We need to compare the keys:
-         *                       */
-        if (match_futex(&q.key, &key2)) {
-                ret = -EINVAL;
-                goto out_put_keys;
-        }
+	/*
+	 * The check above which compares uaddrs is not sufficient for
+	 * shared futexes. We need to compare the keys:
+	 */
+	if (match_futex(&q.key, &key2)) {
+		ret = -EINVAL;
+		goto out_put_keys;
+	}
 
-        /* Queue the futex_q, drop the hb lock, wait for wakeup. */
+	/* Queue the futex_q, drop the hb lock, wait for wakeup. */
 	futex_wait_queue_me(hb, &q, to);
 
 	spin_lock(&hb->lock);

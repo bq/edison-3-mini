@@ -31,48 +31,32 @@ enum {
 	byt_cr_thermal,
 };
 
-/* Correlation function to do Y=mX+C */
-static int linear_correlation(void *info, long temp, long *res)
-{
-	struct intel_mid_thermal_sensor *sensor = info;
-
-	if (!sensor)
-		return -EINVAL;
-
-	*res = ((temp * sensor->slope) / 1000) + sensor->intercept;
-
-	return 0;
-}
-
 static struct intel_mid_thermal_sensor byt_sensors[] = {
 	{
-		.name = "skin1",
+		.name = "SYSTHERM0",
 		.index = 0,
-		.slope = 873,
-		.intercept = -4139,
-		.temp_correlation = linear_correlation,
 	},
 	{
 		.name = "SYSTHERM1",
 		.index = 1,
-		.slope = 1000,
-		.intercept = 0,
-		.temp_correlation = linear_correlation,
 	},
 	{
-		.name = "skin0",
+		.name = "SYSTHERM2",
 		.index = 2,
-		.slope = 553,
-		.intercept = 11848,
-		.temp_correlation = linear_correlation,
 	},
 	{
 		.name = "PMICDIE",
 		.index = 3,
-		.slope = 1000,
-		.intercept = 0,
 		.direct = true,
-		.temp_correlation = linear_correlation,
+	},
+	/* Virtual Sensors should always be at the end */
+	{
+		.name = "FrontSkin",
+		.index = 4,
+	},
+	{
+		.name = "BackSkin",
+		.index = 5,
 	},
 };
 
@@ -80,19 +64,11 @@ static struct intel_mid_thermal_sensor byt_cr_sensors[] = {
 	{
 		.name = "PMICDIE",
 		.index = 0,
-		.slope = 1000,
-		.intercept = 0,
-		.direct = true,
-		.temp_correlation = linear_correlation,
 	},
 	{
 		.name = "skin1",
 		.index = 1,
-		.slope = 1000,
-		.intercept = 0,
-		.temp_correlation = linear_correlation,
 	},
-
 };
 
 /* 'r' stands for 'remote' and 'l' for 'local' */
@@ -131,6 +107,7 @@ static struct intel_mid_thermal_platform_data pdata[] = {
 	[byt_thermal] = {
 		.num_sensors = 4,
 		.sensors = byt_sensors,
+		.num_virtual_sensors = 2,
 	},
 	[byt_ec_thermal] = {
 		.num_sensors = 7,
@@ -146,7 +123,7 @@ static int set_byt_platform_thermal_data(void)
 {
 	return intel_mid_pmic_set_pdata(BYT_THERM_DEV_NAME,
 				&pdata[byt_thermal],
-				sizeof(pdata[byt_thermal]));
+				sizeof(pdata[byt_thermal]), 0);
 }
 
 static int set_byt_cr_platform_thermal_data(void)
@@ -189,7 +166,8 @@ static int __init byt_platform_thermal_init(void)
 		INTEL_MID_BOARD(3, TABLET, BYT, BLK, PRO, 8PR1) ||
 		INTEL_MID_BOARD(3, TABLET, BYT, BLK, ENG, 8PR1) ||
 		INTEL_MID_BOARD(3, TABLET, BYT, BLK, PRO, 10PR11) ||
-		INTEL_MID_BOARD(3, TABLET, BYT, BLK, ENG, 10PR11)) {
+		INTEL_MID_BOARD(3, TABLET, BYT, BLK, ENG, 10PR11) ||
+		INTEL_MID_BOARD(1, TABLET, CHT)) {
 		ret = set_byt_platform_thermal_data();
 	} else if (INTEL_MID_BOARD(3, TABLET, BYT, BLB, PRO, CRBV3) ||
 			INTEL_MID_BOARD(3, TABLET, BYT, BLB, ENG, CRBV3)) {

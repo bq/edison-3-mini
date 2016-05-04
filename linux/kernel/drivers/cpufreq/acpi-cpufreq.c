@@ -452,7 +452,13 @@ static int acpi_cpufreq_target(struct cpufreq_policy *policy,
 		} else {
 			pr_debug("Already at target state (P%d)\n",
 				next_perf_state);
-			goto out;
+			/*sometime, policy->cur changed by cpufreq out of sync,
+			 *for the case, we need to go on below sequency to post
+			 *frequency change, which can set policy->cur to a correct
+			 *value
+			 */
+			if (target_freq == policy->cur)//[M] Fix bug 0036320,xmlwz 20150428
+				goto out;
 		}
 	}
 
@@ -487,7 +493,6 @@ static int acpi_cpufreq_target(struct cpufreq_policy *policy,
 	freqs.old = perf->states[perf->state].core_frequency * 1000;
 	freqs.new = data->freq_table[next_state].frequency;
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_PRECHANGE);
-
 	drv_write(&cmd);
 
 	if (acpi_pstate_strict) {
@@ -676,6 +681,18 @@ static int acpi_cpufreq_blacklist(struct cpuinfo_x86 *c)
 }
 #endif
 
+#ifdef CONFIG_MODULE_CPU_FREQ
+static void get_cpu_sibling_mask(int cpu, struct cpumask *sibling_mask)
+{
+	unsigned int base = (cpu/CONFIG_NR_CPUS_PER_MODULE) * CONFIG_NR_CPUS_PER_MODULE;
+	unsigned int i;
+
+	cpumask_clear(sibling_mask);
+	for (i = base; i < (base + CONFIG_NR_CPUS_PER_MODULE); i++)
+		cpumask_set_cpu(i, sibling_mask);
+}
+#endif
+
 static int acpi_cpufreq_cpu_init(struct cpufreq_policy *policy)
 {
 	unsigned int i;
@@ -687,6 +704,8 @@ static int acpi_cpufreq_cpu_init(struct cpufreq_policy *policy)
 	unsigned int result = 0;
 	struct cpuinfo_x86 *c = &cpu_data(policy->cpu);
 	struct acpi_processor_performance *perf;
+	struct cpumask sibling_mask;
+
 #ifdef CONFIG_SMP
 	static int blacklisted;
 #endif
@@ -726,6 +745,18 @@ static int acpi_cpufreq_cpu_init(struct cpufreq_policy *policy)
 	    policy->shared_type == CPUFREQ_SHARED_TYPE_ANY) {
 		cpumask_copy(policy->cpus, perf->shared_cpu_map);
 	}
+
+#ifdef CONFIG_MODULE_CPU_FREQ
+	/* currently only Intel Cherrytrail platform supports module level dvfs
+	 * with acpi-cpufreq */
+	if (c->x86_vendor == X86_VENDOR_INTEL) {
+		if ((c->x86_model == 0x4c)) {
+			policy->shared_type = CPUFREQ_SHARED_TYPE_ALL;
+			get_cpu_sibling_mask(cpu, &sibling_mask);
+			cpumask_copy(policy->cpus, &sibling_mask);
+		}
+	}
+#endif
 
 #ifdef CONFIG_SMP
 	dmi_check_system(sw_any_bug_dmi_table);
@@ -950,8 +981,7 @@ static struct cpufreq_driver acpi_cpufreq_driver = {
 static int __init set_battlow_status(char *unused)
 {
 	pr_notice("Low Battery detected! Frequency shall be capped.\n");
-	/*disable vbatt low frequece cap by xmyyq 20140826*/
-	battlow = false;
+	battlow = true;
 	return 0;
 }
 /* Checking "battlow" param on boot, whether battery is critically low or not */

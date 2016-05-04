@@ -31,7 +31,7 @@
 extern void ia_css_pipe_get_generic_stage_desc(
 	struct ia_css_pipeline_stage_desc *stage_desc,
 	struct ia_css_binary *binary,
-	struct ia_css_frame *out_frame,
+	struct ia_css_frame *out_frame[],
 	struct ia_css_frame *in_frame,
 	struct ia_css_frame *cc_frame,
 	struct ia_css_frame *vf_frame);
@@ -39,7 +39,7 @@ extern void ia_css_pipe_get_generic_stage_desc(
 extern void ia_css_pipe_get_firmwares_stage_desc(
 	struct ia_css_pipeline_stage_desc *stage_desc,
 	struct ia_css_binary *binary,
-	struct ia_css_frame *out_frame,
+	struct ia_css_frame *out_frame[],
 	struct ia_css_frame *in_frame,
 	struct ia_css_frame *vf_frame,
 	const struct ia_css_fw_info *fw,

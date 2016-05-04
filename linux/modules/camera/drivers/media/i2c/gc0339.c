@@ -496,6 +496,7 @@ static int gc0339_init_common(struct v4l2_subdev *sd)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int ret;
+
 #if 0
 	gc0339_write_reg(client, MISENSOR_8BIT,  0xFC, 0x10);
 	gc0339_write_reg(client, MISENSOR_8BIT,  0xFE, 0x00);
@@ -716,7 +717,7 @@ static int gc0339_s_power(struct v4l2_subdev *sd, int power)
 {
 	struct gc0339_device *dev = to_gc0339_sensor(sd);
 	int ret = 0;
-
+	printk("@%s: enable:%d\n", __func__, power);
 	if (power == 0) {
 		ret = power_down(sd);
 		dev->power = 0;
@@ -895,6 +896,7 @@ static int gc0339_get_intg_factor(struct i2c_client *client,
 		return -EINVAL;
 
 	buf->vt_pix_clk_freq_mhz = ext_clk_freq_hz / 2;
+	dev->vt_pix_clk_freq_mhz = buf->vt_pix_clk_freq_mhz;
 
 	/* get integration time */
 	buf->coarse_integration_time_min = GC0339_COARSE_INTG_TIME_MIN;
@@ -1204,7 +1206,7 @@ static long gc0339_s_exposure(struct v4l2_subdev *sd,
 			       struct atomisp_exposure *exposure)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
-	dev_dbg(&client->dev, "%s(0x%X 0x%X 0x%X)\n", __func__,
+	dev_dbg(&client->dev, "%s: (%d %d %d)\n", __func__,
 			exposure->integration_time[0], exposure->gain[0], exposure->gain[1]);
 
 	int ret = 0;
@@ -1293,6 +1295,125 @@ static int gc0339_g_exposure(struct v4l2_subdev *sd, s32 *value)
 	return 0;
 }
 
+static int gc0339_s_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct gc0339_device *dev = container_of(
+		ctrl->handler, struct gc0339_device, ctrl_handler);
+	struct i2c_client *client = v4l2_get_subdevdata(&dev->sd);
+	int ret = 0;
+
+	switch (ctrl->id) {
+	case V4L2_CID_VFLIP:
+		dev_dbg(&client->dev, "%s: CID_VFLIP:%d.\n", __func__, ctrl->val);
+		ret = gc0339_t_vflip(&dev->sd, ctrl->val);
+		break;
+	case V4L2_CID_HFLIP:
+		dev_dbg(&client->dev, "%s: CID_HFLIP:%d.\n", __func__, ctrl->val);
+		ret = gc0339_t_hflip(&dev->sd, ctrl->val);
+		break;
+	}
+
+	return ret;
+}
+
+static int gc0339_g_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct gc0339_device *dev = container_of(
+		ctrl->handler, struct gc0339_device, ctrl_handler);
+	struct i2c_client *client = v4l2_get_subdevdata(&dev->sd);
+	int ret = 0;
+
+	switch (ctrl->id) {
+	case V4L2_CID_EXPOSURE_ABSOLUTE:
+		ret = gc0339_g_exposure(&dev->sd, &ctrl->val);
+		break;
+	case V4L2_CID_FOCAL_ABSOLUTE:
+		ret = gc0339_g_focal(&dev->sd, &ctrl->val);
+		break;
+	case V4L2_CID_FNUMBER_ABSOLUTE:
+		ret = gc0339_g_fnumber(&dev->sd, &ctrl->val);
+		break;
+	case V4L2_CID_FNUMBER_RANGE:
+		ret = gc0339_g_fnumber_range(&dev->sd, &ctrl->val);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return ret;
+}
+static const struct v4l2_ctrl_ops ctrl_ops = {
+	.s_ctrl = gc0339_s_ctrl,
+	.g_volatile_ctrl = gc0339_g_ctrl
+};
+
+struct v4l2_ctrl_config gc0339_controls[] = {
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_EXPOSURE_ABSOLUTE,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "exposure",
+		.min = 0x0,
+		.max = 0xffff,
+		.step = 0x01,
+		.def = 0x00,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_VFLIP,
+		.type = V4L2_CTRL_TYPE_BOOLEAN,
+		.name = "Flip",
+		.min = 0,
+		.max = 1,
+		.step = 1,
+		.def = 0,
+	},
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_HFLIP,
+		.type = V4L2_CTRL_TYPE_BOOLEAN,
+		.name = "Mirror",
+		.min = 0,
+		.max = 1,
+		.step = 1,
+		.def = 0,
+	},
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_FOCAL_ABSOLUTE,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "focal length",
+		.min = GC0339_FOCAL_LENGTH_DEFAULT,
+		.max = GC0339_FOCAL_LENGTH_DEFAULT,
+		.step = 0x01,
+		.def = GC0339_FOCAL_LENGTH_DEFAULT,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_FNUMBER_ABSOLUTE,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "f-number",
+		.min = GC0339_F_NUMBER_DEFAULT,
+		.max = GC0339_F_NUMBER_DEFAULT,
+		.step = 0x01,
+		.def = GC0339_F_NUMBER_DEFAULT,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops = &ctrl_ops,
+		.id = V4L2_CID_FNUMBER_RANGE,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "f-number range",
+		.min = GC0339_F_NUMBER_RANGE,
+		.max =  GC0339_F_NUMBER_RANGE,
+		.step = 0x01,
+		.def = GC0339_F_NUMBER_RANGE,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+};
+#if 0
 static struct gc0339_control gc0339_controls[] = {
 	{
 		.qc = {
@@ -1413,7 +1534,7 @@ static struct gc0339_control *gc0339_find_control(__u32 id)
 	}
 	return NULL;
 }
-
+#endif
 static int gc0339_detect(struct gc0339_device *dev, struct i2c_client *client)
 {
 	struct i2c_adapter *adapter = client->adapter;
@@ -1511,7 +1632,7 @@ fail_detect:
 	dev_err(&client->dev, "sensor power-gating failed\n");
 	return ret;
 }
-
+#if 0
 static int gc0339_queryctrl(struct v4l2_subdev *sd, struct v4l2_queryctrl *qc)
 {
 	struct gc0339_control *ctrl = gc0339_find_control(qc->id);
@@ -1521,7 +1642,7 @@ static int gc0339_queryctrl(struct v4l2_subdev *sd, struct v4l2_queryctrl *qc)
 	*qc = ctrl->qc;
 	return 0;
 }
-
+#endif
 /* Horizontal flip the image. */
 static int gc0339_t_hflip(struct v4l2_subdev *sd, int value)
 {
@@ -1539,7 +1660,7 @@ static int gc0339_t_hflip(struct v4l2_subdev *sd, int value)
 		date_tem |= gc0339_HFLIP_BIT;
 	else
 		date_tem &= ~gc0339_HFLIP_BIT;
-	err += gc0339_write_reg(c, MISENSOR_8BIT, gc0339_CTRL_FLIP_ADDR, date_tem);
+	err = gc0339_write_reg(c, MISENSOR_8BIT, gc0339_CTRL_FLIP_ADDR, date_tem);
 	udelay(10);
 	if (err)   return err;
 	g_flip = date_tem;
@@ -1570,7 +1691,7 @@ static int gc0339_t_vflip(struct v4l2_subdev *sd, int value)
 		date_tem |= gc0339_VFLIP_BIT;
 	else
 		date_tem &= ~gc0339_VFLIP_BIT;
-	err += gc0339_write_reg(c, MISENSOR_8BIT, gc0339_CTRL_FLIP_ADDR, date_tem);
+	err = gc0339_write_reg(c, MISENSOR_8BIT, gc0339_CTRL_FLIP_ADDR, date_tem);
 	udelay(10);
 	if (err)   return err;
 	g_flip = date_tem;
@@ -1609,6 +1730,53 @@ static int gc0339_s_parm(struct v4l2_subdev *sd,
 	return 0;
 }
 
+int
+gc0339_g_frame_interval(struct v4l2_subdev *sd,
+				struct v4l2_subdev_frame_interval *interval)
+{
+	struct gc0339_device *dev = to_gc0339_sensor(sd);
+	struct i2c_client *client = v4l2_get_subdevdata(sd);
+	u16 lines_per_frame;
+	/*
+	 * if no specific information to calculate the fps,
+	 * just used the value in sensor settings
+	 */
+
+	if (!gc0339_res[dev->res].pixels_per_line || !gc0339_res[dev->res].lines_per_frame) {
+		interval->interval.numerator = 1;
+		interval->interval.denominator = gc0339_res[dev->res].fps;
+		return 0;
+	}
+
+	/*
+	 * DS: if coarse_integration_time is set larger than
+	 * lines_per_frame the frame_size will be expanded to
+	 * coarse_integration_time+1
+	 */
+#if 0
+	if (dev->coarse_itg > dev->lines_per_frame) {
+		if ((dev->coarse_itg + 4) < dev->coarse_itg) {
+			/*
+			 * we can not add 4 according to ds, as this will
+			 * cause over flow
+			 */
+			v4l2_warn(client, "%s: abnormal coarse_itg:0x%x\n",
+				  __func__, dev->coarse_itg);
+			lines_per_frame = dev->coarse_itg;
+		} else {
+			lines_per_frame = dev->coarse_itg + 4;
+		}
+	} else {
+		lines_per_frame = dev->lines_per_frame;
+	}
+#endif
+	interval->interval.numerator = gc0339_res[dev->res].pixels_per_line *
+					gc0339_res[dev->res].lines_per_frame;
+	interval->interval.denominator = dev->vt_pix_clk_freq_mhz;
+
+	return 0;
+}
+#if 0
 static int gc0339_g_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 {
 	struct gc0339_control *octrl = gc0339_find_control(ctrl->id);
@@ -1637,18 +1805,21 @@ static int gc0339_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 
 	return 0;
 }
-
+#endif
 static int gc0339_s_stream(struct v4l2_subdev *sd, int enable)
 {
-	int ret;
+	int ret = 0;
 	struct i2c_client *c = v4l2_get_subdevdata(sd);
-
-	if (enable) {
+	struct gc0339_device *dev = to_gc0339_sensor(sd);
+	printk("@%s: enable:%d\n", __func__, enable);
+	if (enable && dev->streaming != 1) {
 		printk("gc0339_s_stream: Stream On\n");
 		ret = gc0339_set_streaming(sd);
-	} else {
+		dev->streaming = 1;
+	} else if (!enable) {
 		printk("gc0339_s_stream: Stream Off\n");
 		ret = gc0339_set_suspend(sd);
+		dev->streaming = 0;
 	}
 
 	return ret;
@@ -1820,6 +1991,7 @@ static const struct v4l2_subdev_video_ops gc0339_video_ops = {
 	.enum_framesizes = gc0339_enum_framesizes,
 	.enum_frameintervals = gc0339_enum_frameintervals,
 	.s_parm = gc0339_s_parm,
+	.g_frame_interval = gc0339_g_frame_interval,
 };
 
 static struct v4l2_subdev_sensor_ops gc0339_sensor_ops = {
@@ -1828,9 +2000,9 @@ static struct v4l2_subdev_sensor_ops gc0339_sensor_ops = {
 
 static const struct v4l2_subdev_core_ops gc0339_core_ops = {
 	.g_chip_ident = gc0339_g_chip_ident,
-	.queryctrl = gc0339_queryctrl,
-	.g_ctrl = gc0339_g_ctrl,
-	.s_ctrl = gc0339_s_ctrl,
+	.queryctrl = v4l2_subdev_queryctrl,
+	.g_ctrl = v4l2_subdev_g_ctrl,
+	.s_ctrl = v4l2_subdev_s_ctrl,
 #ifdef POWER_ALWAYS_ON_BEFORE_SUSPEND
 	.s_power = gc0339_s_power_always_on,
 #else
@@ -1868,9 +2040,30 @@ static int gc0339_remove(struct i2c_client *client)
 	dev->platform_data->csi_cfg(sd, 0);
 	if (dev->platform_data->platform_deinit)
 		dev->platform_data->platform_deinit();
+	v4l2_ctrl_handler_free(&dev->ctrl_handler);
 	v4l2_device_unregister_subdev(sd);
 	media_entity_cleanup(&dev->sd.entity);
 	kfree(dev);
+	return 0;
+}
+
+static int __gc0339_init_ctrl_handler(struct gc0339_device *dev)
+{
+	struct v4l2_ctrl_handler *hdl;
+	int i;
+
+	hdl = &dev->ctrl_handler;
+
+	v4l2_ctrl_handler_init(&dev->ctrl_handler, ARRAY_SIZE(gc0339_controls));
+
+	for (i = 0; i < ARRAY_SIZE(gc0339_controls); i++)
+		v4l2_ctrl_new_custom(&dev->ctrl_handler,
+				&gc0339_controls[i], NULL);
+
+	dev->ctrl_handler.lock = &dev->input_lock;
+	dev->sd.ctrl_handler = hdl;
+	v4l2_ctrl_handler_setup(&dev->ctrl_handler);
+
 	return 0;
 }
 
@@ -1886,6 +2079,7 @@ static int gc0339_probe(struct i2c_client *client,
 		dev_err(&client->dev, "out of memory\n");
 		return -ENOMEM;
 	}
+	mutex_init(&dev->input_lock);
 
 	v4l2_i2c_subdev_init(&dev->sd, client, &gc0339_ops);
 
@@ -1902,6 +2096,13 @@ static int gc0339_probe(struct i2c_client *client,
 		}
 	}
 
+	ret = __gc0339_init_ctrl_handler(dev);
+	if (ret) {
+		v4l2_ctrl_handler_free(&dev->ctrl_handler);
+		v4l2_device_unregister_subdev(&dev->sd);
+		kfree(dev);
+		return ret;
+	}
 	/*TODO add format code here*/
 	dev->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	dev->pad.flags = MEDIA_PAD_FL_SOURCE;

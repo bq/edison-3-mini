@@ -28,7 +28,7 @@
 #include "byt_common.h"
 #include <asm/platform_byt_audio.h>
 
-struct snd_pcm_hardware BYT_COMMS_COMMON_BT_hw_param = {
+struct snd_pcm_hardware byt_comms_common_bt_hw_param = {
 	.info = (SNDRV_PCM_INFO_INTERLEAVED |
 		SNDRV_PCM_INFO_DOUBLE |
 		SNDRV_PCM_INFO_PAUSE |
@@ -52,7 +52,7 @@ struct snd_pcm_hardware BYT_COMMS_COMMON_BT_hw_param = {
 };
 
 /* Data path functionalities */
-struct snd_pcm_hardware BYT_COMMS_COMMON_MODEM_hw_param = {
+struct snd_pcm_hardware byt_comms_common_modem_hw_param = {
 	.info = (SNDRV_PCM_INFO_INTERLEAVED |
 		SNDRV_PCM_INFO_DOUBLE |
 		SNDRV_PCM_INFO_PAUSE |
@@ -90,11 +90,11 @@ static int byt_comms_dai_link_startup(struct snd_pcm_substream *substream)
     /* set the runtime hw parameter with local snd_pcm_hardware struct */
 	switch (substream->pcm->device) {
 	case BYT_COMMS_BT:
-		str_runtime->hw = BYT_COMMS_COMMON_BT_hw_param;
+		str_runtime->hw = byt_comms_common_bt_hw_param;
 	break;
 
 	case BYT_COMMS_MODEM:
-		str_runtime->hw = BYT_COMMS_COMMON_MODEM_hw_param;
+		str_runtime->hw = byt_comms_common_modem_hw_param;
 	break;
 	default:
 		pr_err("BYT Comms Machine: bad PCM Device = %d\n",
@@ -211,8 +211,8 @@ static int byt_comms_dai_link_hw_params(struct snd_pcm_substream *substream,
 	tx_mask = BYT_SSP_MIXING_SLOT_TX_MASK;
 	rx_mask = BYT_SSP_MIXING_SLOT_RX_MASK;
 
-	tristate_offset = BIT(TRISTATE_BIT) |\
-	    BIT(FRAME_SYNC_RELATIVE_TIMING_BIT);
+	tristate_offset = BIT(TRISTATE_BIT) |
+		BIT(FRAME_SYNC_RELATIVE_TIMING_BIT);
 
 	break;
 	default:

@@ -40,32 +40,48 @@
 #include "intel_dsi_cmd.h"
 #include "dsi_mod_cpt_claa080wq05.h"
 
-
-static u8 cpt_enable_ic_power[]      = {0xC3, 0x40, 0x00, 0x28};
-static u8 cpt_disable_ic_power[]      = {0xC3, 0x40, 0x00, 0x20};
-
-static u8 cpt_init_sequence5[]      	= {0xF0, 0x5A, 0x5A};    																			// Test key for level 2 commands
-static u8 cpt_init_sequence6[]      	= {0xF1, 0x5A, 0x5A};																					// Test key for level 2 commands	
-static u8 cpt_init_sequence7[]      	= {0xFC, 0xA5, 0xA5};																					// Test key for level 3 commands
-static u8 cpt_init_sequence8[]      	= {0xD0, 0x00, 0x10};																					// LV2 OTP Reload selection
-static u8 cpt_init_sequence9[]     	 	= {0xB1, 0x10};																								// Resolution selection
-static u8 cpt_init_sequence10[]      	= {0xB2, 0x14, 0x22, 0x2F, 0x04};															// Source Direction selection
-static u8 cpt_init_sequence11_1[]     = {0xB5, 0x01};
-static u8 cpt_init_sequence11_2[]			= {0xEE, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00, 0x1F, 0x00};			// ASG Timing selection
-static u8 cpt_init_sequence12[]      	= {0xEF, 0x56, 0x34, 0x43, 0x65, 0x90, 0x80, 0x24, 0x80,0x00, 0x91, 0x11, 0x11, 0x11};															// ASG Timing selection
-static u8 cpt_init_sequence13[]      	= {0xF7, 0x04, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,0x0F, 0x16, 0x17, 0x10, 0x01, 0x01, 0x01, 0x01, 0x04,0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x16,0x17, 0x10, 0x01, 0x01, 0x01, 0x01};												// ASG Pin Assignment
-static u8 cpt_init_sequence14[]      	= {0xF2, 0x02, 0x08, 0x08, 0x40, 0x10};												// Vertical&Horizontal Porch control
-static u8 cpt_init_sequence15[]      	= {0xF6, 0x60, 0x25, 0x26, 0x00, 0x00, 0x00};									// Source output control
-static u8 cpt_init_sequence16_1[]     = {0xFA, 0x04, 0x35, 0x07, 0x0B, 0x12, 0x0B, 0x10, 0x16,0x1A, 0x24, 0x2C, 0x33, 0x3B, 0x3B, 0x33, 0x34, 0x33};
-static u8 cpt_init_sequence16_2[]     =	{0xFB, 0x04, 0x35, 0x07 ,0x0B, 0x12 ,0x0B, 0x10 ,0x16,0x1A, 0x24 ,0x2C, 0x33 ,0x3B, 0x3B ,0x33 ,0x34 ,0x33};			// Gamma
-static u8 cpt_init_sequence17[]      	= {0xF3, 0x01 ,0xC4, 0xE0 ,0x62, 0xD4 ,0x83 ,0x37 ,0x3C,0x24, 0x00}; 																							// DDI internal power control
-static u8 cpt_init_sequence18[] 			= {0xF4, 0x00 ,0x02, 0x03, 0x26, 0x03, 0x02, 0x09, 0x00,0x07, 0x16, 0x16, 0x03, 0x00, 0x08, 0x08, 0x03, 0x19,0x1C, 0x12, 0x1C, 0x1D, 0x1E, 0x1A, 0x09, 0x01, 0x04,0x02, 0x61, 0x74, 0x75, 0x72, 0x83, 0x80, 0x80, 0xF0};			// DDI internal power sequence control
-static u8 cpt_init_sequence19_1[] 		= {0xB0, 0x01};
-static u8 cpt_init_sequence19_2[] 		=	{0xF5, 0x2F, 0x2F, 0x5F, 0xAB, 0x98, 0x52, 0x0F, 0x33,0x43, 0x04, 0x59, 0x54, 0x52, 0x05, 0x40, 0x40, 0x5D,0x59, 0x40};																								// Output Voltage setting & internal power sequence
-static u8 cpt_init_sequence20_1[] 		= {0xBC, 0x01, 0x4E, 0x08};
-static u8 cpt_init_sequence20_2[] 		= {0xE1, 0x03, 0x10, 0x1C, 0xA0, 0x10};												// Watch Dog
-static u8 cpt_init_sequence21[] 			= {0xFD, 0x16, 0x10, 0x11, 0x20, 0x09};												// DDI Analog interface Setting
-static u8 cpt_init_sequence22[] 			= {0xC3, 0x40, 0x00, 0x28};																		// BC_CTRL Enable(Power IC Enable)
+static u8 cpt_enable_ic_power[]		= {0xC3, 0x40, 0x00, 0x28};
+static u8 cpt_disable_ic_power[]	= {0xC3, 0x40, 0x00, 0x20};
+/* Test key for level 2 commands */
+static u8 cpt_init_sequence5[]		= {0xF0, 0x5A, 0x5A};
+/* Test key for level 2 commands */
+static u8 cpt_init_sequence6[]		= {0xF1, 0x5A, 0x5A};
+/* Test key for level 3 commands */
+static u8 cpt_init_sequence7[]		= {0xFC, 0xA5, 0xA5};
+/* LV2 OTP Reload selection */
+static u8 cpt_init_sequence8[]		= {0xD0, 0x00, 0x10};
+/* Resolution selection */
+static u8 cpt_init_sequence9[]		= {0xB1, 0x10};
+/* Source Direction selection */
+static u8 cpt_init_sequence10[]		= {0xB2, 0x14, 0x22, 0x2F, 0x04};
+static u8 cpt_init_sequence11_1[]	= {0xB5, 0x01};
+/* ASG Timing selection */
+static u8 cpt_init_sequence11_2[]	= {0xEE, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00, 0x1F, 0x00};
+/* ASG Timing selection */
+static u8 cpt_init_sequence12[]		= {0xEF, 0x56, 0x34, 0x43, 0x65, 0x90, 0x80, 0x24, 0x80, 0x00, 0x91, 0x11, 0x11, 0x11};
+/* ASG Pin Assignment */
+static u8 cpt_init_sequence13[]		= {0xF7, 0x04, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x16, 0x17, 0x10, 0x01, 0x01,  0x01, 0x01, 0x04, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x16, 0x17, 0x10, 0x01, 0x01, 0x01, 0x01};
+/* Vertical&Horizontal Porch control */
+static u8 cpt_init_sequence14[]		= {0xF2, 0x02, 0x08, 0x08, 0x40, 0x10};
+/* Source output control */
+static u8 cpt_init_sequence15[]		= {0xF6, 0x60, 0x25, 0x26, 0x00, 0x00, 0x00};
+static u8 cpt_init_sequence16_1[]	= {0xFA, 0x04, 0x35, 0x07, 0x0B, 0x12, 0x0B, 0x10, 0x16, 0x1A, 0x24, 0x2C, 0x33, 0x3B, 0x3B, 0x33, 0x34, 0x33};
+/* Gamma */
+static u8 cpt_init_sequence16_2[]	= {0xFB, 0x04, 0x35, 0x07, 0x0B, 0x12, 0x0B, 0x10, 0x16, 0x1A, 0x24, 0x2C, 0x33, 0x3B, 0x3B, 0x33, 0x34, 0x33};
+/* DDI internal power control */
+static u8 cpt_init_sequence17[]		= {0xF3, 0x01, 0xC4, 0xE0, 0x62, 0xD4, 0x83, 0x37, 0x3C, 0x24, 0x00};
+/* DDI internal power sequence control */
+static u8 cpt_init_sequence18[]		= {0xF4, 0x00, 0x02, 0x03, 0x26, 0x03, 0x02, 0x09, 0x00, 0x07, 0x16, 0x16, 0x03, 0x00, 0x08, 0x08, 0x03, 0x19, 0x1C, 0x12, 0x1C, 0x1D, 0x1E, 0x1A, 0x09, 0x01, 0x04, 0x02, 0x61, 0x74, 0x75, 0x72, 0x83, 0x80, 0x80, 0xF0};
+static u8 cpt_init_sequence19_1[]	= {0xB0, 0x01};
+/* Output Voltage setting & internal power sequence */
+static u8 cpt_init_sequence19_2[]	= {0xF5, 0x2F, 0x2F, 0x5F, 0xAB, 0x98, 0x52, 0x0F, 0x33, 0x43, 0x04, 0x59, 0x54, 0x52, 0x05, 0x40, 0x40, 0x5D, 0x59, 0x40};
+static u8 cpt_init_sequence20_1[]	= {0xBC, 0x01, 0x4E, 0x08};
+/* Watch Dog */
+static u8 cpt_init_sequence20_2[]	= {0xE1, 0x03, 0x10, 0x1C, 0xA0, 0x10};
+/* DDI Analog interface Setting */
+static u8 cpt_init_sequence21[]		= {0xFD, 0x16, 0x10, 0x11, 0x20, 0x09};
+/* BC_CTRL Enable(Power IC Enable) */
+static u8 cpt_init_sequence22[]		= {0xC3, 0x40, 0x00, 0x28};
 
 void claa080wq05_send_otp_cmds(struct intel_dsi_device *dsi)
 {
@@ -129,7 +145,9 @@ static void claa080wq05_create_resources(struct intel_dsi_device *dsi)
 static struct drm_display_mode *claa080wq05_get_modes(
 	struct intel_dsi_device *dsi)
 {
-	struct drm_display_mode *mode = NULL;
+	struct drm_display_mode *mode;
+	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
+
 	DRM_DEBUG_KMS("\n");
 	/* Allocate */
 	mode = kzalloc(sizeof(*mode), GFP_KERNEL);
@@ -154,7 +172,7 @@ static struct drm_display_mode *claa080wq05_get_modes(
 	mode->vrefresh = 60;
 	mode->clock =  mode->vrefresh * mode->vtotal *
 	mode->htotal / 1000;
-
+	intel_dsi->pclk = mode->clock;
 	/* Configure */
 	drm_mode_set_name(mode);
 	drm_mode_set_crtcinfo(mode, 0);
@@ -162,7 +180,6 @@ static struct drm_display_mode *claa080wq05_get_modes(
 
 	return mode;
 }
-
 
 static bool claa080wq05_get_hw_state(struct intel_dsi_device *dev)
 {
@@ -176,7 +193,7 @@ static enum drm_connector_status claa080wq05_detect(
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
 	struct drm_device *dev = intel_dsi->base.base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
- 	dev_priv->is_mipi = true;
+	dev_priv->is_mipi = true;
 	DRM_DEBUG_KMS("\n");
 	return connector_status_connected;
 }
@@ -213,28 +230,28 @@ void claa080wq05_reset(struct intel_dsi_device *dsi)
 static int claa080wq05_mode_valid(struct intel_dsi_device *dsi,
 		   struct drm_display_mode *mode)
 {
-    DRM_DEBUG_KMS("\n");
+	DRM_DEBUG_KMS("\n");
 	return MODE_OK;
 }
 
 static void claa080wq05_dpms(struct intel_dsi_device *dsi, bool enable)
 {
-//	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-
 	DRM_DEBUG_KMS("\n");
 }
+
 static void claa080wq05_enable(struct intel_dsi_device *dsi)
 {
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
 	DRM_DEBUG_KMS("\n");
 	dsi_vc_dcs_write(intel_dsi, 0, cpt_init_sequence5, sizeof(cpt_init_sequence5));
 	dsi_vc_dcs_write_0(intel_dsi, 0, 0x11);
-	msleep(30);  //wait for 30ms
+	msleep(30);
 	dsi_vc_dcs_write(intel_dsi, 0, cpt_enable_ic_power, sizeof(cpt_enable_ic_power));
-	msleep(150);  //wait for 150ms
+	msleep(150);
 	dsi_vc_dcs_write_0(intel_dsi, 0, 0x29);
 	msleep(200);
 }
+
 static void claa080wq05_disable(struct intel_dsi_device *dsi)
 {
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
@@ -251,8 +268,6 @@ static void claa080wq05_disable(struct intel_dsi_device *dsi)
 bool claa080wq05_init(struct intel_dsi_device *dsi)
 {
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-//	struct drm_device *dev = intel_dsi->base.base.dev;
-//	struct drm_i915_private *dev_priv = dev->dev_private;
 
 	/* create private data, slam to dsi->dev_priv. could support many panels
 	 * based on dsi->name. This panal supports both command and video mode,
@@ -296,14 +311,16 @@ bool claa080wq05_init(struct intel_dsi_device *dsi)
 	intel_dsi->video_frmt_cfg_bits = 1<<3;
 	intel_dsi->lane_count = 4;
 
+	intel_dsi->port = 0; /* PORT_A by default */
+	intel_dsi->burst_mode_ratio = 100;
+
+
 	intel_dsi->backlight_off_delay = 20;
 	intel_dsi->send_shutdown = true;
 	intel_dsi->shutdown_pkt_delay = 20;
-	//dev_priv->mipi.panel_bpp = 24;
 
 	return true;
 }
-
 
 /* Callbacks. We might not need them all. */
 struct intel_dsi_dev_ops cpt_claa080wq05_dsi_display_ops = {
@@ -322,5 +339,4 @@ struct intel_dsi_dev_ops cpt_claa080wq05_dsi_display_ops = {
 	.enable = claa080wq05_enable,
 	.disable = claa080wq05_disable,
 	.send_otp_cmds = claa080wq05_send_otp_cmds,
-
 };

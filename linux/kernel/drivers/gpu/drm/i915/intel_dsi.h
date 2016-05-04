@@ -85,6 +85,11 @@
 #define GPIO_NC_11_PCONF0               0x40F0
 #define GPIO_NC_11_PAD                  0x40F8
 
+/* Dual Link support */
+#define MIPI_DUAL_LINK_NONE		0
+#define MIPI_DUAL_LINK_FRONT_BACK	1
+#define MIPI_DUAL_LINK_PIXEL_ALT	2
+
 struct intel_dsi_device {
 	unsigned int panel_id;
 	const char *name;
@@ -168,6 +173,8 @@ struct intel_dsi {
 
 	u16 dsi_clock_freq;
 	u8 operation_mode;
+	u8 dual_link;
+	u8 pixel_overlap;
 	u8 video_mode_type;
 	u32 data_width;
 	u8 dither;
@@ -175,6 +182,7 @@ struct intel_dsi {
 	u8 escape_clk_div;
 	u32 lp_rx_timeout;
 	u8 turn_arnd_val;
+	u16 burst_mode_ratio;
 	u16 init_count;
 	u16 rst_timer_val;
 	u32 hs_to_lp_count;
@@ -184,6 +192,8 @@ struct intel_dsi {
 	u32 clk_hs_to_lp_count;
 	u32 video_frmt_cfg_bits;
 	u32 dphy_reg;
+	u32 pclk;
+	u16 port;
 
 	/* all delays in ms */
 	u8 backlight_off_delay;
@@ -204,12 +214,14 @@ static inline struct intel_dsi *enc_to_intel_dsi(struct drm_encoder *encoder)
 
 extern void vlv_enable_dsi_pll(struct intel_encoder *encoder);
 extern void vlv_disable_dsi_pll(struct intel_encoder *encoder);
+
 extern struct intel_dsi_dev_ops auo_b101uan01_dsi_display_ops;
 extern struct intel_dsi_dev_ops panasonic_vvx09f006a00_dsi_display_ops;
 extern struct intel_dsi_dev_ops auo_b080xat_dsi_display_ops;
 extern struct intel_dsi_dev_ops jdi_lpm070w425b_dsi_display_ops;
+extern struct intel_dsi_dev_ops kdt_kd079d5_31nb_a9_dsi_display_ops;
 extern struct intel_dsi_dev_ops vbt_generic_dsi_display_ops;
-extern struct intel_dsi_dev_ops tc35876x_dsi_display_ops;
+extern struct intel_dsi_dev_ops kdt_kd080d10_31na_a11_dsi_display_ops;
 extern struct intel_dsi_dev_ops auo_b080ean011_dsi_display_ops;
 extern struct intel_dsi_dev_ops auo_b080xan020_dsi_display_ops;
 extern struct intel_dsi_dev_ops rayken_rk785x32a1ci_dsi_display_ops;
@@ -221,12 +233,12 @@ extern struct intel_dsi_dev_ops sdc_bp080wx7_dsi_display_ops;
 extern struct intel_dsi_dev_ops boe_bp080wx7_dsi_display_ops;
 extern struct intel_dsi_dev_ops rayken_rk089wu45j1ai_dsi_display_ops;
 extern struct intel_dsi_dev_ops cpt_claa080fp01_dsi_display_ops;
-extern struct intel_dsi_dev_ops boe_kd079d5_31nb_a9_dsi_display_ops;
-
+extern struct intel_dsi_dev_ops tc35876x_dsi_display_ops;
+extern struct intel_dsi_dev_ops auo_b101uan017_dsi_display_ops;
+extern struct intel_dsi_dev_ops ivo_kr079ia1t_dsi_display_ops;
 void intel_dsi_clear_device_ready(struct intel_encoder *encoder);
 
 #define	MIPI_DSI_UNDEFINED_PANEL_ID			0x00
-#define LVDS_DSI_TC35876X_AUTO_DETECT			0xFF
 #define	MIPI_DSI_GENERIC_PANEL_ID			0x01
 #define	MIPI_DSI_AUO_B101UAN01_PANEL_ID			0x02
 #define	MIPI_DSI_PANASONIC_VXX09F006A00_PANEL_ID	0x03
@@ -235,7 +247,7 @@ void intel_dsi_clear_device_ready(struct intel_encoder *encoder);
 #define MIPI_DSI_AUO_B080EAN01_PANEL_ID			0x06
 #define MIPI_DSI_AUO_B080XAN020_PANEL_ID		0x07
 #define MIPI_DSI_RAYKEN_RK785X32A1CI_PANEL_ID		0x08
-#define MIPI_DSI_MJK_M080WZ01B_PANEL_ID			0x09
+#define MIPI_DSI_MJK_M080WX01B_PANEL_ID			0x09
 #define MIPI_DSI_KDT_KD070D30_PANEL_ID			0x0A
 #define MIPI_DSI_CPT_CLAA080WQ05_PANEL_ID		0x0B
 #define MIPI_DSI_INNOLUX_N080ICE_PANEL_ID		0x0C
@@ -243,12 +255,15 @@ void intel_dsi_clear_device_ready(struct intel_encoder *encoder);
 #define MIPI_DSI_BOE_BP080WX7_PANEL_ID			0x0E
 #define MIPI_DSI_RAYKEN_RK089WU45J1AI_PANEL_ID		0x0F
 #define MIPI_DSI_CPT_CLAA080FP01_PANEL_ID		0x10
-#define MIPI_DSI_BOE_KD079D5_31NB_A9_PANEL_ID		0x11
-/*LVDS supported list based on Toshiba Video Bridge*/
+#define MIPI_DSI_KDT_KD079D5_31NB_A9_PANEL_ID		0x11
+#define MIPI_DSI_KDT_KD080D10_31NA_A11_PANEL_ID	0x12
+#define MIPI_DSI_AUO_B101UAN017_PANEL_ID		0x13
+#define MIPI_DSI_IVO_KR079IA1T_PANEL_ID			0x14
 #define LVDS_DSI_TC35876X_CPT_CLAA070WP03		0x20
 #define LVDS_DSI_TC35876X_CDY_BI097XN02			0x21
 #define LVDS_DSI_TC35876X_AUO_B101EAN01_2		0x22
 #define LVDS_DSI_TC35876X_AUO_B101XTN01_1		0x23
 #define LVDS_DSI_TC35876X_CMI_N101ICG_L21		0x24
 #define LVDS_DSI_TC35876X_BOE_BP101WX4_300		0x25
+
 #endif /* _INTEL_DSI_H */

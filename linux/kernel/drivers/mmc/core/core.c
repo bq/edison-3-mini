@@ -1026,10 +1026,6 @@ static inline void mmc_set_ios(struct mmc_host *host)
 {
 	struct mmc_ios *ios = &host->ios;
 
-	/*modify sdcard power to 3.2V,by xmyyq,20140916*/
-	if(!strcmp(mmc_hostname(host), "mmc2") && (ios->vdd > 0))
-		ios->vdd = 20;
-
 	pr_debug("%s: clock %uHz busmode %u powermode %u cs %u Vdd %u "
 		"width %u timing %u\n",
 		 mmc_hostname(host), ios->clock, ios->bus_mode,
@@ -1059,6 +1055,8 @@ void mmc_set_chip_select(struct mmc_host *host, int mode)
 static void __mmc_set_clock(struct mmc_host *host, unsigned int hz)
 {
 	WARN_ON(hz < host->f_min);
+	if (hz < host->f_min)
+		hz = host->f_min;
 
 	if (hz > host->f_max)
 		hz = host->f_max;
@@ -1490,9 +1488,12 @@ int mmc_set_signal_voltage(struct mmc_host *host, int signal_voltage)
 
 power_cycle:
 	if (err) {
+		int ocr;
 		pr_debug("%s: Signal voltage switch failed, "
 			"power cycling card\n", mmc_hostname(host));
+		ocr = host->ocr;
 		mmc_power_cycle(host);
+		host->ocr = mmc_select_voltage(host, ocr);
 	}
 
 	mmc_host_clk_release(host);
@@ -1568,8 +1569,14 @@ static void mmc_power_up(struct mmc_host *host)
 	/*
 	 * This delay should be sufficient to allow the power supply
 	 * to reach the minimum voltage.
+	 * Different device may have different supply power up time.
+	 * The max value should be 35ms per spec. If there is tPRU,
+	 * use it to wait for supply power up stable.
 	 */
-	usleep_range(10000, 11000);
+	if (host->tpru)
+		usleep_range(host->tpru * 1000, host->tpru * 1000 + 100);
+	else
+		usleep_range(10000, 11000);
 
 	host->ios.clock = host->f_init;
 
@@ -1579,8 +1586,13 @@ static void mmc_power_up(struct mmc_host *host)
 	/*
 	 * This delay must be at least 74 clock sizes, or 1 ms, or the
 	 * time required to reach a stable voltage.
+	 * Different device may have different supply ramp up time.
+	 * If there is tRAMP, use it to wait for supply ramp up stable.
 	 */
-	usleep_range(5000, 6000);
+	if (host->tramp)
+		usleep_range(host->tramp * 1000, host->tramp * 1000 + 100);
+	else
+		usleep_range(5000, 6000);
 
 	mmc_host_clk_release(host);
 }
@@ -1609,6 +1621,7 @@ void mmc_power_off(struct mmc_host *host)
 	host->ios.power_mode = MMC_POWER_OFF;
 	host->ios.bus_width = MMC_BUS_WIDTH_1;
 	host->ios.timing = MMC_TIMING_LEGACY;
+	host->ios.signal_voltage = 0;
 	mmc_set_ios(host);
 
 	if (host->ops->set_dev_power)
@@ -1627,8 +1640,12 @@ void mmc_power_off(struct mmc_host *host)
 void mmc_power_cycle(struct mmc_host *host)
 {
 	mmc_power_off(host);
-	/* Wait at least 1 ms according to SD spec */
-	mmc_delay(1);
+	/*
+	 * Wait at least 1 ms according to SD spec
+	 * some of the SD card seems only 1ms is not enough,
+	 * change the actual delay to be 10ms for safe
+	 */
+	mmc_delay(10);
 	mmc_power_up(host);
 }
 
@@ -2829,8 +2846,6 @@ int mmc_suspend_host(struct mmc_host *host)
 				host->bus_ops->remove(host);
 			mmc_claim_host(host);
 			mmc_detach_bus(host);
-			/*keep power when entering suspend,by xmyyq,20140916*/
-			if(strcmp(mmc_hostname(host), "mmc2"))
 			mmc_power_off(host);
 			mmc_release_host(host);
 			host->pm_flags = 0;
@@ -2839,8 +2854,6 @@ int mmc_suspend_host(struct mmc_host *host)
 	}
 	mmc_bus_put(host);
 
-	/*keep power when entering suspend,by xmyyq,20140916*/
-	if(strcmp(mmc_hostname(host), "mmc2"))
 	if (!err && !mmc_card_keep_power(host))
 		mmc_power_off(host);
 

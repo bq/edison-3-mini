@@ -143,21 +143,42 @@ static int sensor_write(struct sensor_data *data, u8 reg, u8 val)
 	return ret;
 }
 
+#define PS_ENABLE_FLAG		(1 << 7)
+#define PS_DISABLE_FLAG		(0 << 7)
+#define PULSES_INTERVAL_200MS	(0b010 << 4)
+#define PULSES_INTERVAL_100MS	(0b011 << 4)
+#define PULSES_INTERVAL_75MS	(0b100 << 4)
+#define PULSED_CURRENT_100MA	(0 << 3)
+#define PULSED_CURRENT_200MA	(1 << 3)
+#define ALS_ENABLE_FLAG		(1 << 2)
+#define ALS_DISABLE_FLAG	(0 << 2)
+
+#define PXS_CONVERSION_4	(0b01 << 1)
+#define PXS_CONVERSION_8	(0b10 << 1)
+#define PXS_CONVERSION_16	(0b11 << 1)
+#define ALS_CONVERSION_4	(0b01 << 5)
+#define ALS_CONVERSION_8	(0b10 << 5)
+#define ALS_CONVERSION_16	(0b11 << 5)
+
+#define ALS_LUX_2048		(0b000 << 0) /* 0.50 lux/count */
+#define ALS_LUX_1024		(0b001 << 0) /* 0.25 lux/count */
 static int sensor_init(struct sensor_data *data)
 {
 	int ret = 0;
 
 	SENSOR_DBG(DBG_LEVEL1, "%s", data->client->name);
 
-	ret = sensor_write(data, REG_CONFIGURE, 0x30);
+	ret = sensor_write(data, REG_CONFIGURE,
+		PS_DISABLE_FLAG | PULSES_INTERVAL_100MS |
+		PULSED_CURRENT_100MA | ALS_DISABLE_FLAG);
 	if (ret < 0)
 		return ret;
 
-	ret = sensor_write(data, REG_INTERRUPT, 0x22);
+	ret = sensor_write(data, REG_INTERRUPT, PXS_CONVERSION_4|ALS_CONVERSION_4);
 	if (ret < 0)
 		return ret;
 
-	return sensor_write(data, REG_ALS_RNG, 0x0);
+	return sensor_write(data, REG_ALS_RNG, ALS_LUX_2048);
 }
 
 static int sensor_set_mode(struct sensor_data *data, int state)
@@ -391,15 +412,17 @@ static irqreturn_t sensor_interrupt_handler(int irq, void *pri)
 
 	/*clear both ps and als flag bit7, bit3*/
 	ret = sensor_write(data, REG_INTERRUPT, status & 0x77);
+	if (ret < 0) {
+		dev_err(&data->client->dev, "sensor_write returns %d\n", ret);
+	}
 out:
 	mutex_unlock(&data->lock);
-	ret = IRQ_HANDLED;
-	return ret;
+	return IRQ_HANDLED;
 }
 
 static int sensor_get_data_init(struct sensor_data *data)
 {
-	int ret = 0;
+	int ret;
 
 	SENSOR_DBG(DBG_LEVEL1, "%s", data->client->name);
 
@@ -511,7 +534,6 @@ static ssize_t ps_sensor_enable_store(struct device *dev,
 	struct i2c_client *client = to_i2c_client(dev);
 	struct sensor_data *data = i2c_get_clientdata(client);
 	unsigned long val;
-	int ret;
 
 	SENSOR_DBG(DBG_LEVEL1, "%s", data->client->name);
 
@@ -527,6 +549,7 @@ static ssize_t ps_sensor_enable_store(struct device *dev,
 
 	if (val) {
 		u8 ps;
+		int ret;
 
 		sensor_set_mode(data, data->state | PS_ENABLE);
 		/*in case of far event can't trigger at the first time*/
@@ -639,7 +662,7 @@ static ssize_t ps_sensor_thresh_store(struct device *dev,
 static ssize_t sensor_debug_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", debug_level);
+	return sprintf(buf, "%u\n", debug_level);
 }
 
 static ssize_t sensor_debug_store(struct device *dev,
@@ -798,7 +821,6 @@ static int register_i2c_device(int bus, int addr, char *name)
 {
 	int ret = 0;
 	struct i2c_adapter *adapter;
-	struct i2c_client *client;
 	struct i2c_board_info info;
 
 	SENSOR_DBG(DBG_LEVEL2, "%s", name);
@@ -810,6 +832,7 @@ static int register_i2c_device(int bus, int addr, char *name)
 		printk(KERN_ERR "Err: invalid i2c adapter %d\n", bus);
 		return -ENODEV;
 	} else {
+		struct i2c_client *client;
 		info.addr = addr;
 		client = i2c_new_device(adapter, &info);
 		if (!client) {

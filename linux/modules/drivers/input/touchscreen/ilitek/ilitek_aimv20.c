@@ -611,7 +611,7 @@ ilitek_set_input_param(
 	input_set_abs_params(input, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
 	input_set_abs_params(input, ABS_MT_WIDTH_MAJOR, 0, 255, 0, 0);
 	input_set_abs_params(input, ABS_MT_TRACKING_ID, 0, max_tp, 0, 0);
-	for(key=0; key<sizeof(touch_key_code)/sizeof(int); key++){
+	for(key=0; key<sizeof(touch_key_code); key++){
         	if(touch_key_code[key] <= 0){
             		continue;
 		}

@@ -35,7 +35,7 @@ _func_enter_;
 	_rtw_init_sema(&(pcmdpriv->cmd_queue_sema), 0);
 	//_rtw_init_sema(&(pcmdpriv->cmd_done_sema), 0);
 	_rtw_init_sema(&(pcmdpriv->terminate_cmdthread_sema), 0);
-	DBG_871X_LEVEL(_drv_always_, "%s: terminate_cmdthread_sema_count=%d\n", __FUNCTION__, pcmdpriv->terminate_cmdthread_sema.count);
+	
 	
 	_rtw_init_queue(&(pcmdpriv->cmd_queue));
 	
@@ -436,7 +436,6 @@ void rtw_stop_cmd_thread(_adapter *adapter)
 		_rtw_up_sema(&adapter->cmdpriv.cmd_queue_sema);
 		DBG_871X_LEVEL(_drv_always_, "%s: waiting for terminate_cmdthread_sema\n", __FUNCTION__);
 		_rtw_down_sema_uninterruptible(&adapter->cmdpriv.terminate_cmdthread_sema);
-		DBG_871X_LEVEL(_drv_always_, "%s: terminate_cmdthread_sema_count=%d\n", __FUNCTION__, adapter->cmdpriv.terminate_cmdthread_sema.count);
 	}
 }
 
@@ -463,8 +462,6 @@ _func_enter_;
 	pcmdpriv->stop_req = 0;
 	pcmdpriv->cmdthd_running=_TRUE;
 	_rtw_up_sema(&pcmdpriv->terminate_cmdthread_sema);
-	DBG_871X_LEVEL(_drv_always_, "%s(enter): terminate_cmdthread_sema_count=%d\n", __FUNCTION__, pcmdpriv->terminate_cmdthread_sema.count);
-	
 
 	RT_TRACE(_module_rtl871x_cmd_c_,_drv_info_,("start r871x rtw_cmd_thread !!!!\n"));
 
@@ -641,7 +638,6 @@ post_process:
 	}while(1);
 
 	_rtw_up_sema(&pcmdpriv->terminate_cmdthread_sema);
-	DBG_871X_LEVEL(_drv_always_, "%s(exit): terminate_cmdthread_sema_count=%d\n", __FUNCTION__, pcmdpriv->terminate_cmdthread_sema.count);
 
 _func_exit_;
 
@@ -1579,7 +1575,7 @@ _func_exit_;
 	return res;
 }
 
-u8 rtw_setstakey_cmd(_adapter *padapter, u8 *psta, u8 unicast_key, bool enqueue)
+u8 rtw_setstakey_cmd(_adapter *padapter, u8 *psta, u8 key_type, bool enqueue)
 {
 	struct cmd_obj*			ph2c;
 	struct set_stakey_parm	*psetstakey_para;
@@ -1602,27 +1598,23 @@ _func_enter_;
 	_rtw_memcpy(psetstakey_para->addr, sta->hwaddr,ETH_ALEN);
 		
 	if(check_fwstate(pmlmepriv, WIFI_STATION_STATE)){
-#ifdef CONFIG_TDLS		
-		if(sta->tdls_sta_state&TDLS_LINKED_STATE)
-			psetstakey_para->algorithm=(u8)sta->dot118021XPrivacy;
-		else
-#endif //CONFIG_TDLS
 			psetstakey_para->algorithm =(unsigned char) psecuritypriv->dot11PrivacyAlgrthm;
 	}else{
 		GET_ENCRY_ALGO(psecuritypriv, sta, psetstakey_para->algorithm, _FALSE);
 	}
 
-	if (unicast_key == _TRUE) {
-#ifdef CONFIG_TDLS
-		if((sta->tdls_sta_state&TDLS_LINKED_STATE)==TDLS_LINKED_STATE)
-			_rtw_memcpy(&psetstakey_para->key, sta->tpk.tk, 16);
-		else
-#endif //CONFIG_TDLS
-			_rtw_memcpy(&psetstakey_para->key, &sta->dot118021x_UncstKey, 16);
-	}
-	else {
+	if (key_type == GROUP_KEY) {
 		_rtw_memcpy(&psetstakey_para->key, &psecuritypriv->dot118021XGrpKey[psecuritypriv->dot118021XGrpKeyid].skey, 16);
+	}
+	else if (key_type == UNICAST_KEY) {
+		_rtw_memcpy(&psetstakey_para->key, &sta->dot118021x_UncstKey, 16);
+	}
+#ifdef CONFIG_TDLS
+	else if(key_type == TDLS_KEY){
+			_rtw_memcpy(&psetstakey_para->key, sta->tpk.tk, 16);
+		psetstakey_para->algorithm=(u8)sta->dot118021XPrivacy;
        }
+#endif /* CONFIG_TDLS */
 
 	//jeff: set this becasue at least sw key is ready
 	padapter->securitypriv.busetkipkey=_TRUE;
@@ -2233,6 +2225,7 @@ _func_enter_;
 	}
 
 	_rtw_spinlock(&(padapter->tdlsinfo.cmd_lock));
+	if (addr != NULL)
 	_rtw_memcpy(TDLSoption->addr, addr, 6);	
 	TDLSoption->option = option;
 	_rtw_spinunlock(&(padapter->tdlsinfo.cmd_lock));
@@ -2373,8 +2366,8 @@ u8 traffic_status_watchdog(_adapter *padapter, u8 from_timer)
 		
 #ifdef CONFIG_TDLS
 #ifdef CONFIG_TDLS_AUTOSETUP
-		if( ( ptdlsinfo->watchdog_count % TDLS_WATCHDOG_PERIOD ) == 0 )	//10 * 2sec, periodically sending
-		{
+		/* TDLS_WATCHDOG_PERIOD * 2sec, periodically send */
+		if ((ptdlsinfo->watchdog_count % TDLS_WATCHDOG_PERIOD ) == 0) {
 			_rtw_memcpy(txmgmt.peer, baddr, ETH_ALEN);
 			issue_tdls_dis_req( padapter, &txmgmt );
 		}
@@ -3228,6 +3221,42 @@ exit:
 	return res;
 }
 //#endif //CONFIG_C2H_PACKET_EN
+
+u8 rtw_run_in_thread_cmd(PADAPTER padapter, void (*func)(void*), void* context)
+{
+	struct cmd_priv *pcmdpriv;
+	struct cmd_obj *ph2c;
+	struct RunInThread_param *parm;
+	s32 res = _SUCCESS;
+
+_func_enter_;
+
+	pcmdpriv = &padapter->cmdpriv;
+
+	ph2c = (struct cmd_obj*)rtw_zmalloc(sizeof(struct cmd_obj));	
+	if (NULL == ph2c) {
+		res = _FAIL;
+		goto exit;
+	}
+
+	parm = (struct RunInThread_param*)rtw_zmalloc(sizeof(struct RunInThread_param));
+	if (NULL == parm) {
+		rtw_mfree((u8*)ph2c, sizeof(struct cmd_obj));
+		res = _FAIL;
+		goto exit;
+	}
+
+	parm->func = func;
+	parm->context = context;
+	init_h2fwcmd_w_parm_no_rsp(ph2c, parm, GEN_CMD_CODE(_RunInThreadCMD));
+
+	res = rtw_enqueue_cmd(pcmdpriv, ph2c);
+exit:
+
+_func_exit_;
+
+	return res;
+}
 
 s32 c2h_evt_hdl(_adapter *adapter, u8 *c2h_evt, c2h_id_filter filter)
 {

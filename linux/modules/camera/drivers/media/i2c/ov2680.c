@@ -661,112 +661,196 @@ static int ov2680_h_flip(struct v4l2_subdev *sd, s32 value)
 	}
 	return ret;
 }
-struct ov2680_control ov2680_controls[] = {
+
+static void __ov2680_reset_v4l2_ctrl_value(struct v4l2_ctrl_handler *hdl)
+{
+	struct v4l2_ctrl *ctrl;
+
+	if (hdl == NULL)
+		return;
+
+	mutex_lock(hdl->lock);
+
+	list_for_each_entry(ctrl, &hdl->ctrls, node)
+		ctrl->done = false;
+
+	list_for_each_entry(ctrl, &hdl->ctrls, node) {
+		struct v4l2_ctrl *master = ctrl->cluster[0];
+		int i;
+
+		/* Skip if this control was already handled by a cluster. */
+		/* Skip button controls and read-only controls. */
+		if (ctrl->done || ctrl->type == V4L2_CTRL_TYPE_BUTTON ||
+		    (ctrl->flags & V4L2_CTRL_FLAG_READ_ONLY))
+			continue;
+
+		for (i = 0; i < master->ncontrols; i++) {
+			if (master->cluster[i]) {
+				master->cluster[i]->is_new = 1;
+				master->cluster[i]->done = true;
+			}
+		}
+		master->cur.val = master->val = master->default_value;
+	}
+
+	mutex_unlock(hdl->lock);
+}
+
+static int ov2680_s_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct ov2680_device *dev = container_of(
+		ctrl->handler, struct ov2680_device, ctrl_handler);
+	struct i2c_client *client = v4l2_get_subdevdata(&dev->sd);
+	int ret = 0;
+
+	switch (ctrl->id) {
+	case V4L2_CID_VFLIP:
+		if(ctrl->val)
+			v_flag = 1;
+		else
+			v_flag = 0;
+		break;
+	case V4L2_CID_HFLIP:
+		if(ctrl->val)
+			h_flag = 1;
+		else
+			h_flag = 0;
+		break;
+	default:break;
+	}
+
+	return ret;
+}
+
+static int ov2680_g_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct ov2680_device *dev = container_of(
+		ctrl->handler, struct ov2680_device, ctrl_handler);
+	struct i2c_client *client = v4l2_get_subdevdata(&dev->sd);
+	int ret = 0;
+
+	switch (ctrl->id) {
+	case V4L2_CID_EXPOSURE_ABSOLUTE:
+		ret = ov2680_q_exposure(&dev->sd, &ctrl->val);
+		break;
+	case V4L2_CID_FOCAL_ABSOLUTE:
+		ret = ov2680_g_focal(&dev->sd, &ctrl->val);
+		break;
+	case V4L2_CID_FNUMBER_ABSOLUTE:
+		ret = ov2680_g_fnumber(&dev->sd, &ctrl->val);
+		break;
+	case V4L2_CID_FNUMBER_RANGE:
+		ret = ov2680_g_fnumber_range(&dev->sd, &ctrl->val);
+		break;
+	case V4L2_CID_BIN_FACTOR_HORZ:
+		ret = ov2680_g_bin_factor_x(&dev->sd, &ctrl->val);
+		break;
+	case V4L2_CID_BIN_FACTOR_VERT:
+		ret = ov2680_g_bin_factor_y(&dev->sd, &ctrl->val);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return ret;
+}
+
+static const struct v4l2_ctrl_ops ov2680_ctrl_ops = {
+       .s_ctrl = ov2680_s_ctrl,
+       .g_volatile_ctrl = ov2680_g_ctrl
+};
+
+struct v4l2_ctrl_config ov2680_controls[] = {
 	{
-		.qc = {
-			.id = V4L2_CID_EXPOSURE_ABSOLUTE,
-			.type = V4L2_CTRL_TYPE_INTEGER,
-			.name = "exposure",
-			.minimum = 0x0,
-			.maximum = 0xffff,
-			.step = 0x01,
-			.default_value = 0x00,
-			.flags = 0,
-		},
-		.query = ov2680_q_exposure,
+		.ops = NULL,
+		.id = V4L2_CID_EXPOSURE_ABSOLUTE,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "exposure",
+		.min = 0x0,
+		.max = 0xffff,
+		.step = 0x01,
+		.def = 0x00,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
 	},
 	{
-		.qc = {
-			.id = V4L2_CID_FOCAL_ABSOLUTE,
-			.type = V4L2_CTRL_TYPE_INTEGER,
-			.name = "focal length",
-			.minimum = OV2680_FOCAL_LENGTH_DEFAULT,
-			.maximum = OV2680_FOCAL_LENGTH_DEFAULT,
-			.step = 0x01,
-			.default_value = OV2680_FOCAL_LENGTH_DEFAULT,
-			.flags = 0,
-		},
-		.query = ov2680_g_focal,
+		.ops = NULL,
+		.id = V4L2_CID_FOCAL_ABSOLUTE,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "focal length",
+		.min = OV2680_FOCAL_LENGTH_DEFAULT,
+		.max = OV2680_FOCAL_LENGTH_DEFAULT,
+		.step = 0x01,
+		.def = OV2680_FOCAL_LENGTH_DEFAULT,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
 	},
 	{
-		.qc = {
-			.id = V4L2_CID_FNUMBER_ABSOLUTE,
-			.type = V4L2_CTRL_TYPE_INTEGER,
-			.name = "f-number",
-			.minimum = OV2680_F_NUMBER_DEFAULT,
-			.maximum = OV2680_F_NUMBER_DEFAULT,
-			.step = 0x01,
-			.default_value = OV2680_F_NUMBER_DEFAULT,
-			.flags = 0,
-		},
-		.query = ov2680_g_fnumber,
+		.ops = NULL,
+		.id = V4L2_CID_FNUMBER_ABSOLUTE,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "f-number",
+		.min = OV2680_F_NUMBER_DEFAULT,
+		.max = OV2680_F_NUMBER_DEFAULT,
+		.step = 0x01,
+		.def = OV2680_F_NUMBER_DEFAULT,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
 	},
 	{
-		.qc = {
-			.id = V4L2_CID_FNUMBER_RANGE,
-			.type = V4L2_CTRL_TYPE_INTEGER,
-			.name = "f-number range",
-			.minimum = OV2680_F_NUMBER_RANGE,
-			.maximum =  OV2680_F_NUMBER_RANGE,
-			.step = 0x01,
-			.default_value = OV2680_F_NUMBER_RANGE,
-			.flags = 0,
-		},
-		.query = ov2680_g_fnumber_range,
+		.ops = NULL,
+		.id = V4L2_CID_FNUMBER_RANGE,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "f-number range",
+		.min = OV2680_F_NUMBER_RANGE,
+		.max =  OV2680_F_NUMBER_RANGE,
+		.step = 0x01,
+		.def = OV2680_F_NUMBER_RANGE,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
 	},
 	{
-		.qc = {
-			.id = V4L2_CID_BIN_FACTOR_HORZ,
-			.type = V4L2_CTRL_TYPE_INTEGER,
-			.name = "horizontal binning factor",
-			.minimum = 0,
-			.maximum = OV2680_BIN_FACTOR_MAX,
-			.step = 1,
-			.default_value = 0,
-			.flags = 0,
-		},
-		.query = ov2680_g_bin_factor_x,
+		.ops = NULL,
+		.id = V4L2_CID_BIN_FACTOR_HORZ,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "horizontal binning factor",
+		.min = 0,
+		.max = OV2680_BIN_FACTOR_MAX,
+		.step = 1,
+		.def = 0,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
 	},
 	{
-		.qc = {
-			.id = V4L2_CID_BIN_FACTOR_VERT,
-			.type = V4L2_CTRL_TYPE_INTEGER,
-			.name = "vertical binning factor",
-			.minimum = 0,
-			.maximum = OV2680_BIN_FACTOR_MAX,
-			.step = 1,
-			.default_value = 0,
-			.flags = 0,
-		},
-		.query = ov2680_g_bin_factor_y,
+		.ops = NULL,
+		.id = V4L2_CID_BIN_FACTOR_VERT,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "vertical binning factor",
+		.min = 0,
+		.max = OV2680_BIN_FACTOR_MAX,
+		.step = 1,
+		.def = 0,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
 	},
 	{
-		.qc = {
-			.id = V4L2_CID_VFLIP,
-			.type = V4L2_CTRL_TYPE_BOOLEAN,
-			.name = "Flip",
-			.minimum = 0,
-			.maximum = 1,
-			.step = 1,
-			.default_value = 0,
-		},
-		.tweak = ov2680_v_flip,
+		.ops = NULL,
+		.id = V4L2_CID_VFLIP,
+		.type = V4L2_CTRL_TYPE_BOOLEAN,
+		.name = "Flip",
+		.min = 0,
+		.max = 1,
+		.step = 1,
+		.def = 0,
 	},
 	{
-		.qc = {
-			.id = V4L2_CID_HFLIP,
-			.type = V4L2_CTRL_TYPE_BOOLEAN,
-			.name = "Mirror",
-			.minimum = 0,
-			.maximum = 1,
-			.step = 1,
-			.default_value = 0,
-		},
-		.tweak = ov2680_h_flip,
+		.ops = NULL,
+		.id = V4L2_CID_HFLIP,
+		.type = V4L2_CTRL_TYPE_BOOLEAN,
+		.name = "Mirror",
+		.min = 0,
+		.max = 1,
+		.step = 1,
+		.def = 0,
 	},
 };
 #define N_CONTROLS (ARRAY_SIZE(ov2680_controls))
 
+#if 0
 static struct ov2680_control *ov2680_find_control(u32 id)
 {
 	int i;
@@ -845,6 +929,7 @@ static int ov2680_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 
 	return ret;
 }
+#endif
 
 static int ov2680_init_registers(struct v4l2_subdev *sd)
 {
@@ -961,9 +1046,15 @@ static int power_down(struct v4l2_subdev *sd)
 static int ov2680_s_power(struct v4l2_subdev *sd, int on)
 {
 	int ret;
+	struct ov2680_device *dev = to_ov2680_sensor(sd);
 
 	if (on == 0){
 		ret = power_down(sd);
+		// as v4l2 framework would cache the value set from upper layer even though exit camera,
+		// it would not call ctrl function because that the cache value is equal with the value
+		// set by upper layer when entry camera again.
+		// So, we will reset the v4l2 ctrl value to be default after power off.
+		__ov2680_reset_v4l2_ctrl_value(&dev->ctrl_handler);
 	} else {
 		ret = power_up(sd);	
 		if (!ret)
@@ -1491,9 +1582,9 @@ static const struct v4l2_subdev_sensor_ops ov2680_sensor_ops = {
 
 static const struct v4l2_subdev_core_ops ov2680_core_ops = {
 	.s_power = ov2680_s_power,
-	.queryctrl = ov2680_queryctrl,
-	.g_ctrl = ov2680_g_ctrl,
-	.s_ctrl = ov2680_s_ctrl,
+	.queryctrl = v4l2_subdev_queryctrl,
+	.g_ctrl = v4l2_subdev_g_ctrl,
+	.s_ctrl = v4l2_subdev_s_ctrl,
 	.ioctl = ov2680_ioctl,
 };
 
@@ -1519,9 +1610,34 @@ static int ov2680_remove(struct i2c_client *client)
 
 	dev->platform_data->csi_cfg(sd, 0);
 
+	v4l2_ctrl_handler_free(&dev->ctrl_handler);
 	v4l2_device_unregister_subdev(sd);
 	media_entity_cleanup(&dev->sd.entity);
 	kfree(dev);
+
+	return 0;
+}
+
+static int __ov2680_init_ctrl_handler(struct ov2680_device *dev)
+{
+	int i;
+
+	v4l2_ctrl_handler_init(&dev->ctrl_handler, N_CONTROLS);
+
+	for (i = 0; i < N_CONTROLS; i++) {
+		if (NULL == ov2680_controls[i].ops)
+			ov2680_controls[i].ops = &ov2680_ctrl_ops;
+
+		v4l2_ctrl_new_custom(&dev->ctrl_handler, &ov2680_controls[i], NULL);
+
+		if (dev->ctrl_handler.error)
+			return dev->ctrl_handler.error;
+	}
+
+	dev->ctrl_handler.lock = &dev->input_lock;
+	dev->sd.ctrl_handler = &dev->ctrl_handler;
+
+	v4l2_ctrl_handler_setup(&dev->ctrl_handler);
 
 	return 0;
 }
@@ -1553,6 +1669,10 @@ static int ov2680_probe(struct i2c_client *client,
 			goto out_free;
 	}
 
+	ret = __ov2680_init_ctrl_handler(dev);
+	if (ret)
+		goto out_ctrl_handler_free;
+
 	dev->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	dev->pad.flags = MEDIA_PAD_FL_SOURCE;
 	dev->format.code = V4L2_MBUS_FMT_SBGGR10_1X10;
@@ -1565,6 +1685,10 @@ static int ov2680_probe(struct i2c_client *client,
 		ov2680_debug(&client->dev, "+++ remove ov2680 \n");
 	}
 	return ret;
+
+out_ctrl_handler_free:
+	v4l2_ctrl_handler_free(&dev->ctrl_handler);
+
 out_free:
 	ov2680_debug(&client->dev, "+++ out free \n");
 	v4l2_device_unregister_subdev(&dev->sd);

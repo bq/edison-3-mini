@@ -30,7 +30,6 @@
 #include <linux/device.h>
 #include <linux/gpio.h>
 #include <linux/slab.h>
-#include <linux/vlv2_plat_clock.h>
 #include <linux/acpi_gpio.h>
 #include <asm/platform_byt_audio.h>
 #include <sound/pcm.h>
@@ -94,6 +93,13 @@ else
 else
 	add widget to connect it
 */
+};
+
+static const struct snd_kcontrol_new byt_controls[] = {
+	SOC_DAPM_PIN_SWITCH("Ext Spk"),
+	SOC_DAPM_PIN_SWITCH("Headphone"),
+	SOC_DAPM_PIN_SWITCH("AMIC"),
+	SOC_DAPM_PIN_SWITCH("Headset AMIC"),
 };
 
 /* One note for PLL and sysclk
@@ -290,6 +296,8 @@ static void byt_rt5651_card_init(struct snd_soc_card *card)
 	card->num_links = ARRAY_SIZE(byt_rt5651_dailink);
 	card->dapm_routes = byt_rt5651_audio_map;
 	card->num_dapm_routes = ARRAY_SIZE(byt_rt5651_audio_map);
+	card->controls = byt_controls;
+	card->num_controls = ARRAY_SIZE(byt_controls);
 }
 
 #define JD_EVENT 0

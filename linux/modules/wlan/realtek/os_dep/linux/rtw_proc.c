@@ -491,6 +491,9 @@ const struct rtw_proc_hdl adapter_proc_hdls [] = {
 	{"sreset", proc_get_sreset, proc_set_sreset},
 #endif /* DBG_CONFIG_ERROR_DETECT */
 	{"linked_info_dump",proc_get_linked_info_dump,proc_set_linked_info_dump},
+#ifdef CONFIG_TDLS
+	{"tdls_info", proc_get_tdls_info, NULL}
+#endif
 };
 
 const int adapter_proc_hdls_num = sizeof(adapter_proc_hdls) / sizeof(struct rtw_proc_hdl);

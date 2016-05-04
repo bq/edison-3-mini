@@ -40,7 +40,7 @@
 #include <asm/intel-mid.h>
 #include "gc5004.h"
 #include <asm/intel-mid.h>
-//test
+
 static enum atomisp_bayer_order gc5004_bayer_order_mapping[] = {
 	atomisp_bayer_order_gbrg,
 	atomisp_bayer_order_bggr,
@@ -67,20 +67,21 @@ gc5004_read_reg(struct i2c_client *client, u8 len, u8 reg, u8 *val)
 loop:
 	memset(msg, 0 , sizeof(msg));
 	memset(data, 0 , sizeof(data));
-	
+
 	msg[0].addr = client->addr;
 	msg[0].flags = 0;
-	msg[0].len = 1;//I2C_MSG_LENGTH;
+	msg[0].len = 1; /* I2C_MSG_LENGTH; */
 	msg[0].buf = data;
+#if 0
 	/* high byte goes first */
-//	data[0] = cpu_to_be16(reg);
-        /* high byte goes out first */
-//        data[0] = (u8)(reg >> 8);
-  //      data[1] = (u8)(reg & 0xff);
+	data[0] = cpu_to_be16(reg);
+	/* high byte goes out first */
+	data[0] = (u8)(reg >> 8);
+	data[1] = (u8)(reg & 0xff);
+#endif
 
+	data[0] = reg;
 
-        data[0] = reg;
-	
 	msg[1].addr = client->addr;
 	msg[1].len = len;
 	msg[1].flags = I2C_M_RD;
@@ -92,11 +93,12 @@ loop:
 		if (err >= 0){
 			err = -EIO;
 		}
-	//	if (client->addr == 0x36 && tmp != 0x80)
-	//	{
-	//		tmp++;	
-	//		goto loop;
-	//	}
+#if 0
+	if (client->addr == 0x36 && tmp != 0x80) {
+		tmp++;
+		goto loop;
+	}
+#endif
 		goto error;
 	}
 
@@ -169,7 +171,7 @@ static int gc5004_i2c_write(struct i2c_client *client, u8 len, u8 *data)
 	msg.flags = 0;
 	msg.len = len;
 	msg.buf = data;
-	
+
 	ret = i2c_transfer(client->adapter, &msg, 1);
 
 	return ret == num_msg ? 0 : -EIO;
@@ -190,9 +192,9 @@ gc5004_write_reg(struct i2c_client *client, u16 data_length, u16 reg, u16 val)
 	}
 
 	/* high byte goes out first */
-//	*wreg = cpu_to_be16(reg);
+	/* *wreg = cpu_to_be16(reg); */
 	data[0] = reg;
-//		data[1] = (u8)(val);
+	/* data[1] = (u8)(val); */
 	if (data_length == GC5004_8BIT)
 		data[1] = (u8)(val);
 	else {
@@ -308,7 +310,7 @@ static int gc5004_write_reg_array(struct i2c_client *client,
 		default:
 			gc5004_write_reg(client, GC5004_8BIT,
 			       next->sreg, next->val);
-	
+
 
 			/*
 			 * If next address is not consecutive, data needs to be
@@ -330,12 +332,12 @@ static int gc5004_write_reg_array(struct i2c_client *client,
 			break;
 		#endif
 		}
-		
-	
+
+
 
 	}
 
-	return 0;//__gc5004_flush_reg_array(client, &ctrl);
+	return 0; /* __gc5004_flush_reg_array(client, &ctrl); */
 }
 
 static int gc5004_read_otp_reg_array(struct i2c_client *client, u16 size, u16 addr,
@@ -411,19 +413,6 @@ static void *gc5004_otp_read(struct v4l2_subdev *sd)
 	return buf;
 }
 
-static int __gc5004_get_max_fps_index(
-				const struct gc5004_fps_setting *fps_settings)
-{
-	int i;
-
-	for (i = 0; i < MAX_FPS_OPTIONS_SUPPORTED; i++) {
-	//	if (fps_settings[i].fps == 0)
-			break;
-	}
-
-	return i - 1;
-}
-
 static int __gc5004_update_exposure_timing(struct i2c_client *client, u16 exposure,
 			u16 llp, u16 fll)
 {
@@ -437,13 +426,13 @@ static int __gc5004_update_exposure_timing(struct i2c_client *client, u16 exposu
 	exposure = exposure / 4;
 	exposure = exposure * 4;
 	tmp = exposure % 4;
-	if (tmp > 2)	
+	if (tmp > 2)
 		exposure+=4;
 
 	if (exposure < 32) {
 		gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x00);
 		gc5004_write_reg(client, GC5004_8BIT, 0x01, 0x00);
-		gc5004_write_reg(client, GC5004_8BIT, 0xb0, 0x80);//travis 20140625
+		gc5004_write_reg(client, GC5004_8BIT, 0xb0, 0x80); /* travis 20140625 */
 	} else {
 		gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x00);
 		gc5004_write_reg(client, GC5004_8BIT, 0x01, 0x10);
@@ -456,7 +445,7 @@ static int __gc5004_update_exposure_timing(struct i2c_client *client, u16 exposu
 	if (ret)
 		return ret;
 	ret = gc5004_write_reg(client, GC5004_8BIT, GC5004_REG_EXPO_COARSE+1, expo_coarse_l);
-	
+
 	return ret;
 }
 
@@ -466,56 +455,56 @@ static int __gc5004_update_gain(struct v4l2_subdev *sd, u16 gain)
 	u16 iReg,temp;
 
 	iReg = gain;
-	
+
 	if(iReg < 0x40)
 		iReg = 0x40;
 	else if((ANALOG_GAIN_1<= iReg)&&(iReg < ANALOG_GAIN_2))
 	{
-		//analog gain
-		gc5004_write_reg(client, GC5004_8BIT, 0xb6,  0x00);// 
+		/* analog gain */
+		gc5004_write_reg(client, GC5004_8BIT, 0xb6,  0x00);
 		temp = iReg;
 		gc5004_write_reg(client, GC5004_8BIT, 0xb1, temp>>6);
 		gc5004_write_reg(client, GC5004_8BIT, 0xb2, (temp<<2)&0xfc);
-		//SENSORDB("GC5004MIPI analogic gain 1x , GC5004MIPI add pregain = %d\n",temp);
+		/* SENSORDB("GC5004MIPI analogic gain 1x , GC5004MIPI add pregain = %d\n",temp); */
 	}
 	else if((ANALOG_GAIN_2<= iReg)&&(iReg < ANALOG_GAIN_3))
 	{
-		//analog gain
-		gc5004_write_reg(client, GC5004_8BIT, 0xb6,  0x01);// 
+		/* analog gain */
+		gc5004_write_reg(client, GC5004_8BIT, 0xb6,  0x01);
 		temp = 64*iReg/ANALOG_GAIN_2;
 		gc5004_write_reg(client, GC5004_8BIT, 0xb1, temp>>6);
 		gc5004_write_reg(client, GC5004_8BIT, 0xb2, (temp<<2)&0xfc);
-		//SENSORDB("GC5004MIPI analogic gain 1.45x , GC5004MIPI add pregain = %d\n",temp);
+		/* SENSORDB("GC5004MIPI analogic gain 1.45x , GC5004MIPI add pregain = %d\n",temp); */
 	}
 
 	else if((ANALOG_GAIN_3<= iReg)&&(iReg < ANALOG_GAIN_4))
 	{
-		//analog gain
-		gc5004_write_reg(client, GC5004_8BIT, 0xb6,  0x02);//
+		/* analog gain */
+		gc5004_write_reg(client, GC5004_8BIT, 0xb6,  0x02);
 		temp = 64*iReg/ANALOG_GAIN_3;
 		gc5004_write_reg(client, GC5004_8BIT, 0xb1, temp>>6);
 		gc5004_write_reg(client, GC5004_8BIT, 0xb2, (temp<<2)&0xfc);
-		//SENSORDB("GC5004MIPI analogic gain 2.02x , GC5004MIPI add pregain = %d\n",temp);
+		/* SENSORDB("GC5004MIPI analogic gain 2.02x , GC5004MIPI add pregain = %d\n",temp); */
 	}
 	else if((ANALOG_GAIN_4<= iReg)&&(iReg < ANALOG_GAIN_5))
 	{
-		//analog gain
-		gc5004_write_reg(client, GC5004_8BIT, 0xb6,  0x03);//
+		/* analog gain */
+		gc5004_write_reg(client, GC5004_8BIT, 0xb6,  0x03);
 		temp = 64*iReg/ANALOG_GAIN_4;
 		gc5004_write_reg(client, GC5004_8BIT, 0xb1, temp>>6);
 		gc5004_write_reg(client, GC5004_8BIT, 0xb2, (temp<<2)&0xfc);
-		//SENSORDB("GC5004MIPI analogic gain 2.86x , GC5004MIPI add pregain = %d\n",temp);
+		/* SENSORDB("GC5004MIPI analogic gain 2.86x , GC5004MIPI add pregain = %d\n",temp); */
 	}
 
-	//else if((ANALOG_GAIN_5<= iReg)&&(iReg)&&(iReg < ANALOG_GAIN_6))
+	/* else if((ANALOG_GAIN_5<= iReg)&&(iReg)&&(iReg < ANALOG_GAIN_6)) */
 	else if(ANALOG_GAIN_5<= iReg)
 	{
-		//analog gain
-		gc5004_write_reg(client, GC5004_8BIT, 0xb6,  0x04);//
+		/* analog gain */
+		gc5004_write_reg(client, GC5004_8BIT, 0xb6,  0x04);
 		temp = 64*iReg/ANALOG_GAIN_5;
 		gc5004_write_reg(client, GC5004_8BIT, 0xb1, temp>>6);
 		gc5004_write_reg(client, GC5004_8BIT, 0xb2, (temp<<2)&0xfc);
-		//SENSORDB("GC5004MIPI analogic gain 3.95x , GC5004MIPI add pregain = %d\n",temp);
+		/* SENSORDB("GC5004MIPI analogic gain 3.95x , GC5004MIPI add pregain = %d\n",temp); */
 	}
 
 	return 0;
@@ -532,13 +521,13 @@ static int gc5004_set_exposure_gain(struct v4l2_subdev *sd, u16 coarse_itg,
 	g_gain = gain;
 
 	/* Validate exposure:  cannot exceed VTS-4 where VTS is 16bit */
-	coarse_itg = clamp_t(u16, coarse_itg, 0, GC5004_MAX_EXPOSURE_SUPPORTED);//fix me, GC5004_MAX_EXPOSURE_SUPPORTED need to be checked
+	coarse_itg = clamp_t(u16, coarse_itg, 0, GC5004_MAX_EXPOSURE_SUPPORTED); /* fix me, GC5004_MAX_EXPOSURE_SUPPORTED need to be checked */
 
 	/* Validate gain: must not exceed maximum 8bit value */
-	gain = clamp_t(u16, gain, 0, GC5004_MAX_GLOBAL_GAIN_SUPPORTED);//fix me, max need to be checked
+	gain = clamp_t(u16, gain, 0, GC5004_MAX_GLOBAL_GAIN_SUPPORTED); /* fix me, max need to be checked */
 
 	/* Validate digital gain: must not exceed 12 bit value*/
-	digitgain = clamp_t(u16, digitgain, 0, GC5004_MAX_DIGITAL_GAIN_SUPPORTED);//fix me, max need to be checked
+	digitgain = clamp_t(u16, digitgain, 0, GC5004_MAX_DIGITAL_GAIN_SUPPORTED); /* fix me, max need to be checked */
 
 	mutex_lock(&dev->input_lock);
 
@@ -547,7 +536,7 @@ static int gc5004_set_exposure_gain(struct v4l2_subdev *sd, u16 coarse_itg,
 	if (ret)
 		goto out;
 	dev->coarse_itg = coarse_itg;
-	
+
 	ret = __gc5004_update_gain(sd, gain);
 	if (ret)
 		goto out;
@@ -613,7 +602,7 @@ static int __gc5004_init(struct v4l2_subdev *sd)
 	if (dev->sensor_id == GC5004_ID_DEFAULT)
 		return 0;
 
-	/* Sets the default FPS 
+	/* Sets the default FPS
 	dev->fps_index = 0;
 	dev->curr_res_table = dev->mode_tables->res_preview;
 	dev->entries_curr_table = dev->mode_tables->n_res_preview;
@@ -623,10 +612,8 @@ i	*/
 			dev->mode_tables->init_settings);
 }
 
-static int gc5004_init(struct v4l2_subdev *sd, u32 val)//fix me, just see the func sequence
+static int gc5004_init(struct v4l2_subdev *sd, u32 val) /* fix me, just see the func sequence */
 {
-//	printk("%s++\n",__func__);
-
 	return 0;
 }
 #endif
@@ -635,8 +622,10 @@ static long gc5004_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
 	switch (cmd) {
 	case ATOMISP_IOC_S_EXPOSURE:
 		return gc5004_s_exposure(sd, arg);
-//	case ATOMISP_IOC_G_SENSOR_PRIV_INT_DATA:
-//		return gc5004_g_priv_int_data(sd, arg);
+#if 0
+	case ATOMISP_IOC_G_SENSOR_PRIV_INT_DATA:
+		return gc5004_g_priv_int_data(sd, arg);
+#endif
 	default:
 		return -EINVAL;
 	}
@@ -666,12 +655,12 @@ static int power_up(struct v4l2_subdev *sd)
 		dev_err(&client->dev, "gpio failed\n");
 		goto fail_gpio;
 	}
-	
+
         /*
          * according to DS, 44ms is needed between power up and first i2c
          * commend
          */
-	msleep(50);//fix me, does it need?
+	msleep(50); /* fix me, does it need? */
 	return 0;
 
 fail_gpio:
@@ -695,7 +684,7 @@ static int power_down(struct v4l2_subdev *sd)
 	if (ret)
 		dev_err(&client->dev, "flisclk failed\n");
 
-	/* gpio ctrl*/ 
+	/* gpio ctrl*/
 	ret = dev->platform_data->gpio_ctrl(sd, 0);
 	if (ret)
 		dev_err(&client->dev, "gpio failed\n");
@@ -715,12 +704,12 @@ static int gc5004_set_suspend(struct v4l2_subdev *sd)
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	dev_info(&client->dev, "@%s ++\n", __func__);
-	gc5004_write_reg(client, GC5004_8BIT,  0xfe, 0x03); //10bit raw disable
-	gc5004_write_reg(client, GC5004_8BIT,  0x10, 0x80); //10bit raw disable
-	gc5004_write_reg(client, GC5004_8BIT,  0xfe, 0x0); //10bit raw disable
+	gc5004_write_reg(client, GC5004_8BIT,  0xfe, 0x03); /* 10bit raw disable */
+	gc5004_write_reg(client, GC5004_8BIT,  0x10, 0x80); /* 10bit raw disable */
+	gc5004_write_reg(client, GC5004_8BIT,  0xfe, 0x0); /* 10bit raw disable */
 
 	return 0;
-	//return gc5004_write_reg_array(client, gc5004_suspend, POST_POLLING);
+	/* return gc5004_write_reg_array(client, gc5004_suspend, POST_POLLING); */
 }
 
 static int gc5004_set_streaming(struct v4l2_subdev *sd)
@@ -728,392 +717,22 @@ static int gc5004_set_streaming(struct v4l2_subdev *sd)
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	dev_info(&client->dev, "@%s ++\n", __func__);
 
-	gc5004_write_reg(client, GC5004_8BIT,  0xfe, 0x03); //10bit raw disable
-	gc5004_write_reg(client, GC5004_8BIT,  0x10, 0x91); //10bit raw enable
-	gc5004_write_reg(client, GC5004_8BIT,  0xfe, 0x0); //10bit raw disable	
+	gc5004_write_reg(client, GC5004_8BIT,  0xfe, 0x03); /* 10bit raw disable */
+	gc5004_write_reg(client, GC5004_8BIT,  0x10, 0x91); /* 10bit raw enable */
+	gc5004_write_reg(client, GC5004_8BIT,  0xfe, 0x0); /* 10bit raw disable */
 
 	return 0;
-	//return gc5004_write_reg_array(client, gc5004_streaming, POST_POLLING);
+	/* return gc5004_write_reg_array(client, gc5004_streaming, POST_POLLING); */
 }
 
-static int gc5004_init_common(struct v4l2_subdev *sd)  //fix me need write the regs
+static int gc5004_init_common(struct v4l2_subdev *sd)  /* fix me need write the regs */
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int ret = -1;
 
-#if 0// v1
-
-////////////////////////////////////////////////////
-/////////////////////   SYS   //////////////////////
-////////////////////////////////////////////////////
-   gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x80);
-   gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x80);
-   gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x80);
-   gc5004_write_reg(client, GC5004_8BIT, 0xf2, 0x00); //sync_pad_io_ebi
-   gc5004_write_reg(client, GC5004_8BIT, 0xf6, 0x00); //up down
-   gc5004_write_reg(client, GC5004_8BIT, 0xfc, 0x06);
-   gc5004_write_reg(client, GC5004_8BIT, 0xf7, 0x1d); //pll enable
-   gc5004_write_reg(client, GC5004_8BIT, 0xf8, 0x84);//0x84); //Pll mode 2
-   gc5004_write_reg(client, GC5004_8BIT, 0xf9, 0xfe); //[0] pll enable
-   gc5004_write_reg(client, GC5004_8BIT, 0xfa, 0x00); //div
-   gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x00);
-
-////////////////////////////////////////////////
-///////////   ANALOG & CISCTL   ////////////////
-////////////////////////////////////////////////
-   gc5004_write_reg(client, GC5004_8BIT, 0x00, 0x40); //10/[4]rowskip_skip_sh
-   gc5004_write_reg(client, GC5004_8BIT, 0x03, 0x07); //10fps 1800
-   gc5004_write_reg(client, GC5004_8BIT, 0x04, 0x08); 
-   gc5004_write_reg(client, GC5004_8BIT, 0x05, 0x01); //HB 806
-   gc5004_write_reg(client, GC5004_8BIT, 0x06, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x07, 0x00); //VB 28
-   gc5004_write_reg(client, GC5004_8BIT, 0x08, 0x1c); //4
-   gc5004_write_reg(client, GC5004_8BIT, 0x09, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x0a, 0x02); //02//row start
-   gc5004_write_reg(client, GC5004_8BIT, 0x0b, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x0c, 0x00); //0c//col start
-   gc5004_write_reg(client, GC5004_8BIT, 0x0d, 0x07); //Window height 1960
-   gc5004_write_reg(client, GC5004_8BIT, 0x0e, 0xa8); 
-   gc5004_write_reg(client, GC5004_8BIT, 0x0f, 0x0a); //Window setting width 2624
-   gc5004_write_reg(client, GC5004_8BIT, 0x10, 0x50);
-   gc5004_write_reg(client, GC5004_8BIT, 0x17, 0x16); //01//14//[0]mirror [1]flip
-   gc5004_write_reg(client, GC5004_8BIT, 0x18, 0x02); //sdark off
-   gc5004_write_reg(client, GC5004_8BIT, 0x19, 0x06); 
-   gc5004_write_reg(client, GC5004_8BIT, 0x1a, 0x13); 
-   gc5004_write_reg(client, GC5004_8BIT, 0x1b, 0x48); 
-   gc5004_write_reg(client, GC5004_8BIT, 0x1c, 0x05); 
-   gc5004_write_reg(client, GC5004_8BIT, 0x1e, 0xb8);
-   gc5004_write_reg(client, GC5004_8BIT, 0x1f, 0x78); 
-   gc5004_write_reg(client, GC5004_8BIT, 0x20, 0xc5); //03/[7:6]ref_r [3:1]comv_r 
-   gc5004_write_reg(client, GC5004_8BIT, 0x21, 0x4f); //7f
-   gc5004_write_reg(client, GC5004_8BIT, 0x22, 0x82); //b2 
-   gc5004_write_reg(client, GC5004_8BIT, 0x23, 0x43); //f1/[7:3]opa_r [1:0]sRef
-   gc5004_write_reg(client, GC5004_8BIT, 0x24, 0x2f); //PAD drive 
-   gc5004_write_reg(client, GC5004_8BIT, 0x2b, 0x01); 
-   gc5004_write_reg(client, GC5004_8BIT, 0x2c, 0x68); //[6:4]rsgh_r 
-
-////////////////////////////////////////////////
-/////////////////   BLK   //////////////////////
-////////////////////////////////////////////////
-   gc5004_write_reg(client, GC5004_8BIT, 0x18, 0x02);
-   gc5004_write_reg(client, GC5004_8BIT, 0x1a, 0x13);
-   gc5004_write_reg(client, GC5004_8BIT, 0x40, 0x23);
-   gc5004_write_reg(client, GC5004_8BIT, 0x70, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x74, 0x20);
-
-////////////////////////////////////////////////
-////////////////   Gain   //////////////////////
-////////////////////////////////////////////////
-   gc5004_write_reg(client, GC5004_8BIT, 0xb0, 0x40);
-   gc5004_write_reg(client, GC5004_8BIT, 0xb1, 0x01);
-   gc5004_write_reg(client, GC5004_8BIT, 0xb2, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0xb3, 0x78);
-   gc5004_write_reg(client, GC5004_8BIT, 0xb4, 0x40);
-   gc5004_write_reg(client, GC5004_8BIT, 0xb5, 0x60);
-   gc5004_write_reg(client, GC5004_8BIT, 0xb6, 0x00);
-
-////////////////////////////////////////////////
-/////////////////   ISP   //////////////////////
-////////////////////////////////////////////////
-   gc5004_write_reg(client, GC5004_8BIT, 0x80, 0x50); //10//[6]BFF_en
-   gc5004_write_reg(client, GC5004_8BIT, 0x86, 0x0a); //06 //02/[3]AAA_hpclk_save_mode
-   gc5004_write_reg(client, GC5004_8BIT, 0x89, 0x03); //[4]pregain bypass
-   gc5004_write_reg(client, GC5004_8BIT, 0x8a, 0x83); //[7]ISP quite mode [0]DIV_gatedclk_en 
-   gc5004_write_reg(client, GC5004_8BIT, 0x8b, 0x61); //[7:6]BFF gate mode [3:2]pipe gate mode
-   gc5004_write_reg(client, GC5004_8BIT, 0x8c, 0x10); //test image
-   gc5004_write_reg(client, GC5004_8BIT, 0x8d, 0x01); //[2]INBF_clock_gate
-   gc5004_write_reg(client, GC5004_8BIT, 0x90, 0x01); 
-   gc5004_write_reg(client, GC5004_8BIT, 0x92, 0x02); //00/crop win y
-   gc5004_write_reg(client, GC5004_8BIT, 0x94, 0x01); //04/crop win x
-   gc5004_write_reg(client, GC5004_8BIT, 0x95, 0x07); //crop win height
-   gc5004_write_reg(client, GC5004_8BIT, 0x96, 0x98);
-   gc5004_write_reg(client, GC5004_8BIT, 0x97, 0x0a); //crop win width
-   gc5004_write_reg(client, GC5004_8BIT, 0x98, 0x20);
-
-////////////////////////////////////////////////
-/////////////////   BLK   //////////////////////
-////////////////////////////////////////////////
-   gc5004_write_reg(client, GC5004_8BIT, 0x40, 0x22);
-   gc5004_write_reg(client, GC5004_8BIT, 0x41, 0x00); //38
-   gc5004_write_reg(client, GC5004_8BIT, 0x50, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x51, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x52, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x53, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x54, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x55, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x56, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x57, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x58, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x59, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x5a, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x5b, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x5c, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x5d, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x5e, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x5f, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0xd0, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0xd1, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0xd2, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0xd3, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0xd4, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0xd5, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0xd6, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0xd7, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0xd8, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0xd9, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0xda, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0xdb, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0xdc, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0xdd, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0xde, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0xdf, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x70, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x71, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x72, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x73, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x74, 0x20);
-   gc5004_write_reg(client, GC5004_8BIT, 0x75, 0x20);
-   gc5004_write_reg(client, GC5004_8BIT, 0x76, 0x20);
-   gc5004_write_reg(client, GC5004_8BIT, 0x77, 0x20);
-
-////////////////////////////////////////////////
-/////////////////   GAIN   /////////////////////
-////////////////////////////////////////////////
-   gc5004_write_reg(client, GC5004_8BIT, 0xb0, 0x40); 
-   gc5004_write_reg(client, GC5004_8BIT, 0xb1, 0x01); 
-   gc5004_write_reg(client, GC5004_8BIT, 0xb2, 0x02); 
-   gc5004_write_reg(client, GC5004_8BIT, 0xb3, 0x40); 
-   gc5004_write_reg(client, GC5004_8BIT, 0xb4, 0x40); 
-   gc5004_write_reg(client, GC5004_8BIT, 0xb5, 0x40);
-   gc5004_write_reg(client, GC5004_8BIT, 0xb6, 0x00); 
-
-////////////////////////////////////////////////
-/////////////////   DNDD   /////////////////////
-////////////////////////////////////////////////
-   gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x02); 
-   gc5004_write_reg(client, GC5004_8BIT, 0x89, 0x15); 
-   gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x00);
-
-////////////////////////////////////////////////
-/////////////////   MIPI   /////////////////////
-////////////////////////////////////////////////
-   gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x03);
-   gc5004_write_reg(client, GC5004_8BIT, 0x01, 0x07);
-   gc5004_write_reg(client, GC5004_8BIT, 0x02, 0x33);
-   gc5004_write_reg(client, GC5004_8BIT, 0x03, 0x93); //[7]lowpowerÀ­µÍÒ»µµ 
-   gc5004_write_reg(client, GC5004_8BIT, 0x04, 0x80);
-   gc5004_write_reg(client, GC5004_8BIT, 0x05, 0x02);
-   gc5004_write_reg(client, GC5004_8BIT, 0x06, 0x80);
- //  gc5004_write_reg(client, GC5004_8BIT, 0x10, 0x91); //1 or 2 lane////1lane 90 //2lane 91
-   gc5004_write_reg(client, GC5004_8BIT, 0x11, 0x2b);//2a //LDI set
-   gc5004_write_reg(client, GC5004_8BIT, 0x12, 0xa8); //20
-   gc5004_write_reg(client, GC5004_8BIT, 0x13, 0x0c);//0a
-   gc5004_write_reg(client, GC5004_8BIT, 0x15, 0x12); //DPHYY_MODE read_ready 
-   gc5004_write_reg(client, GC5004_8BIT, 0x17, 0xb0); //wdiv set 
-   gc5004_write_reg(client, GC5004_8BIT, 0x18, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x19, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x1a, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x1d, 0x00);
-   gc5004_write_reg(client, GC5004_8BIT, 0x42, 0x20);
-   gc5004_write_reg(client, GC5004_8BIT, 0x43, 0x0a);
-
-	gc5004_write_reg(client, GC5004_8BIT, 0x21, 0x01);
-	gc5004_write_reg(client, GC5004_8BIT, 0x22, 0x02);
-	gc5004_write_reg(client, GC5004_8BIT, 0x23, 0x01);
-	gc5004_write_reg(client, GC5004_8BIT, 0x29, 0x02);
-	gc5004_write_reg(client, GC5004_8BIT, 0x2a, 0x01);
-
-   gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0xf2, 0x00);
-#endif
-
-#if 0
-//BGGR
-//2592x1944
-
-	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x80);
-	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x80);
-	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x80);
-	gc5004_write_reg(client, GC5004_8BIT, 0xf2, 0x00); //sync_pad_io_ebi
-	gc5004_write_reg(client, GC5004_8BIT, 0xf6, 0x00); //up down
-	gc5004_write_reg(client, GC5004_8BIT, 0xfc, 0x06);
-	gc5004_write_reg(client, GC5004_8BIT, 0xf7, 0x37); //pll enable
-	gc5004_write_reg(client, GC5004_8BIT, 0xf8, 0x92); //Pll mode 2
-	gc5004_write_reg(client, GC5004_8BIT, 0xf9, 0xfe); //[0] pll enable  change at 17:37 04/19
-	gc5004_write_reg(client, GC5004_8BIT, 0xfa, 0x11); //div
-	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x00);
-
-	/////////////////////////////////////////////////////
-	////////////////   ANALOG & CISCTL   ////////////////
-	/////////////////////////////////////////////////////
-	gc5004_write_reg(client, GC5004_8BIT, 0x00, 0x40); //10/[4]rowskip_skip_sh
-	gc5004_write_reg(client, GC5004_8BIT, 0x03, 0x07); //15fps
-	gc5004_write_reg(client, GC5004_8BIT, 0x04, 0x80); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x05, 0x01); //HB
-	gc5004_write_reg(client, GC5004_8BIT, 0x06, 0x00); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x07, 0x00); //VB
-	gc5004_write_reg(client, GC5004_8BIT, 0x08, 0x28);
-	gc5004_write_reg(client, GC5004_8BIT, 0x09, 0x00); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x0a, 0x02); //02//row start
-	gc5004_write_reg(client, GC5004_8BIT, 0x0b, 0x00);
- 	gc5004_write_reg(client, GC5004_8BIT, 0x0c, 0x00); //0c//col start
-	gc5004_write_reg(client, GC5004_8BIT, 0x0d, 0x07); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x0e, 0xa8); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x0f, 0x0a); //Window setting
-	gc5004_write_reg(client, GC5004_8BIT, 0x10, 0x50); //50 
-	gc5004_write_reg(client, GC5004_8BIT, 0x17, 0x16); //01//14//[0]mirror [1]flip
-	gc5004_write_reg(client, GC5004_8BIT, 0x18, 0x02); //sdark off
-	gc5004_write_reg(client, GC5004_8BIT, 0x19, 0x0c); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x1a, 0x13); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x1b, 0x48); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x1c, 0x05); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x1e, 0xb8);
-	gc5004_write_reg(client, GC5004_8BIT, 0x1f, 0x78); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x20, 0xc5); //03/[7:6]ref_r [3:1]comv_r 
-	gc5004_write_reg(client, GC5004_8BIT, 0x21, 0x4f); //7f
-	gc5004_write_reg(client, GC5004_8BIT, 0x22, 0x82); //b2 
-	gc5004_write_reg(client, GC5004_8BIT, 0x23, 0x43); //f1/[7:3]opa_r [1:0]sRef
-	gc5004_write_reg(client, GC5004_8BIT, 0x24, 0x2f); //PAD drive 
-	gc5004_write_reg(client, GC5004_8BIT, 0x2b, 0x01); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x2c, 0x68); //[6:4]rsgh_r 
-
-	/////////////////////////////////////////////////////
-	//////////////////////   ISP   //////////////////////
-	/////////////////////////////////////////////////////
-	gc5004_write_reg(client, GC5004_8BIT, 0x86, 0x0a);
-	gc5004_write_reg(client, GC5004_8BIT, 0x89, 0x03);
-	gc5004_write_reg(client, GC5004_8BIT, 0x8a, 0x83);
-	gc5004_write_reg(client, GC5004_8BIT, 0x8b, 0x61);
-	gc5004_write_reg(client, GC5004_8BIT, 0x8c, 0x10);
-	gc5004_write_reg(client, GC5004_8BIT, 0x8d, 0x01);
-	gc5004_write_reg(client, GC5004_8BIT, 0x90, 0x01);
-	gc5004_write_reg(client, GC5004_8BIT, 0x92, 0x01); //00/crop win y
-	gc5004_write_reg(client, GC5004_8BIT, 0x94, 0x04); //04/crop win x  0d
-	gc5004_write_reg(client, GC5004_8BIT, 0x95, 0x07); //crop win height
-	gc5004_write_reg(client, GC5004_8BIT, 0x96, 0x98);
-	gc5004_write_reg(client, GC5004_8BIT, 0x97, 0x0a); //crop win width
-	gc5004_write_reg(client, GC5004_8BIT, 0x98, 0x20);
-
-	/////////////////////////////////////////////////////
-	//////////////////////   BLK   //////////////////////
-	/////////////////////////////////////////////////////
-	gc5004_write_reg(client, GC5004_8BIT, 0x40, 0x22);
-	gc5004_write_reg(client, GC5004_8BIT, 0x41, 0x00);//38
-	
-	gc5004_write_reg(client, GC5004_8BIT, 0x50, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x51, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x52, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x53, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x54, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x55, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x56, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x57, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x58, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x59, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x5a, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x5b, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x5c, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x5d, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x5e, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x5f, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0xd0, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0xd1, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0xd2, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0xd3, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0xd4, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0xd5, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0xd6, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0xd7, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0xd8, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0xd9, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0xda, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0xdb, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0xdc, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0xdd, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0xde, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0xdf, 0x00);
-	
-	gc5004_write_reg(client, GC5004_8BIT, 0x70, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x71, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x72, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x73, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x74, 0x20);
-	gc5004_write_reg(client, GC5004_8BIT, 0x75, 0x20);
-	gc5004_write_reg(client, GC5004_8BIT, 0x76, 0x20);
-	gc5004_write_reg(client, GC5004_8BIT, 0x77, 0x20);
-
-
-	/////////////////////////////////////////////////////
-	//////////////////////   GAIN   /////////////////////
-	/////////////////////////////////////////////////////
-	gc5004_write_reg(client, GC5004_8BIT, 0xb0, 0x50);
-	gc5004_write_reg(client, GC5004_8BIT, 0xb1, 0x01);
-	gc5004_write_reg(client, GC5004_8BIT, 0xb2, 0x02);
-	gc5004_write_reg(client, GC5004_8BIT, 0xb3, 0x40);
-	gc5004_write_reg(client, GC5004_8BIT, 0xb4, 0x40);
-	gc5004_write_reg(client, GC5004_8BIT, 0xb5, 0x40);
-	gc5004_write_reg(client, GC5004_8BIT, 0xb6, 0x00);
-	/////////////////////////////////////////////////////
-	//////////////////////   DNDD ///////////////////////
-	/////////////////////////////////////////////////////
-  gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x02);
-  gc5004_write_reg(client, GC5004_8BIT, 0x89, 0x15); 
-  gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x00); 
-
-	/////////////////////////////////////////////////////
-	//////////////////////   SCALER   /////////////////////
-	/////////////////////////////////////////////////////
-	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x18, 0x02); //42
-	gc5004_write_reg(client, GC5004_8BIT, 0x80, 0x10); //[4]first_dd_en  18
-	gc5004_write_reg(client, GC5004_8BIT, 0x84, 0x23); //[5]auto_DD,[1:0]scaler CFA
-	gc5004_write_reg(client, GC5004_8BIT, 0x87, 0x12);
-	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x02);
-	gc5004_write_reg(client, GC5004_8BIT, 0x86, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x95, 0x07);
-	gc5004_write_reg(client, GC5004_8BIT, 0x96, 0x98);
-	gc5004_write_reg(client, GC5004_8BIT, 0x97, 0x0a);
-	gc5004_write_reg(client, GC5004_8BIT, 0x98, 0x20);
-	
-	/////////////////////////////////////////////////////
-	//////////////////////   MIPI   /////////////////////
-	/////////////////////////////////////////////////////
-	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x03);
-	gc5004_write_reg(client, GC5004_8BIT, 0x01, 0x07);
-	gc5004_write_reg(client, GC5004_8BIT, 0x02, 0x33);
-	gc5004_write_reg(client, GC5004_8BIT, 0x03, 0x93);
-	gc5004_write_reg(client, GC5004_8BIT, 0x04, 0x80);
-	gc5004_write_reg(client, GC5004_8BIT, 0x05, 0x02);
-	gc5004_write_reg(client, GC5004_8BIT, 0x06, 0x80);
-//	gc5004_write_reg(client, GC5004_8BIT, 0x10, 0x81);
-	gc5004_write_reg(client, GC5004_8BIT, 0x11, 0x2b);
-	gc5004_write_reg(client, GC5004_8BIT, 0x12, 0xa8);
-	gc5004_write_reg(client, GC5004_8BIT, 0x13, 0x0c);
-	gc5004_write_reg(client, GC5004_8BIT, 0x15, 0x10); // 0X10
-	gc5004_write_reg(client, GC5004_8BIT, 0x17, 0xb0);
-	gc5004_write_reg(client, GC5004_8BIT, 0x18, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x19, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x1a, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x1d, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x42, 0x20);
-	gc5004_write_reg(client, GC5004_8BIT, 0x43, 0x0a);
-	
-	gc5004_write_reg(client, GC5004_8BIT, 0x21, 0x01);
-	gc5004_write_reg(client, GC5004_8BIT, 0x22, 0x02);
-	gc5004_write_reg(client, GC5004_8BIT, 0x23, 0x01);
-	gc5004_write_reg(client, GC5004_8BIT, 0x29, 0x03);
-	gc5004_write_reg(client, GC5004_8BIT, 0x2a, 0x07);
-	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x00);
-
-#endif
-
-
-
-#if 1
-//v4
-//BGGR
-//2592x1944
+/* v4 */
+/* BGGR */
+/* 2592x1944 */
 
 	if (0 != (ret = gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x80))) {
 		dev_err(&client->dev, "%s:init common error", __func__);
@@ -1121,52 +740,52 @@ static int gc5004_init_common(struct v4l2_subdev *sd)  //fix me need write the r
 	}
 	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x80);
 	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x80);
-	gc5004_write_reg(client, GC5004_8BIT, 0xf2, 0x00); //sync_pad_io_ebi
-	gc5004_write_reg(client, GC5004_8BIT, 0xf6, 0x00); //up down
+	gc5004_write_reg(client, GC5004_8BIT, 0xf2, 0x00); /*  sync_pad_io_ebi */
+	gc5004_write_reg(client, GC5004_8BIT, 0xf6, 0x00); /*  up down */
 	gc5004_write_reg(client, GC5004_8BIT, 0xfc, 0x06);
-	gc5004_write_reg(client, GC5004_8BIT, 0xf7, 0x1d); //pll enable
-	gc5004_write_reg(client, GC5004_8BIT, 0xf8, 0x84); //Pll mode 2
-	gc5004_write_reg(client, GC5004_8BIT, 0xf9, 0xfe); //[0] pll enable  change at 17:37 04/19
-	gc5004_write_reg(client, GC5004_8BIT, 0xfa, 0x00); //div
+	gc5004_write_reg(client, GC5004_8BIT, 0xf7, 0x1d); /*  pll enable */
+	gc5004_write_reg(client, GC5004_8BIT, 0xf8, 0x84); /*  Pll mode 2 */
+	gc5004_write_reg(client, GC5004_8BIT, 0xf9, 0xfe); /*  [0] pll enable  change at 17:37 04/19 */
+	gc5004_write_reg(client, GC5004_8BIT, 0xfa, 0x00); /*  div */
 	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x00);
 
-	/////////////////////////////////////////////////////
+	/* ////////////////////////////////////////////////////
 	////////////////   ANALOG & CISCTL   ////////////////
-	/////////////////////////////////////////////////////
-	gc5004_write_reg(client, GC5004_8BIT, 0x00, 0x40); //10/[4]rowskip_skip_sh
-	gc5004_write_reg(client, GC5004_8BIT, 0x03, 0x07); //15fps
-	gc5004_write_reg(client, GC5004_8BIT, 0x04, 0x80); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x05, 0x03); //HB
-	gc5004_write_reg(client, GC5004_8BIT, 0x06, 0x26); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x07, 0x00); //VB
+	//////////////////////////////////////////////////// */
+	gc5004_write_reg(client, GC5004_8BIT, 0x00, 0x40); /* 10/[4]rowskip_skip_sh */
+	gc5004_write_reg(client, GC5004_8BIT, 0x03, 0x07); /* 15fps */
+	gc5004_write_reg(client, GC5004_8BIT, 0x04, 0x80);
+	gc5004_write_reg(client, GC5004_8BIT, 0x05, 0x03); /* HB */
+	gc5004_write_reg(client, GC5004_8BIT, 0x06, 0x26);
+	gc5004_write_reg(client, GC5004_8BIT, 0x07, 0x00); /* VB */
 	gc5004_write_reg(client, GC5004_8BIT, 0x08, 0x28);
-	gc5004_write_reg(client, GC5004_8BIT, 0x09, 0x00); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x0a, 0x02); //02//row start
+	gc5004_write_reg(client, GC5004_8BIT, 0x09, 0x00);
+	gc5004_write_reg(client, GC5004_8BIT, 0x0a, 0x02); /* 02//row start */
 	gc5004_write_reg(client, GC5004_8BIT, 0x0b, 0x00);
- 	gc5004_write_reg(client, GC5004_8BIT, 0x0c, 0x00); //0c//col start
-	gc5004_write_reg(client, GC5004_8BIT, 0x0d, 0x07); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x0e, 0xa8); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x0f, 0x0a); //Window setting
-	gc5004_write_reg(client, GC5004_8BIT, 0x10, 0x50); //50 
-	gc5004_write_reg(client, GC5004_8BIT, 0x17, 0x16); //01//14//[0]mirror [1]flip
-	gc5004_write_reg(client, GC5004_8BIT, 0x18, 0x02); //sdark off
-	gc5004_write_reg(client, GC5004_8BIT, 0x19, 0x0c); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x1a, 0x13); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x1b, 0x48); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x1c, 0x05); 
+	gc5004_write_reg(client, GC5004_8BIT, 0x0c, 0x00); /* 0c//col start */
+	gc5004_write_reg(client, GC5004_8BIT, 0x0d, 0x07);
+	gc5004_write_reg(client, GC5004_8BIT, 0x0e, 0xa8);
+	gc5004_write_reg(client, GC5004_8BIT, 0x0f, 0x0a); /* Window setting */
+	gc5004_write_reg(client, GC5004_8BIT, 0x10, 0x50); /* 50 */
+	gc5004_write_reg(client, GC5004_8BIT, 0x17, 0x16); /* 01//14//[0]mirror [1]flip */
+	gc5004_write_reg(client, GC5004_8BIT, 0x18, 0x02); /* sdark off */
+	gc5004_write_reg(client, GC5004_8BIT, 0x19, 0x0c);
+	gc5004_write_reg(client, GC5004_8BIT, 0x1a, 0x13);
+	gc5004_write_reg(client, GC5004_8BIT, 0x1b, 0x48);
+	gc5004_write_reg(client, GC5004_8BIT, 0x1c, 0x05);
 	gc5004_write_reg(client, GC5004_8BIT, 0x1e, 0xb8);
-	gc5004_write_reg(client, GC5004_8BIT, 0x1f, 0x78); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x20, 0xc5); //03/[7:6]ref_r [3:1]comv_r 
-	gc5004_write_reg(client, GC5004_8BIT, 0x21, 0x4f); //7f
-	gc5004_write_reg(client, GC5004_8BIT, 0x22, 0xb2); //82 travis 20140625
-	gc5004_write_reg(client, GC5004_8BIT, 0x23, 0x43); //f1/[7:3]opa_r [1:0]sRef
-	gc5004_write_reg(client, GC5004_8BIT, 0x24, 0x2f); //PAD drive 
-	gc5004_write_reg(client, GC5004_8BIT, 0x2b, 0x01); 
-	gc5004_write_reg(client, GC5004_8BIT, 0x2c, 0x68); //[6:4]rsgh_r 
+	gc5004_write_reg(client, GC5004_8BIT, 0x1f, 0x78);
+	gc5004_write_reg(client, GC5004_8BIT, 0x20, 0xc5); /* 03/[7:6]ref_r [3:1]comv_r */
+	gc5004_write_reg(client, GC5004_8BIT, 0x21, 0x4f); /* 7f */
+	gc5004_write_reg(client, GC5004_8BIT, 0x22, 0xb2); /* 82 travis 20140625 */
+	gc5004_write_reg(client, GC5004_8BIT, 0x23, 0x43); /* f1/[7:3]opa_r [1:0]sRef */
+	gc5004_write_reg(client, GC5004_8BIT, 0x24, 0x2f); /* PAD drive */
+	gc5004_write_reg(client, GC5004_8BIT, 0x2b, 0x01);
+	gc5004_write_reg(client, GC5004_8BIT, 0x2c, 0x68); /* [6:4]rsgh_r */
 
-	/////////////////////////////////////////////////////
+	/* ////////////////////////////////////////////////////
 	//////////////////////   ISP   //////////////////////
-	/////////////////////////////////////////////////////
+	//////////////////////////////////////////////////// */
 	gc5004_write_reg(client, GC5004_8BIT, 0x86, 0x0a);
 	gc5004_write_reg(client, GC5004_8BIT, 0x89, 0x03);
 	gc5004_write_reg(client, GC5004_8BIT, 0x8a, 0x83);
@@ -1174,19 +793,19 @@ static int gc5004_init_common(struct v4l2_subdev *sd)  //fix me need write the r
 	gc5004_write_reg(client, GC5004_8BIT, 0x8c, 0x10);
 	gc5004_write_reg(client, GC5004_8BIT, 0x8d, 0x01);
 	gc5004_write_reg(client, GC5004_8BIT, 0x90, 0x01);
-	gc5004_write_reg(client, GC5004_8BIT, 0x92, 0x02); //00/crop win y
-	gc5004_write_reg(client, GC5004_8BIT, 0x94, 0x01); //04/crop win x  0d
-	gc5004_write_reg(client, GC5004_8BIT, 0x95, 0x07); //crop win height
+	gc5004_write_reg(client, GC5004_8BIT, 0x92, 0x02); /* 00/crop win y */
+	gc5004_write_reg(client, GC5004_8BIT, 0x94, 0x01); /* 04/crop win x  0d */
+	gc5004_write_reg(client, GC5004_8BIT, 0x95, 0x07); /* crop win height */
 	gc5004_write_reg(client, GC5004_8BIT, 0x96, 0x98);
-	gc5004_write_reg(client, GC5004_8BIT, 0x97, 0x0a); //crop win width
+	gc5004_write_reg(client, GC5004_8BIT, 0x97, 0x0a); /* crop win width */
 	gc5004_write_reg(client, GC5004_8BIT, 0x98, 0x20);
 
-	/////////////////////////////////////////////////////
+	/* ////////////////////////////////////////////////////
 	//////////////////////   BLK   //////////////////////
-	/////////////////////////////////////////////////////
-	gc5004_write_reg(client, GC5004_8BIT, 0x40, 0x72);//22 travis 20140625
+	//////////////////////////////////////////////////// */
+	gc5004_write_reg(client, GC5004_8BIT, 0x40, 0x72); /* 22 travis 20140625 */
 	gc5004_write_reg(client, GC5004_8BIT, 0x41, 0x00);
-	
+
 	gc5004_write_reg(client, GC5004_8BIT, 0x50, 0x00);
 	gc5004_write_reg(client, GC5004_8BIT, 0x51, 0x00);
 	gc5004_write_reg(client, GC5004_8BIT, 0x52, 0x00);
@@ -1219,7 +838,7 @@ static int gc5004_init_common(struct v4l2_subdev *sd)  //fix me need write the r
 	gc5004_write_reg(client, GC5004_8BIT, 0xdd, 0x00);
 	gc5004_write_reg(client, GC5004_8BIT, 0xde, 0x00);
 	gc5004_write_reg(client, GC5004_8BIT, 0xdf, 0x00);
-	
+
 	gc5004_write_reg(client, GC5004_8BIT, 0x70, 0x00);
 	gc5004_write_reg(client, GC5004_8BIT, 0x71, 0x00);
 	gc5004_write_reg(client, GC5004_8BIT, 0x72, 0x00);
@@ -1230,30 +849,30 @@ static int gc5004_init_common(struct v4l2_subdev *sd)  //fix me need write the r
 	gc5004_write_reg(client, GC5004_8BIT, 0x77, 0x20);
 
 
-	/////////////////////////////////////////////////////
+	/* ////////////////////////////////////////////////////
 	//////////////////////   GAIN   /////////////////////
-	/////////////////////////////////////////////////////
-	gc5004_write_reg(client, GC5004_8BIT, 0xb0, 0x70);//50 travis 20140625
+	//////////////////////////////////////////////////// */
+	gc5004_write_reg(client, GC5004_8BIT, 0xb0, 0x70); /* 50 travis 20140625 */
 	gc5004_write_reg(client, GC5004_8BIT, 0xb1, 0x01);
 	gc5004_write_reg(client, GC5004_8BIT, 0xb2, 0x02);
 	gc5004_write_reg(client, GC5004_8BIT, 0xb3, 0x40);
 	gc5004_write_reg(client, GC5004_8BIT, 0xb4, 0x40);
 	gc5004_write_reg(client, GC5004_8BIT, 0xb5, 0x40);
 	gc5004_write_reg(client, GC5004_8BIT, 0xb6, 0x00);
-	/////////////////////////////////////////////////////
+	/* ////////////////////////////////////////////////////
 	//////////////////////   DNDD ///////////////////////
-	/////////////////////////////////////////////////////
-  gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x02);
-  gc5004_write_reg(client, GC5004_8BIT, 0x89, 0x15); 
-  gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x00); 
-
-	/////////////////////////////////////////////////////
-	//////////////////////   SCALER   /////////////////////
-	/////////////////////////////////////////////////////
+	//////////////////////////////////////////////////// */
+	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x02);
+	gc5004_write_reg(client, GC5004_8BIT, 0x89, 0x15);
 	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x00);
-	gc5004_write_reg(client, GC5004_8BIT, 0x18, 0x02); //42
-	gc5004_write_reg(client, GC5004_8BIT, 0x80, 0x10); //[4]first_dd_en  18
-	//gc5004_write_reg(client, GC5004_8BIT, 0x84, 0x23); //[5]auto_DD,[1:0]scaler CFA
+
+	/* ////////////////////////////////////////////////////
+	//////////////////////   SCALER   /////////////////////
+	//////////////////////////////////////////////////// */
+	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x00);
+	gc5004_write_reg(client, GC5004_8BIT, 0x18, 0x02); /* 42 */
+	gc5004_write_reg(client, GC5004_8BIT, 0x80, 0x10); /* [4]first_dd_en  18 */
+	/* gc5004_write_reg(client, GC5004_8BIT, 0x84, 0x23); */ /* [5]auto_DD,[1:0]scaler CFA */
 	gc5004_write_reg(client, GC5004_8BIT, 0x87, 0x12);
 	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x02);
 	gc5004_write_reg(client, GC5004_8BIT, 0x86, 0x00);
@@ -1262,10 +881,10 @@ static int gc5004_init_common(struct v4l2_subdev *sd)  //fix me need write the r
 	gc5004_write_reg(client, GC5004_8BIT, 0x96, 0x98);
 	gc5004_write_reg(client, GC5004_8BIT, 0x97, 0x0a);
 	gc5004_write_reg(client, GC5004_8BIT, 0x98, 0x20);
-	
-	/////////////////////////////////////////////////////
+
+	/* ///////////////////////////////////////////////////
 	//////////////////////   MIPI   /////////////////////
-	/////////////////////////////////////////////////////
+	/////////////////////////////////////////////////// */
 	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x03);
 	gc5004_write_reg(client, GC5004_8BIT, 0x01, 0x07);
 	gc5004_write_reg(client, GC5004_8BIT, 0x02, 0x33);
@@ -1273,11 +892,11 @@ static int gc5004_init_common(struct v4l2_subdev *sd)  //fix me need write the r
 	gc5004_write_reg(client, GC5004_8BIT, 0x04, 0x80);
 	gc5004_write_reg(client, GC5004_8BIT, 0x05, 0x02);
 	gc5004_write_reg(client, GC5004_8BIT, 0x06, 0x80);
-	//gc5004_write_reg(client, GC5004_8BIT, 0x10, 0x81);
+	/* gc5004_write_reg(client, GC5004_8BIT, 0x10, 0x81); */
 	gc5004_write_reg(client, GC5004_8BIT, 0x11, 0x2b);
 	gc5004_write_reg(client, GC5004_8BIT, 0x12, 0xa8);
 	gc5004_write_reg(client, GC5004_8BIT, 0x13, 0x0c);
-	gc5004_write_reg(client, GC5004_8BIT, 0x15, 0x12); // 0X10
+	gc5004_write_reg(client, GC5004_8BIT, 0x15, 0x12); /* 0X10 */
 	gc5004_write_reg(client, GC5004_8BIT, 0x17, 0xb0);
 	gc5004_write_reg(client, GC5004_8BIT, 0x18, 0x00);
 	gc5004_write_reg(client, GC5004_8BIT, 0x19, 0x00);
@@ -1285,16 +904,14 @@ static int gc5004_init_common(struct v4l2_subdev *sd)  //fix me need write the r
 	gc5004_write_reg(client, GC5004_8BIT, 0x1d, 0x00);
 	gc5004_write_reg(client, GC5004_8BIT, 0x42, 0x20);
 	gc5004_write_reg(client, GC5004_8BIT, 0x43, 0x0a);
-	
+
 	gc5004_write_reg(client, GC5004_8BIT, 0x21, 0x01);
 	gc5004_write_reg(client, GC5004_8BIT, 0x22, 0x02);
 	gc5004_write_reg(client, GC5004_8BIT, 0x23, 0x01);
-	gc5004_write_reg(client, GC5004_8BIT, 0x29, 0x02);/**/
-	gc5004_write_reg(client, GC5004_8BIT, 0x2a, 0x07);/*01 */
+	gc5004_write_reg(client, GC5004_8BIT, 0x29, 0x02);
+	gc5004_write_reg(client, GC5004_8BIT, 0x2a, 0x07); /* 01 */
 	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x00);
 	gc5004_write_reg(client, GC5004_8BIT, 0xf2, 0x00);
-
-#endif
 
 	return 0;
 }
@@ -1338,7 +955,7 @@ static int gc5004_g_chip_ident(struct v4l2_subdev *sd,
 	if (!chip)
 		return -EINVAL;
 
-	v4l2_chip_ident_i2c_client(client, chip, V4L2_IDENT_GC, 0);//fix me, what the V4L2_IDENT_GC mean?
+	v4l2_chip_ident_i2c_client(client, chip, V4L2_IDENT_GC, 0); /* fix me, what the V4L2_IDENT_GC mean? */
 
 	return 0;
 }
@@ -1378,11 +995,11 @@ static int gc5004_get_intg_factor(struct i2c_client *client,
 		return ret;
 
 	memset(data, 0, GC5004_INTG_BUF_COUNT);
-//	ret = gc5004_read_reg(client, 4, GC5004_COARSE_INTG_TIME_MIN, data);
-//	if (ret)
-//		return ret;
-	coarse_integration_time_min = 1; //data[0];
-	coarse_integration_time_max_margin = 6;//data[1];
+	/* ret = gc5004_read_reg(client, 4, GC5004_COARSE_INTG_TIME_MIN, data); */
+	/*	if (ret) */
+	/*		return ret; */
+	coarse_integration_time_min = 1; /* data[0]; */
+	coarse_integration_time_max_margin = 6; /* data[1]; */
 
 	/* Get the cropping and output resolution to ISP for this mode. */
 
@@ -1433,8 +1050,7 @@ static int gc5004_get_intg_factor(struct i2c_client *client,
 	buf->output_height = dev->curr_res_table[dev->fmt_idx].height;
 	buf->crop_vertical_end = tmp + buf->crop_vertical_start - 1;
 
-
-	vt_pix_clk_freq_mhz = 96000000;//ext_clk_freq_hz / 2;
+	vt_pix_clk_freq_mhz = 96000000; /* ext_clk_freq_hz / 2; */
 
 	dev->vt_pix_clk_freq_mhz = vt_pix_clk_freq_mhz;
 
@@ -1446,9 +1062,9 @@ static int gc5004_get_intg_factor(struct i2c_client *client,
 	buf->fine_integration_time_min = GC5004_FINE_INTG_TIME;
 	buf->fine_integration_time_max_margin = GC5004_FINE_INTG_TIME;
 	buf->fine_integration_time_def = GC5004_FINE_INTG_TIME;
-	buf->frame_length_lines = dev->curr_res_table[dev->fmt_idx].lines_per_frame; //frame_length_lines;
-	buf->line_length_pck = dev->curr_res_table[dev->fmt_idx].pixels_per_line;//line_length_pck;
-	buf->read_mode = 0; //res->bin_mode;//read_mode;
+	buf->frame_length_lines = dev->curr_res_table[dev->fmt_idx].lines_per_frame; /* frame_length_lines; */
+	buf->line_length_pck = dev->curr_res_table[dev->fmt_idx].pixels_per_line; /* line_length_pck; */
+	buf->read_mode = 0; /* res->bin_mode; //read_mode; */
 
 	tmp =0;
 	ret = gc5004_read_reg(client, GC5004_8BIT, REG_HORI_BLANKING_H, data);
@@ -1465,14 +1081,14 @@ static int gc5004_get_intg_factor(struct i2c_client *client,
 	if(ret)
 		return ret;
 	tmp += data[0];
-	//buf->line_length_pck = buf->output_width + tmp + 4;
+	/* buf->line_length_pck = buf->output_width + tmp + 4; */
 
 	tmp =0;
 	ret = gc5004_read_reg(client, GC5004_8BIT,  REG_VERT_DUMMY_H, data);
 	tmp = (data[0] & 0x1f) << 8;
 	ret = gc5004_read_reg(client, GC5004_8BIT,  REG_VERT_DUMMY_L, data);
 	tmp += data[0];
-	//buf->frame_length_lines = buf->output_height + tmp;
+	/* buf->frame_length_lines = buf->output_height + tmp; */
 
 	buf->binning_factor_x = 1;
 	buf->binning_factor_y = 1;
@@ -1494,7 +1110,7 @@ static int gc5004_q_exposure(struct v4l2_subdev *sd, s32 *value)
 	ret = gc5004_read_reg(client, GC5004_8BIT,
 			       GC5004_REG_EXPO_COARSE, &tmp);
 	if(ret != 0)
-		return ret;	
+		return ret;
 
 	coarse = (u16)((tmp & 0x1f) << 8);
 
@@ -1502,8 +1118,8 @@ static int gc5004_q_exposure(struct v4l2_subdev *sd, s32 *value)
 			       GC5004_REG_EXPO_COARSE + 1, &tmp);
 
 	if(ret != 0)
-		return ret;	
-	
+		return ret;
+
 	coarse += (u16)tmp;
 
 	*value = coarse;
@@ -1542,9 +1158,11 @@ static int gc5004_v_flip(struct v4l2_subdev *sd, s32 value)
 	int ret;
 	u8 val;
 
-//	ret = gc5004_write_reg_array(client, gc5004_param_hold);  fix me, don't need?
-//	if (ret)
-//		return ret;
+#if 0
+	ret = gc5004_write_reg_array(client, gc5004_param_hold); /* Fixme, doesn't need? */
+	if (ret)
+		return ret;
+#endif
 	ret = gc5004_read_reg(client, GC5004_8BIT, GC5004_IMG_ORIENTATION, &val);
 	if (ret)
 		return ret;
@@ -1641,7 +1259,7 @@ static int gc5004_g_bin_factor_y(struct v4l2_subdev *sd, s32 *val)
 int gc5004_vcm_power_up(struct v4l2_subdev *sd)
 {
 	struct gc5004_device *dev = to_gc5004_sensor(sd);
-	
+
 	if (dev->vcm_driver && dev->vcm_driver->power_up)
 		return dev->vcm_driver->power_up(sd);
 	return 0;
@@ -1650,7 +1268,7 @@ int gc5004_vcm_power_up(struct v4l2_subdev *sd)
 int gc5004_vcm_power_down(struct v4l2_subdev *sd)
 {
 	struct gc5004_device *dev = to_gc5004_sensor(sd);
-	
+
 	if (dev->vcm_driver && dev->vcm_driver->power_down)
 		return dev->vcm_driver->power_down(sd);
 	return 0;
@@ -1659,7 +1277,7 @@ int gc5004_vcm_power_down(struct v4l2_subdev *sd)
 int gc5004_vcm_init(struct v4l2_subdev *sd)
 {
 	struct gc5004_device *dev = to_gc5004_sensor(sd);
-	
+
 	if (dev->vcm_driver && dev->vcm_driver->init)
 		return dev->vcm_driver->init(sd);
 	return 0;
@@ -1668,7 +1286,7 @@ int gc5004_vcm_init(struct v4l2_subdev *sd)
 int gc5004_t_focus_vcm(struct v4l2_subdev *sd, u16 val)
 {
 	struct gc5004_device *dev = to_gc5004_sensor(sd);
-	
+
 	if (dev->vcm_driver && dev->vcm_driver->t_focus_vcm)
 		return dev->vcm_driver->t_focus_vcm(sd, val);
 	return 0;
@@ -1677,7 +1295,7 @@ int gc5004_t_focus_vcm(struct v4l2_subdev *sd, u16 val)
 int gc5004_t_focus_abs(struct v4l2_subdev *sd, s32 value)
 {
 	struct gc5004_device *dev = to_gc5004_sensor(sd);
-	
+
 	if (dev->vcm_driver && dev->vcm_driver->t_focus_abs)
 		return dev->vcm_driver->t_focus_abs(sd, value);
 	return 0;
@@ -1703,7 +1321,7 @@ int gc5004_t_vcm_timing(struct v4l2_subdev *sd, s32 value)
 int gc5004_t_focus_rel(struct v4l2_subdev *sd, s32 value)
 {
 	struct gc5004_device *dev = to_gc5004_sensor(sd);
-	
+
 	if (dev->vcm_driver && dev->vcm_driver->t_focus_rel)
 		return dev->vcm_driver->t_focus_rel(sd, value);
 	return 0;
@@ -1712,7 +1330,7 @@ int gc5004_t_focus_rel(struct v4l2_subdev *sd, s32 value)
 int gc5004_q_focus_status(struct v4l2_subdev *sd, s32 *value)
 {
 	struct gc5004_device *dev = to_gc5004_sensor(sd);
-	
+
 	if (dev->vcm_driver && dev->vcm_driver->q_focus_status)
 		return dev->vcm_driver->q_focus_status(sd, value);
 	return 0;
@@ -1721,7 +1339,7 @@ int gc5004_q_focus_status(struct v4l2_subdev *sd, s32 *value)
 int gc5004_q_focus_abs(struct v4l2_subdev *sd, s32 *value)
 {
 	struct gc5004_device *dev = to_gc5004_sensor(sd);
-	
+
 	if (dev->vcm_driver && dev->vcm_driver->q_focus_abs)
 		return dev->vcm_driver->q_focus_abs(sd, value);
 	return 0;
@@ -1743,7 +1361,7 @@ static int gc5004_g_exposure(struct v4l2_subdev *sd, s32 *value)
 		return ret;
 
 	coarse = ((u16)(reg_val_h & 0x1f)) <<8;
-	
+
 	ret = gc5004_read_reg(client, GC5004_8BIT,
 			       GC5004_REG_EXPO_COARSE + 1, &reg_val_l);
 	if (ret)
@@ -1755,6 +1373,7 @@ static int gc5004_g_exposure(struct v4l2_subdev *sd, s32 *value)
 	return 0;
 }
 
+#if 0
 struct gc5004_control gc5004_controls[] = {
 	{
 		.qc = {
@@ -1846,7 +1465,7 @@ struct gc5004_control gc5004_controls[] = {
 		.tweak = gc5004_t_focus_abs,
 		.query = gc5004_q_focus_status,
 	},
-	
+
 	{
 		.qc = {
 			.id = V4L2_CID_VCM_SLEW,
@@ -1912,21 +1531,6 @@ struct gc5004_control gc5004_controls[] = {
 		},
 		.query = gc5004_g_fnumber_range,
 	},
-#if 0
-	{
-		.qc = {
-			.id = V4L2_CID_POWER_LINE_FREQUENCY,
-			.type = V4L2_CTRL_TYPE_MENU,
-			.name = "Light frequency filter",
-			.minimum = 1,
-			.maximum =  2, /* 1: 50Hz, 2:60Hz */
-			.step = 1,
-			.default_value = 1,
-			.flags = 0,
-		},
-		.tweak = gc5004_s_freq,
-	},
-#endif
 	{
 		.qc = {
 			.id = V4L2_CID_EXPOSURE_ABSOLUTE,
@@ -1953,7 +1557,213 @@ static struct gc5004_control *gc5004_find_control(u32 id)
 			return &gc5004_controls[i];
 	return NULL;
 }
+#endif
+static int gc5004_s_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct gc5004_device *dev = container_of(
+		ctrl->handler, struct gc5004_device, ctrl_handler);
+	struct i2c_client *client = v4l2_get_subdevdata(&dev->sd);
+	int ret = 0;
 
+	switch (ctrl->id) {
+	case V4L2_CID_VFLIP:
+		dev_dbg(&client->dev, "%s: CID_VFLIP:%d.\n", __func__, ctrl->val);
+		ret = gc5004_v_flip(&dev->sd, ctrl->val);
+		break;
+
+	case V4L2_CID_HFLIP:
+		dev_dbg(&client->dev, "%s: CID_HFLIP:%d.\n", __func__, ctrl->val);
+		ret = gc5004_h_flip(&dev->sd, ctrl->val);
+		break;
+
+	case V4L2_CID_FOCUS_ABSOLUTE:
+		ret = gc5004_t_focus_abs(&dev->sd, ctrl->val);
+		break;
+
+	case V4L2_CID_FOCUS_RELATIVE:
+		ret = gc5004_t_focus_rel(&dev->sd, ctrl->val);
+		break;
+
+	case V4L2_CID_FOCUS_STATUS:
+		ret = gc5004_t_focus_abs(&dev->sd, ctrl->val);
+		break;
+
+	case V4L2_CID_VCM_SLEW:
+		ret = gc5004_t_vcm_slew(&dev->sd, ctrl->val);
+		break;
+
+	case V4L2_CID_VCM_TIMEING:
+		ret = gc5004_t_vcm_timing(&dev->sd, ctrl->val);
+		break;
+	}
+
+	return ret;
+}
+
+static int gc5004_g_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct gc5004_device *dev = container_of(
+		ctrl->handler, struct gc5004_device, ctrl_handler);
+	struct i2c_client *client = v4l2_get_subdevdata(&dev->sd);
+	int ret = 0;
+
+	switch (ctrl->id) {
+	case V4L2_CID_EXPOSURE_ABSOLUTE:
+		ret = gc5004_g_exposure(&dev->sd, &ctrl->val);
+		break;
+
+	case V4L2_CID_FOCAL_ABSOLUTE:
+		ret = gc5004_g_focal(&dev->sd, &ctrl->val);
+		break;
+
+	case V4L2_CID_FNUMBER_ABSOLUTE:
+		ret = gc5004_g_fnumber(&dev->sd, &ctrl->val);
+		break;
+
+	case V4L2_CID_FNUMBER_RANGE:
+		ret = gc5004_g_fnumber_range(&dev->sd, &ctrl->val);
+		break;
+
+	case V4L2_CID_FOCUS_ABSOLUTE:
+		ret = gc5004_q_focus_abs(&dev->sd, &ctrl->val);
+		break;
+
+	case V4L2_CID_FOCUS_STATUS:
+		ret = gc5004_q_focus_status(&dev->sd, &ctrl->val);
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	return ret;
+}
+static const struct v4l2_ctrl_ops ctrl_ops = {
+	.s_ctrl = gc5004_s_ctrl,
+	.g_volatile_ctrl = gc5004_g_ctrl
+};
+
+struct v4l2_ctrl_config gc5004_controls[] = {
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_EXPOSURE_ABSOLUTE,
+		.type  = V4L2_CTRL_TYPE_INTEGER,
+		.name  = "exposure",
+		.min   = 0x0,
+		.max   = 0xffff,
+		.step  = 0x01,
+		.def   = 0x00,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_VFLIP,
+		.type  = V4L2_CTRL_TYPE_BOOLEAN,
+		.name  = "Flip",
+		.min   = 0,
+		.max   = 1,
+		.step  = 1,
+		.def   = 0,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_HFLIP,
+		.type  = V4L2_CTRL_TYPE_BOOLEAN,
+		.name  = "Mirror",
+		.min   = 0,
+		.max   = 1,
+		.step  = 1,
+		.def   = 0,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_FOCAL_ABSOLUTE,
+		.type  = V4L2_CTRL_TYPE_INTEGER,
+		.name  = "focal length",
+		.min   = GC5004_FOCAL_LENGTH_DEFAULT,
+		.max   = GC5004_FOCAL_LENGTH_DEFAULT,
+		.step  = 0x01,
+		.def   = GC5004_FOCAL_LENGTH_DEFAULT,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_FNUMBER_ABSOLUTE,
+		.type  = V4L2_CTRL_TYPE_INTEGER,
+		.name  = "f-number",
+		.min   = GC5004_F_NUMBER_DEFAULT,
+		.max   = GC5004_F_NUMBER_DEFAULT,
+		.step  = 0x01,
+		.def   = GC5004_F_NUMBER_DEFAULT,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_FNUMBER_RANGE,
+		.type  = V4L2_CTRL_TYPE_INTEGER,
+		.name  = "f-number range",
+		.min   = GC5004_F_NUMBER_RANGE,
+		.max   = GC5004_F_NUMBER_RANGE,
+		.step  = 0x01,
+		.def   = GC5004_F_NUMBER_RANGE,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_FOCUS_ABSOLUTE,
+		.type  = V4L2_CTRL_TYPE_INTEGER,
+		.name  = "focus move absolute",
+		.min   = 0,
+		.max   = GC5004_MAX_FOCUS_POS,
+		.step  = 0x01,
+		.def   = 0,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_FOCUS_RELATIVE,
+		.type  = V4L2_CTRL_TYPE_INTEGER,
+		.name  = "focus move relative",
+		.min   = GC5004_MAX_FOCUS_NEG,
+		.max   = GC5004_MAX_FOCUS_POS,
+		.step  = 0x01,
+		.def   = 0,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_FOCUS_STATUS,
+		.type  = V4L2_CTRL_TYPE_INTEGER,
+		.name  = "focus status",
+		.min   = 0,
+		.max   = 100, /* allow enum to grow in the future */
+		.step  = 0x01,
+		.def   = 0,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_VCM_SLEW,
+		.type  = V4L2_CTRL_TYPE_INTEGER,
+		.name  = "vcm slew",
+		.min   = 0,
+		.max   = GC5004_VCM_SLEW_STEP_MAX,
+		.step  = 0x01,
+		.def   = 0,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_VCM_TIMEING,
+		.type  = V4L2_CTRL_TYPE_INTEGER,
+		.name  = "vcm step time",
+		.min   = 0,
+		.max   = GC5004_VCM_SLEW_TIME_MAX,
+		.step  = 0x01,
+		.def   = 0,
+	},
+};
+
+
+#if 0
 static int gc5004_queryctrl(struct v4l2_subdev *sd, struct v4l2_queryctrl *qc)
 {
 	struct gc5004_control *ctrl = gc5004_find_control(qc->id);
@@ -2005,6 +1815,7 @@ static int gc5004_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 
 	return ret;
 }
+#endif
 
 /*
  * distance - calculate the distance
@@ -2132,7 +1943,8 @@ static int gc5004_s_mbus_fmt(struct v4l2_subdev *sd,
 	mutex_lock(&dev->input_lock);
 
 	dev->fmt_idx = get_resolution_index(sd, fmt->width, fmt->height);
-	printk(KERN_INFO"@%s: width=%d, height=%d\n", __func__, fmt->width, fmt->height);
+	dev_info(&client->dev, "@%s: width=%d, height=%d\n",
+			__func__, fmt->width, fmt->height);
 	/* Sanity check */
 	if (unlikely(dev->fmt_idx == -1)) {
 		ret = -EINVAL;
@@ -2166,7 +1978,7 @@ static int gc5004_s_mbus_fmt(struct v4l2_subdev *sd,
 	gc5004_info->raw_bayer_order = gc5004_bayer_order_mapping[val];
 	dev->format.code = gc5004_translate_bayer_order(
 		gc5004_info->raw_bayer_order);
-	
+
 	gc5004_write_reg(client, GC5004_8BIT, 0xfe, 0x30);
 	__gc5004_update_exposure_timing(client, g_exposure, 0, 0);
 	__gc5004_update_gain(sd, g_gain);
@@ -2263,7 +2075,7 @@ static int gc5004_enum_framesizes(struct v4l2_subdev *sd,
 	unsigned int index = fsize->index;
 	struct gc5004_device *dev = to_gc5004_sensor(sd);
 
-	if (index >= dev->entries_curr_table)//fix me,
+	if (index >= dev->entries_curr_table)
 		return -EINVAL;
 
 	fsize->type = V4L2_FRMSIZE_TYPE_DISCRETE;
@@ -2323,13 +2135,13 @@ static int gc5004_s_config(struct v4l2_subdev *sd,
 	if (NULL == pdata)
 		return -ENODEV;
 
-	dev->platform_data = 
+	dev->platform_data =
 		(struct camera_sensor_platform_data *)pdata;
 
 	mutex_lock(&dev->input_lock);
 
 	if (dev->platform_data->platform_init) {
-		ret = dev->platform_data->platform_init(client);//fix me imx set voltage here
+		ret = dev->platform_data->platform_init(client); /* fix me imx set voltage here */
 		if (ret) {
 			mutex_unlock(&dev->input_lock);
 			dev_err(&client->dev, "gc5004 platform init err\n");
@@ -2342,7 +2154,7 @@ static int gc5004_s_config(struct v4l2_subdev *sd,
 		v4l2_err(client, "gc5004 power-up err.\n");
 		goto fail_csi_cfg;
 	}
-	
+
 	ret = dev->platform_data->csi_cfg(sd, 1);
 	if (ret)
 		goto fail_csi_cfg;
@@ -2356,7 +2168,7 @@ static int gc5004_s_config(struct v4l2_subdev *sd,
 
 	dev->sensor_id = sensor_id;
 
-	/* Read sensor's OTP data 
+	/* Read sensor's OTP data
 	if (dev->sensor_id == GC5004_ID)
 		dev->otp_data = devm_kzalloc(&client->dev,
 				GC5004_OTP_DATA_SIZE, GFP_KERNEL);
@@ -2537,7 +2349,7 @@ static const struct v4l2_subdev_video_ops gc5004_video_ops = {
 	.s_stream = gc5004_s_stream,
 	.enum_framesizes = gc5004_enum_framesizes,
 	.enum_frameintervals = gc5004_enum_frameintervals,
-//	.enum_mbus_fmt = gc5004_enum_mbus_fmt,  fix me, don't need it?
+	/* .enum_mbus_fmt = gc5004_enum_mbus_fmt,  fix me, don't need it? */
 	.try_mbus_fmt = gc5004_try_mbus_fmt,
 	.g_mbus_fmt = gc5004_g_mbus_fmt,
 	.s_mbus_fmt = gc5004_s_mbus_fmt,
@@ -2547,12 +2359,12 @@ static const struct v4l2_subdev_video_ops gc5004_video_ops = {
 
 static const struct v4l2_subdev_core_ops gc5004_core_ops = {
 	.g_chip_ident = gc5004_g_chip_ident,
-	.queryctrl = gc5004_queryctrl,
-	.g_ctrl = gc5004_g_ctrl,
-	.s_ctrl = gc5004_s_ctrl,
+	.queryctrl = v4l2_subdev_queryctrl,
+	.g_ctrl = v4l2_subdev_g_ctrl,
+	.s_ctrl = v4l2_subdev_s_ctrl,
 	.s_power = gc5004_s_power,
 	.ioctl = gc5004_ioctl,
-//	.init = gc5004_init,
+	/* .init = gc5004_init, */
 };
 
 static const struct v4l2_subdev_pad_ops gc5004_pad_ops = {
@@ -2580,8 +2392,10 @@ static int gc5004_remove(struct i2c_client *client)
 
 	if (dev->platform_data->platform_deinit)
 		dev->platform_data->platform_deinit();
+	v4l2_ctrl_handler_free(&dev->ctrl_handler);
+	v4l2_device_unregister_subdev(sd);
 
-//	dev->platform_data->csi_cfg(sd, 0);
+	/* dev->platform_data->csi_cfg(sd, 0); */
 	v4l2_device_unregister_subdev(sd);
 	media_entity_cleanup(&dev->sd.entity);
 	kfree(dev);
@@ -2598,6 +2412,26 @@ static int __update_gc5004_device_settings(struct gc5004_device *dev, u16 sensor
 	default:
 		return -EINVAL;
 	}
+
+	return 0;
+}
+
+static int __gc5004_init_ctrl_handler(struct gc5004_device *dev)
+{
+	struct v4l2_ctrl_handler *hdl;
+	int i;
+
+	hdl = &dev->ctrl_handler;
+
+	v4l2_ctrl_handler_init(&dev->ctrl_handler, ARRAY_SIZE(gc5004_controls));
+
+	for (i = 0; i < ARRAY_SIZE(gc5004_controls); i++)
+		v4l2_ctrl_new_custom(&dev->ctrl_handler,
+				&gc5004_controls[i], NULL);
+
+	dev->ctrl_handler.lock = &dev->input_lock;
+	dev->sd.ctrl_handler = hdl;
+	v4l2_ctrl_handler_setup(&dev->ctrl_handler);
 
 	return 0;
 }
@@ -2619,7 +2453,7 @@ static int gc5004_probe(struct i2c_client *client,
 	mutex_init(&dev->input_lock);
 
 	dev->fmt_idx = 0;
-	dev->sensor_id = GC5004_ID_DEFAULT;//fix me
+	dev->sensor_id = GC5004_ID_DEFAULT; /* fix me */
 
 	v4l2_i2c_subdev_init(&(dev->sd), client, &gc5004_ops);
 
@@ -2628,6 +2462,14 @@ static int gc5004_probe(struct i2c_client *client,
 				       client->dev.platform_data);
 		if (ret)
 			goto out_free;
+	}
+
+	ret = __gc5004_init_ctrl_handler(dev);
+	if (ret) {
+		v4l2_ctrl_handler_free(&dev->ctrl_handler);
+		v4l2_device_unregister_subdev(&dev->sd);
+		kfree(dev);
+		return ret;
 	}
 
 	dev->vcm_driver = &gc5004_vcms[0];
@@ -2648,11 +2490,19 @@ static int gc5004_probe(struct i2c_client *client,
 	if (ret)
 		goto out_free;
 
+	ret = __gc5004_init_ctrl_handler(dev);
+	if (ret) {
+		v4l2_ctrl_handler_free(&dev->ctrl_handler);
+		v4l2_device_unregister_subdev(&dev->sd);
+		kfree(dev);
+		return ret;
+	}
+
 	dev->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	dev->pad.flags = MEDIA_PAD_FL_SOURCE;
 	dev->format.code = V4L2_MBUS_FMT_SGRBG10_1X10;
 
-//	dev->sd.entity.ops = &gc5004_entity_ops;
+	/* dev->sd.entity.ops = &gc5004_entity_ops; */
 	dev->sd.entity.type = MEDIA_ENT_T_V4L2_SUBDEV_SENSOR;
 
 	ret = media_entity_init(&dev->sd.entity, 1, &dev->pad, 0);
@@ -2679,7 +2529,7 @@ static struct i2c_driver gc5004_driver = {
 		.name = GC5004_DRIVER,
 	},
 	.probe = gc5004_probe,
-	.remove = gc5004_remove,//__devexit_p(gc5004_remove),
+	.remove = gc5004_remove, /* __devexit_p(gc5004_remove), */
 	.id_table = gc5004_ids,
 };
 

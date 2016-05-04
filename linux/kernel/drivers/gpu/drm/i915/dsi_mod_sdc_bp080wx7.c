@@ -51,8 +51,10 @@ static u8 sdc_init_sequence_08[]      = {0xF0, 0xA5, 0xA5};
 static u8 sdc_init_sequence_09[]      = {0xF1, 0xA5, 0xA5};
 static u8 sdc_init_sequence_10[]      = {0xFC, 0x5A, 0x5A};
 
-static u8 sdc_init_sequence_c30[]      = {0xC3, 0x40, 0x00, 0x20}; /* disable ic power */
-static u8 sdc_init_sequence_c31[]      = {0xC3, 0x40, 0x00, 0x28}; /* enable ic power */
+/* disable ic power */
+static u8 sdc_init_sequence_c30[]      = {0xC3, 0x40, 0x00, 0x20};
+/* enable ic power */
+static u8 sdc_init_sequence_c31[]      = {0xC3, 0x40, 0x00, 0x28};
 
 void sdc_bp080wx7_send_otp_cmds(struct intel_dsi_device *dsi)
 {
@@ -64,7 +66,7 @@ void sdc_bp080wx7_send_otp_cmds(struct intel_dsi_device *dsi)
 	dsi_vc_dcs_write(intel_dsi, 0, sdc_init_sequence_02, sizeof(sdc_init_sequence_02));
 	dsi_vc_dcs_write(intel_dsi, 0, sdc_init_sequence_03, sizeof(sdc_init_sequence_03));
 	dsi_vc_dcs_write(intel_dsi, 0, sdc_init_sequence_04, sizeof(sdc_init_sequence_04));
-	msleep(5);
+	msleep(20);
 	dsi_vc_dcs_write(intel_dsi, 0, sdc_init_sequence_c30, sizeof(sdc_init_sequence_c30));
 	dsi_vc_dcs_write(intel_dsi, 0, sdc_init_sequence_c31, sizeof(sdc_init_sequence_c31));
 
@@ -106,6 +108,7 @@ static struct drm_display_mode *sdc_bp080wx7_get_modes(
 	struct intel_dsi_device *dsi)
 {
 	struct drm_display_mode *mode = NULL;
+	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
 	DRM_DEBUG_KMS("\n");
 	/* Allocate */
 	mode = kzalloc(sizeof(*mode), GFP_KERNEL);
@@ -115,8 +118,6 @@ static struct drm_display_mode *sdc_bp080wx7_get_modes(
 	}
 
 	/* Hardcode 800*1280 */
-	/*HFP = 16, HSYNC = 140, HBP = 4 */
-	/*VFP = 8, VSYNC = 4, VBP = 4 */
 	mode->hdisplay = 800;
 	mode->hsync_start = mode->hdisplay + 16;
 	mode->hsync_end = mode->hsync_start + 140;
@@ -130,7 +131,7 @@ static struct drm_display_mode *sdc_bp080wx7_get_modes(
 	mode->vrefresh = 60;
 	mode->clock =  mode->vrefresh * mode->vtotal *
 	mode->htotal / 1000;
-
+	intel_dsi->pclk = mode->clock;
 	/* Configure */
 	drm_mode_set_name(mode);
 	drm_mode_set_crtcinfo(mode, 0);
@@ -196,10 +197,9 @@ static int sdc_bp080wx7_mode_valid(struct intel_dsi_device *dsi,
 
 static void sdc_bp080wx7_dpms(struct intel_dsi_device *dsi, bool enable)
 {
-/*	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);*/
-
 	DRM_DEBUG_KMS("\n");
 }
+
 static void sdc_bp080wx7_enable(struct intel_dsi_device *dsi)
 {
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
@@ -214,6 +214,7 @@ static void sdc_bp080wx7_enable(struct intel_dsi_device *dsi)
 	dsi_vc_dcs_write(intel_dsi, 0, sdc_init_sequence_10, sizeof(sdc_init_sequence_10));
 	dsi_vc_dcs_write_0(intel_dsi, 0, 0x29);
 }
+
 static void sdc_bp080wx7_disable(struct intel_dsi_device *dsi)
 {
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
@@ -228,8 +229,6 @@ static void sdc_bp080wx7_disable(struct intel_dsi_device *dsi)
 bool sdc_bp080wx7_init(struct intel_dsi_device *dsi)
 {
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-/*	struct drm_device *dev = intel_dsi->base.base.dev;
-	struct drm_i915_private *dev_priv = dev->dev_private;*/
 
 	/* create private data, slam to dsi->dev_priv. could support many panels
 	 * based on dsi->name. This panal supports both command and video mode,
@@ -271,11 +270,12 @@ bool sdc_bp080wx7_init(struct intel_dsi_device *dsi)
 	/* BTA sending at the last blanking line of VFP is disabled */
 	intel_dsi->video_frmt_cfg_bits = 1<<3;
 	intel_dsi->lane_count = 4;
+	intel_dsi->port = 0; /* PORT_A by default */
+	intel_dsi->burst_mode_ratio = 100;
 
 	intel_dsi->backlight_off_delay = 20;
 	intel_dsi->send_shutdown = true;
 	intel_dsi->shutdown_pkt_delay = 20;
-	/*dev_priv->mipi.panel_bpp = 24;*/
 
 	return true;
 }

@@ -208,7 +208,7 @@ static int sx9500_init_chip(struct sx9500_data *sx9500)
 		dev_err(&sx9500->client->dev,
 			"Fail to output gpio ret=%d\n", ret);
 
-	while((gpio_get_value_cansleep(sx9500->gpio_int) == 0) && (i++ < 15)) {
+	while((gpio_get_value_cansleep(sx9500->gpio_int) == 0) && ((++i) < 10)) {
 		sx9500_read(sx9500, SX9500_IRQSTAT_REG, &val);
 		msleep(20);
 	}
@@ -312,12 +312,12 @@ static irqreturn_t sx9500_irq(int irq, void *dev_id)
 
 #ifdef CONFIG_PS_SX9500_DEBUG
 	if (debug_level) {
-		ret = sx9500_read(sx9500, 0x21, &val);
-		ret = sx9500_read(sx9500, 0x22, &val);
-		ret = sx9500_read(sx9500, 0x23, &val);
-		ret = sx9500_read(sx9500, 0x24, &val);
-		ret = sx9500_read(sx9500, 0x25, &val);
-		ret = sx9500_read(sx9500, 0x26, &val);
+		sx9500_read(sx9500, 0x21, &val);
+		sx9500_read(sx9500, 0x22, &val);
+		sx9500_read(sx9500, 0x23, &val);
+		sx9500_read(sx9500, 0x24, &val);
+		sx9500_read(sx9500, 0x25, &val);
+		sx9500_read(sx9500, 0x26, &val);
 	}
 #endif
 
@@ -460,7 +460,7 @@ err:
 static ssize_t sx9500_debug_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", debug_level);
+	return sprintf(buf, "%u\n", debug_level);
 }
 
 static ssize_t sx9500_debug_store(struct device *dev,
@@ -483,9 +483,7 @@ static ssize_t sx9500_enable_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct sx9500_data *sx9500 = dev_get_drvdata(dev);
-	int enabled;
 
-	enabled = sx9500->enabled;
 	return sprintf(buf, "%d\n", sx9500->enabled);
 }
 
@@ -539,7 +537,6 @@ static struct attribute_group sx9500_attribute_group = {
 
 static void sx9500_init_work_func(struct work_struct *work)
 {
-	int ret;
 	struct sx9500_data *sx9500 = container_of((struct delayed_work *)work,
 					struct sx9500_data, init_work);
 
@@ -669,7 +666,6 @@ static int register_i2c_device(int bus, int addr, char *name)
 {
 	int ret = 0;
 	struct i2c_adapter *adapter;
-	struct i2c_client *client;
 	struct i2c_board_info info;
 
 	SENSOR_DBG(DBG_LEVEL2, "%s", name);
@@ -680,6 +676,7 @@ static int register_i2c_device(int bus, int addr, char *name)
 	if (!adapter)
 		return -ENODEV;
 	else {
+		struct i2c_client *client;
 		info.addr = addr;
 		client = i2c_new_device(adapter, &info);
 		if (!client) {

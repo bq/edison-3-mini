@@ -153,30 +153,26 @@ config MMU
 config SBUS
 	bool
 
-menuconfig MRD7
+config MRD7
 	bool "Baytrail CR MRD7"
+	---help---
+	This option is needed for MRD7 system.
 
-config MALATA_E1005
-	bool "Malata E1005 Project"
-	depends on MRD7
+	If unsure, say N.
 
-menuconfig MRD8
+config MRD8
 	bool "Baytrail CR MRD8"
+	---help---
+	This option is needed for MRD8 system.
 
-config MALATA_E1008
-	bool "Malata E1008 Project"
-	depends on MRD8
-
-config MALATA_E1008_3G
-	bool "Malata E1008 3G Project"
-	depends on MRD8
-
-config MALATA_E8005
-	bool "Malata E8005 Project"
-	depends on MRD8
+	If unsure, say N.
 
 config MRD7P05
 	bool "Baytrail CR MRD7 P0.5"
+	---help---
+	This option is needed for MRD7 P0.5 and P1 system.
+
+	If unsure, say N.
 
 config NEED_DMA_MAP_STATE
 	def_bool y
@@ -547,6 +543,13 @@ config X86_INTEL_LPSS
 	  things like clock tree (common clock framework) which are needed
 	  by the LPSS peripheral drivers.
 
+config X86_INTEL_OSC_CLK
+	bool "Intel OSC CLK Support"
+	select COMMON_CLK
+	---help---
+	  Select to build support for Intel OSC0~OSC4 clock. Selecting
+	  this option enables Linux common clock framework.
+
 config X86_RDC321X
 	bool "RDC R-321x SoC"
 	depends on X86_32
@@ -886,6 +889,15 @@ config NR_CPUS
 
 	  This is purely to save memory - each supported CPU adds
 	  approximately eight kilobytes to the kernel image.
+
+config NR_CPUS_PER_MODULE
+        int "number of cpu cores per module"
+	default "2" if SMP
+	---help---
+	  This allows you to specify the number of cpu cores per module in the system
+	  on which this kernel will be run.
+
+	  This is used for module level frequency scaling on systems that support it.
 
 config SCHED_SMT
 	bool "SMT (Hyperthreading) scheduler support"
@@ -2414,11 +2426,15 @@ config HAVE_TEXT_POKE_SMP
 
 config X86_DEV_DMA_OPS
 	bool
-	depends on X86_64 || STA2X11
+	depends on X86_64 || STA2X11 || VIDEO_CSS2600
 
 config X86_DMA_REMAP
 	bool
 	depends on STA2X11
+
+config PF450CL
+       bool "ASUS PF450CL Product"
+       depends on X86_MDFLD
 
 source "net/Kconfig"
 

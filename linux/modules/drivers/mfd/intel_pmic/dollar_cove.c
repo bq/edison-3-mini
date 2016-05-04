@@ -19,10 +19,17 @@
 #include <linux/i2c.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
+#include <linux/gpio.h>
 #include <linux/mfd/intel_mid_pmic.h>
 #include <linux/acpi.h>
 #include <asm/intel_vlv2.h>
+#include <linux/lnw_gpio.h>
 #include <linux/version.h>
+#include <asm/dc_xpwr_pwrsrc.h>
+#include <linux/power/dc_xpwr_battery.h>
+#include <linux/power/dc_xpwr_charger.h>
+#include <linux/regulator/intel_dcovex_regulator.h>
+#include <asm/intel_em_config.h>
 #include "./pmic.h"
 
 enum {
@@ -238,6 +245,18 @@ static struct mfd_cell dollar_cove_dev[] = {
 		.num_resources = ARRAY_SIZE(battery_resources),
 		.resources = battery_resources,
 	},
+	{
+		.name = "dcovex_regulator",
+		.id = DCOVEX_ID_LDO2 + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
+	{
+		.name = "dcovex_regulator",
+		.id = DCOVEX_ID_GPIO1 + 1,
+		.num_resources = 0,
+		.resources = NULL,
+	},
 	{NULL, },
 };
 
@@ -285,9 +304,226 @@ struct intel_pmic_irqregmap dollar_cove_irqregmap[] = {
 	DOLLAR_COVE_IRQREGMAP(BC_USB_CHNG_IRQ),
 };
 
+
+#ifdef CONFIG_POWER_SUPPLY_CHARGER
+#define DC_CHRG_CHRG_CUR_NOLIMIT	1800
+#define DC_CHRG_CHRG_CUR_MEDIUM		1400
+#define DC_CHRG_CHRG_CUR_LOW		1000
+
+static struct ps_batt_chg_prof ps_batt_chrg_prof;
+static struct ps_pse_mod_prof batt_chg_profile;
+static struct power_supply_throttle dc_chrg_throttle_states[] = {
+	{
+		.throttle_action = PSY_THROTTLE_CC_LIMIT,
+		.throttle_val = DC_CHRG_CHRG_CUR_NOLIMIT,
+	},
+	{
+		.throttle_action = PSY_THROTTLE_CC_LIMIT,
+		.throttle_val = DC_CHRG_CHRG_CUR_MEDIUM,
+	},
+	{
+		.throttle_action = PSY_THROTTLE_CC_LIMIT,
+		.throttle_val = DC_CHRG_CHRG_CUR_LOW,
+	},
+	{
+		.throttle_action = PSY_THROTTLE_DISABLE_CHARGING,
+	},
+};
+
+static char *dc_chrg_supplied_to[] = {
+	"dollar_cove_battery"
+};
+
+static void *platform_debug_batt_charge_profile(void)
+{
+	struct ps_temp_chg_table temp_mon_range[BATT_TEMP_NR_RNG];
+
+	char batt_str[] = "INTN0001";
+
+	memcpy(batt_chg_profile.batt_id, batt_str, strlen(batt_str));
+
+	batt_chg_profile.battery_type = 0x2;
+	batt_chg_profile.capacity = 4500;
+	batt_chg_profile.voltage_max = 4350;
+	batt_chg_profile.chrg_term_ma = 250;
+	batt_chg_profile.low_batt_mV = 3400;
+	batt_chg_profile.disch_tmp_ul = 46;
+	batt_chg_profile.disch_tmp_ll = 0;
+	batt_chg_profile.temp_mon_ranges = 6;
+
+	temp_mon_range[0].temp_up_lim = 46;
+	temp_mon_range[0].full_chrg_vol = 4350;
+	temp_mon_range[0].full_chrg_cur = 400;
+	temp_mon_range[0].maint_chrg_vol_ll = 4285;
+	temp_mon_range[0].maint_chrg_vol_ul = 4350;
+	temp_mon_range[0].maint_chrg_cur = 400;
+
+	temp_mon_range[1].temp_up_lim = 44;
+	temp_mon_range[1].full_chrg_vol = 4350;
+	temp_mon_range[1].full_chrg_cur = 800;
+	temp_mon_range[1].maint_chrg_vol_ll = 4285;
+	temp_mon_range[1].maint_chrg_vol_ul = 4350;
+	temp_mon_range[1].maint_chrg_cur = 800;
+
+	temp_mon_range[2].temp_up_lim = 42;
+	temp_mon_range[2].full_chrg_vol = 4350;
+	temp_mon_range[2].full_chrg_cur = 1200;
+	temp_mon_range[2].maint_chrg_vol_ll = 4285;
+	temp_mon_range[2].maint_chrg_vol_ul = 4350;
+	temp_mon_range[2].maint_chrg_cur = 1200;
+
+	temp_mon_range[3].temp_up_lim = 40;
+	temp_mon_range[3].full_chrg_vol = 4350;
+	temp_mon_range[3].full_chrg_cur = 1600;
+	temp_mon_range[3].maint_chrg_vol_ll = 4285;
+	temp_mon_range[3].maint_chrg_vol_ul = 4350;
+	temp_mon_range[3].maint_chrg_cur = 1600;
+
+	temp_mon_range[4].temp_up_lim = 15;
+	temp_mon_range[4].full_chrg_vol = 4350;
+	temp_mon_range[4].full_chrg_cur = 800;
+	temp_mon_range[4].maint_chrg_vol_ll = 4285;
+	temp_mon_range[4].maint_chrg_vol_ul = 4350;
+	temp_mon_range[4].maint_chrg_cur = 800;
+
+	temp_mon_range[5].temp_up_lim = 10;
+	temp_mon_range[5].full_chrg_vol = 4350;
+	temp_mon_range[5].full_chrg_cur = 400;
+	temp_mon_range[5].maint_chrg_vol_ll = 4285;
+	temp_mon_range[5].maint_chrg_vol_ul = 4350;
+	temp_mon_range[5].maint_chrg_cur = 400;
+
+	memcpy(batt_chg_profile.temp_mon_range,
+		temp_mon_range,
+		BATT_TEMP_NR_RNG * sizeof(struct ps_temp_chg_table));
+
+	batt_chg_profile.temp_low_lim = 0;
+	ps_batt_chrg_prof.chrg_prof_type = PSE_MOD_CHRG_PROF;
+}
+
+
+static void *platform_get_batt_charge_profile(void)
+{
+	if (!em_config_get_charge_profile(&batt_chg_profile))
+		ps_batt_chrg_prof.chrg_prof_type = CHRG_PROF_NONE;
+	else
+		ps_batt_chrg_prof.chrg_prof_type = PSE_MOD_CHRG_PROF;
+
+	/*Reserve for debug--Set batt charge profile without em*/
+	/*1: enable debug set*/
+	/*0: disable debug set*/
+#if 1
+		platform_debug_batt_charge_profile();
+#endif
+
+	ps_batt_chrg_prof.batt_prof = &batt_chg_profile;
+	battery_prop_changed(POWER_SUPPLY_BATTERY_INSERTED, &ps_batt_chrg_prof);
+	return &ps_batt_chrg_prof;
+}
+
+static void platform_init_chrg_params(struct dollarcove_chrg_pdata *pdata)
+{
+	pdata->throttle_states = dc_chrg_throttle_states;
+	pdata->supplied_to = dc_chrg_supplied_to;
+	pdata->num_throttle_states = ARRAY_SIZE(dc_chrg_throttle_states);
+	pdata->num_supplicants = ARRAY_SIZE(dc_chrg_supplied_to);
+	pdata->supported_cables = POWER_SUPPLY_CHARGER_TYPE_USB;
+	pdata->chg_profile = (struct ps_batt_chg_prof *)
+			platform_get_batt_charge_profile();
+}
+#endif
+
+static void dc_xpwr_chrg_pdata(void)
+{
+	static struct dollarcove_chrg_pdata pdata;
+	int ret;
+
+	pdata.max_cc = 2000;
+	pdata.max_cv = 4350;
+	pdata.def_cc = 500;
+	pdata.def_cv = 4350;
+	pdata.def_ilim = 900;
+	pdata.def_iterm = 300;
+	pdata.def_max_temp = 55;
+	pdata.def_min_temp = 0;
+
+	pdata.otg_gpio = 117; /* GPIONC_15 */
+	/* configure output */
+	ret = gpio_request(pdata.otg_gpio, "otg_gpio");
+	if (ret) {
+		pr_err("unable to request GPIO pin\n");
+		pdata.otg_gpio = -1;
+	} else {
+		lnw_gpio_set_alt(pdata.otg_gpio, 0);
+	}
+
+	platform_init_chrg_params(&pdata);
+
+	intel_mid_pmic_set_pdata("dollar_cove_charger",
+				(void *)&pdata, sizeof(pdata), 0);
+}
+
+static void dc_xpwr_fg_pdata(void)
+{
+	static struct dollarcove_fg_pdata pdata;
+	struct em_config_oem0_data data;
+	int i;
+
+	if (em_config_get_oem0_data(&data)) {
+		snprintf(pdata.battid, (BATTID_LEN + 1),
+				"%s", "INTN0001");
+		pdata.technology = POWER_SUPPLY_TECHNOLOGY_LION;
+	} else {
+		snprintf(pdata.battid, (BATTID_LEN + 1),
+				"%s", "UNKNOWNB");
+		pdata.technology = POWER_SUPPLY_TECHNOLOGY_UNKNOWN;
+	}
+
+	pdata.design_cap = 4500;
+	pdata.design_min_volt = 3400;
+	pdata.design_max_volt = 4350;
+	pdata.max_temp = 46;
+	pdata.min_temp = 0;
+
+	intel_mid_pmic_set_pdata("dollar_cove_battery",
+				(void *)&pdata, sizeof(pdata), 0);
+}
+
+static void dc_xpwr_pwrsrc_pdata(void)
+{
+	static struct dc_xpwr_pwrsrc_pdata pdata;
+
+#if defined(CONFIG_MRD8) || defined(CONFIG_MRD7P05)
+	int ret;
+
+	pdata.mux_gpio = 131; /* GPIO_S5[1] */
+	ret = gpio_request(pdata.mux_gpio, "otg_gpio");
+	if (ret) {
+		pr_err("unable to request GPIO pin\n");
+		pdata.mux_gpio = -1;
+	} else {
+		lnw_gpio_set_alt(pdata.mux_gpio, 0);
+	}
+	/*
+	 * set en_chrg_det to true if the
+	 * D+/D- lines are connected to
+	 * PMIC itself.
+	 */
+	pdata.en_chrg_det = true;
+#else
+	pdata.en_chrg_det = false;
+#endif
+
+	intel_mid_pmic_set_pdata("dollar_cove_pwrsrc",
+				(void *)&pdata, sizeof(pdata), 0);
+}
+
 static int dollar_cove_init(void)
 {
 	pr_info("Dollar Cove: IC_TYPE 0x%02X\n", intel_mid_pmic_readb(0x03));
+	dc_xpwr_pwrsrc_pdata();
+	dc_xpwr_fg_pdata();
+	dc_xpwr_chrg_pdata();
 	return 0;
 }
 

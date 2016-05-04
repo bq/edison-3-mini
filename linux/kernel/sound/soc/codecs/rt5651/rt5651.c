@@ -25,6 +25,11 @@
 #include <sound/initval.h>
 #include <sound/tlv.h>
 
+#ifdef CONFIG_SND_BYT_MACHINE
+#include <linux/gpio.h>
+#include <linux/acpi_gpio.h>
+#endif
+
 #define RTK_IOCTL
 #ifdef RTK_IOCTL
 #if defined(CONFIG_SND_HWDEP) || defined(CONFIG_SND_HWDEP_MODULE)
@@ -47,6 +52,10 @@ module_param(delay_work, int, 0644);
 static struct delayed_work enable_push_button_int_work;
 */
 struct snd_soc_codec *rt5651_codec;
+
+#ifdef CONFIG_SND_BYT_MACHINE
+static u32 gpio_reset;
+#endif
 
 struct rt5651_init_reg {
 	u8 reg;
@@ -574,7 +583,7 @@ static unsigned int bst_tlv[] = {
 };
 
 /* IN1/IN2 Input Type */
-static const char *rt5651_input_mode[] = {
+static const char * const rt5651_input_mode[] = {
 	"Single ended", "Differential"};
 
 static const SOC_ENUM_SINGLE_DECL(
@@ -586,7 +595,7 @@ static const SOC_ENUM_SINGLE_DECL(
 	RT5651_IN_SFT2, rt5651_input_mode);
 
 /* Interface data select */
-static const char *rt5651_data_select[] = {
+static const char * const rt5651_data_select[] = {
 	"Normal", "Swap", "left copy to right", "right copy to left"};
 
 static const SOC_ENUM_SINGLE_DECL(rt5651_if2_dac_enum, RT5651_DIG_INF_DATA,
@@ -596,7 +605,7 @@ static const SOC_ENUM_SINGLE_DECL(rt5651_if2_adc_enum, RT5651_DIG_INF_DATA,
 				RT5651_IF2_ADC_SEL_SFT, rt5651_data_select);
 
 /* DMIC */
-static const char *rt5651_dmic_mode[] = {"Disable", "DMIC1", "DMIC2"};
+static const char * const rt5651_dmic_mode[] = {"Disable", "DMIC1", "DMIC2"};
 
 static const SOC_ENUM_SINGLE_DECL(rt5651_dmic_enum, 0, 0, rt5651_dmic_mode);
 
@@ -932,7 +941,7 @@ static const struct snd_kcontrol_new rt5651_lout_mix[] = {
 };
 
 /* Stereo ADC source */
-static const char *rt5651_stereo1_adc1_src[] = {"DIG MIX", "ADC"};
+static const char * const rt5651_stereo1_adc1_src[] = {"DIG MIX", "ADC"};
 
 static const SOC_ENUM_SINGLE_DECL(
 	rt5651_stereo1_adc1_enum, RT5651_STO1_ADC_MIXER,
@@ -944,7 +953,7 @@ static const struct snd_kcontrol_new rt5651_sto1_adc_l1_mux =
 static const struct snd_kcontrol_new rt5651_sto1_adc_r1_mux =
 	SOC_DAPM_ENUM("Stereo1 ADC R1 source", rt5651_stereo1_adc1_enum);
 
-static const char *rt5651_stereo1_adc2_src[] = {"DMIC", "DIG MIX"};
+static const char * const rt5651_stereo1_adc2_src[] = {"DMIC", "DIG MIX"};
 
 static const SOC_ENUM_SINGLE_DECL(
 	rt5651_stereo1_adc2_enum, RT5651_STO1_ADC_MIXER,
@@ -957,7 +966,7 @@ static const struct snd_kcontrol_new rt5651_sto1_adc_r2_mux =
 	SOC_DAPM_ENUM("Stereo1 ADC R2 source", rt5651_stereo1_adc2_enum);
 
 /* Mono ADC source */
-static const char *rt5651_sto2_adc_l1_src[] = {"DIG MIX", "ADCL"};
+static const char * const rt5651_sto2_adc_l1_src[] = {"DIG MIX", "ADCL"};
 
 static const SOC_ENUM_SINGLE_DECL(
 	rt5651_sto2_adc_l1_enum, RT5651_STO1_ADC_MIXER,
@@ -966,7 +975,7 @@ static const SOC_ENUM_SINGLE_DECL(
 static const struct snd_kcontrol_new rt5651_sto2_adc_l1_mux =
 	SOC_DAPM_ENUM("Stereo2 ADC1 left source", rt5651_sto2_adc_l1_enum);
 
-static const char *rt5651_sto2_adc_l2_src[] = {"DMIC L", "DIG MIX"};
+static const char * const rt5651_sto2_adc_l2_src[] = {"DMIC L", "DIG MIX"};
 
 static const SOC_ENUM_SINGLE_DECL(
 	rt5651_sto2_adc_l2_enum, RT5651_STO1_ADC_MIXER,
@@ -975,7 +984,7 @@ static const SOC_ENUM_SINGLE_DECL(
 static const struct snd_kcontrol_new rt5651_sto2_adc_l2_mux =
 	SOC_DAPM_ENUM("Stereo2 ADC2 left source", rt5651_sto2_adc_l2_enum);
 
-static const char *rt5651_sto2_adc_r1_src[] = {"DIG MIX", "ADCR"};
+static const char * const rt5651_sto2_adc_r1_src[] = {"DIG MIX", "ADCR"};
 
 static const SOC_ENUM_SINGLE_DECL(
 	rt5651_sto2_adc_r1_enum, RT5651_STO1_ADC_MIXER,
@@ -984,7 +993,7 @@ static const SOC_ENUM_SINGLE_DECL(
 static const struct snd_kcontrol_new rt5651_sto2_adc_r1_mux =
 	SOC_DAPM_ENUM("Stereo2 ADC1 right source", rt5651_sto2_adc_r1_enum);
 
-static const char *rt5651_sto2_adc_r2_src[] = {"DMIC R", "DIG MIX"};
+static const char * const rt5651_sto2_adc_r2_src[] = {"DMIC R", "DIG MIX"};
 
 static const SOC_ENUM_SINGLE_DECL(
 	rt5651_sto2_adc_r2_enum, RT5651_STO1_ADC_MIXER,
@@ -995,7 +1004,7 @@ static const struct snd_kcontrol_new rt5651_sto2_adc_r2_mux =
 
 /* DAC2 channel source */
 
-static const char *rt5651_dac_src[] = {"IF1", "IF2"};
+static const char * const rt5651_dac_src[] = {"IF1", "IF2"};
 
 static const SOC_ENUM_SINGLE_DECL(rt5651_dac_l2_enum, RT5651_DAC2_CTRL,
 				RT5651_SEL_DAC_L2_SFT, rt5651_dac_src);
@@ -1011,7 +1020,7 @@ static const struct snd_kcontrol_new rt5651_dac_r2_mux =
 	SOC_DAPM_ENUM("DAC2 right channel source", rt5651_dac_r2_enum);
 
 /* IF2_ADC channel source */
-static const char *rt5651_adc_src[] = {"IF1 ADC1", "IF1 ADC2"};
+static const char * const rt5651_adc_src[] = {"IF1 ADC1", "IF1 ADC2"};
 
 static const SOC_ENUM_SINGLE_DECL(rt5651_if2_adc_src_enum, RT5651_DIG_INF_DATA,
 				RT5651_IF2_ADC_SRC_SFT, rt5651_adc_src);
@@ -1020,7 +1029,7 @@ static const struct snd_kcontrol_new rt5651_if2_adc_src_mux =
 	SOC_DAPM_ENUM("IF2 ADC channel source", rt5651_if2_adc_src_enum);
 
 /* PDM select */
-static const char *rt5651_pdm_sel[] = {"DIG MIX", "Stereo DAC MIX"};
+static const char * const rt5651_pdm_sel[] = {"DIG MIX", "Stereo DAC MIX"};
 
 static const SOC_ENUM_SINGLE_DECL(
 	rt5651_pdm_l_sel_enum, RT5651_PDM_CTL,
@@ -1040,13 +1049,13 @@ static void hp_amp_power(struct snd_soc_codec *codec, int on)
 {
 	static int hp_amp_power_count;
 	int i;
-	
+
 	if (on) {
 		/*WA to sync regmap*/
 		codec->cache_bypass = 1;
-		for (i = 0; i <= RT5651_DEVICE_ID; i++) {
+		for (i = 0; i <= RT5651_DEVICE_ID; i++)
 			snd_soc_read(codec, i);
-		}
+
 		codec->cache_bypass = 0;
 
 		if (hp_amp_power_count <= 0) {
@@ -1064,8 +1073,8 @@ static void hp_amp_power(struct snd_soc_codec *codec, int on)
 				RT5651_PWR_HV_L | RT5651_PWR_HV_R,
 				RT5651_PWR_HV_L | RT5651_PWR_HV_R);
 			snd_soc_update_bits(codec, RT5651_PWR_ANLG1,
-				RT5651_PWR_HP_L | RT5651_PWR_HP_R | RT5651_PWR_HA | RT5651_PWR_LM,
-				RT5651_PWR_HP_L | RT5651_PWR_HP_R | RT5651_PWR_HA | RT5651_PWR_LM);
+				RT5651_PWR_HP_L | RT5651_PWR_HP_R | RT5651_PWR_HA,
+				RT5651_PWR_HP_L | RT5651_PWR_HP_R | RT5651_PWR_HA);
 			msleep(50);
 			snd_soc_update_bits(codec, RT5651_PWR_ANLG1,
 				RT5651_PWR_FV1 | RT5651_PWR_FV2,
@@ -1095,7 +1104,7 @@ static void hp_amp_power(struct snd_soc_codec *codec, int on)
 				RT5651_HP_CO_DIS | RT5651_HP_CP_PD |
 				RT5651_HP_SG_EN | RT5651_HP_CB_PD);
 			snd_soc_update_bits(codec, RT5651_PWR_ANLG1,
-				RT5651_PWR_HP_L | RT5651_PWR_HP_R | RT5651_PWR_HA | RT5651_PWR_LM,
+				RT5651_PWR_HP_L | RT5651_PWR_HP_R | RT5651_PWR_HA,
 				0);
 		}
 	}
@@ -1190,9 +1199,15 @@ static int rt5651_lout_event(struct snd_soc_dapm_widget *w,
 		hp_amp_power(codec, 1);
 		snd_soc_update_bits(codec, RT5651_LOUT_CTRL1,
 			RT5651_L_MUTE | RT5651_R_MUTE, 0);
+#ifdef CONFIG_SND_BYT_MACHINE
+		gpio_set_value(gpio_reset, 1);
+#endif
 		break;
 
 	case SND_SOC_DAPM_PRE_PMD:
+#ifdef CONFIG_SND_BYT_MACHINE
+		gpio_set_value(gpio_reset, 0);
+#endif
 		snd_soc_update_bits(codec, RT5651_LOUT_CTRL1,
 			RT5651_L_MUTE | RT5651_R_MUTE,
 			RT5651_L_MUTE | RT5651_R_MUTE);
@@ -1236,7 +1251,7 @@ static int rt5651_bst2_event(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
-		printk("%s SND_SOC_DAPM_POST_PMU\n", __func__);
+		pr_debug("%s SND_SOC_DAPM_POST_PMU\n", __func__);
 		snd_soc_update_bits(codec, RT5651_PWR_ANLG2,
 			RT5651_PWR_BST2_OP2, RT5651_PWR_BST2_OP2);
 		break;
@@ -1768,7 +1783,7 @@ static int get_sdp_info(struct snd_soc_codec *codec, int dai_id)
 		ret = -EINVAL;
 		break;
 	}
-	printk("get_sdp_info return %d\n", ret);
+	pr_debug("get_sdp_info return %d\n", ret);
 	return ret;
 }
 
@@ -1798,10 +1813,10 @@ static int rt5651_hw_params(struct snd_pcm_substream *substream,
 	unsigned int val_len = 0, val_clk, mask_clk, dai_sel;
 	int pre_div, bclk_ms, frame_size;
 
-	printk("enter %s\n", __func__);
+	pr_debug("enter %s\n", __func__);
 	rt5651->lrck[dai->id] = params_rate(params);
 	pre_div = get_clk_info(rt5651->sysclk, rt5651->lrck[dai->id]);
-	printk("rt5651->lrck[%d]=%d rt5651->sysclk=%d pre_div=%d\n", dai->id,
+	pr_debug("rt5651->lrck[%d]=%d rt5651->sysclk=%d pre_div=%d\n", dai->id,
 				rt5651->lrck[dai->id], rt5651->sysclk, pre_div);
 	if (pre_div < 0) {
 		dev_err(codec->dev, "Unsupported clock setting\n");
@@ -2213,7 +2228,7 @@ static int rt5651_set_bias_level(struct snd_soc_codec *codec,
 				RT5651_PWR_BG | RT5651_PWR_VREF2,
 				RT5651_PWR_VREF1 | RT5651_PWR_MB |
 				RT5651_PWR_BG | RT5651_PWR_VREF2);
-			msleep(10);
+			msleep(20);
 			snd_soc_update_bits(codec, RT5651_PWR_ANLG1,
 				RT5651_PWR_FV1 | RT5651_PWR_FV2,
 				RT5651_PWR_FV1 | RT5651_PWR_FV2);
@@ -2266,7 +2281,7 @@ static int rt5651_probe(struct snd_soc_codec *codec)
 #endif
 #endif
 
-	printk("enter %s\n", __func__);
+	pr_debug("enter %s\n", __func__);
 	ret = snd_soc_codec_set_cache_io(codec, 8, 16, SND_SOC_I2C);
 	if (ret != 0) {
 		dev_err(codec->dev, "Failed to set cache I/O: %d\n", ret);
@@ -2284,7 +2299,7 @@ static int rt5651_probe(struct snd_soc_codec *codec)
 		RT5651_PWR_BG | RT5651_PWR_VREF2,
 		RT5651_PWR_VREF1 | RT5651_PWR_MB |
 		RT5651_PWR_BG | RT5651_PWR_VREF2);
-	msleep(10);
+	msleep(20);
 	snd_soc_update_bits(codec, RT5651_PWR_ANLG1,
 		RT5651_PWR_FV1 | RT5651_PWR_FV2,
 		RT5651_PWR_FV1 | RT5651_PWR_FV2);
@@ -2323,6 +2338,11 @@ static int rt5651_probe(struct snd_soc_codec *codec)
 	rt5651_codec = codec;
 	/*INIT_DELAYED_WORK(&enable_push_button_int_work,
 					do_enable_push_button_int);*/
+#ifdef CONFIG_SND_BYT_MACHINE
+	gpio_reset = acpi_get_gpio("\\_SB.GPO2", 21);
+	if (gpio_reset >= 0)
+		gpio_set_value(gpio_reset, 0);
+#endif
 
 	return 0;
 }
@@ -2438,12 +2458,12 @@ static int rt5651_i2c_probe(struct i2c_client *i2c,
 		    const struct i2c_device_id *id)
 {
 	struct rt5651_priv *rt5651;
-	printk("enter %s\n", __func__);
-	printk("i2c->addr before %x\n", i2c->addr);
+	pr_debug("enter %s\n", __func__);
+	pr_debug("i2c->addr before %x\n", i2c->addr);
 	/* Harcode i2c platform data */
 	i2c->addr = 0x1a;
 	int ret;
-	printk("i2c->addr after %x\n", i2c->addr);
+	pr_debug("i2c->addr after %x\n", i2c->addr);
 
 	rt5651 = kzalloc(sizeof(struct rt5651_priv), GFP_KERNEL);
 	if (NULL == rt5651)
@@ -2454,7 +2474,7 @@ static int rt5651_i2c_probe(struct i2c_client *i2c,
 	ret = snd_soc_register_codec(&i2c->dev, &soc_codec_dev_rt5651,
 			rt5651_dai, ARRAY_SIZE(rt5651_dai));
 	if (ret < 0) {
-		printk("snd_soc_register_codec failed %s\n", __func__);
+		pr_debug("snd_soc_register_codec failed %s\n", __func__);
 		kfree(rt5651);
 	}
 	return ret;
@@ -2489,7 +2509,7 @@ struct i2c_driver rt5651_i2c_driver = {
 
 static int __init rt5651_modinit(void)
 {
-	printk("enter %s\n", __func__);
+	pr_debug("enter %s\n", __func__);
 	return i2c_add_driver(&rt5651_i2c_driver);
 }
 module_init(rt5651_modinit);

@@ -29,7 +29,7 @@ enum {
 };
 
 #define EQ_REG_NUM 16
-typedef struct  hweq_s {
+struct hweq_s {
 	unsigned int reg[EQ_REG_NUM];
 	unsigned int value[EQ_REG_NUM];
 	unsigned int ctrl;

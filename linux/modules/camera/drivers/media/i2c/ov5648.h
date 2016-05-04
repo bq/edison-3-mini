@@ -32,6 +32,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-chip-ident.h>
 #include <linux/v4l2-mediabus.h>
+#include <media/v4l2-ctrls.h>
 #include <media/media-entity.h>
 
 #include <linux/atomisp_platform.h>
@@ -82,7 +83,7 @@
 #define OV5648_FINE_INTG_TIME_MIN 0
 #define OV5648_FINE_INTG_TIME_MAX_MARGIN 0
 #define OV5648_COARSE_INTG_TIME_MIN 1
-#define OV5648_COARSE_INTG_TIME_MAX_MARGIN (0xffff - 6)
+#define OV5648_COARSE_INTG_TIME_MAX_MARGIN (6)
 
 #define OV5648_BIN_FACTOR_MAX 4
 /*
@@ -233,6 +234,7 @@ struct ov5648_device {
 	struct ov5648_vcm *vcm_driver;
 	struct otp_struct current_otp;
 	int pre_digitgain;
+	struct v4l2_ctrl_handler ctrl_handler;
 };
 
 enum ov5648_tok_type {
@@ -442,11 +444,11 @@ static struct ov5648_reg const ov5648_720p_30fps_2lanes[] = {
 	{OV5648_8BIT, 0x3709, 0x52},
 	{OV5648_8BIT, 0x370c, 0xcf},
 	{OV5648_8BIT, 0x3800, 0x00},/* xstart = 0 */
-	{OV5648_8BIT, 0x3801, 0x00},/*;xstart10 */
+	{OV5648_8BIT, 0x3801, 0x18},/*;xstart10 */ // 00 0901 by zhanghf fix hava a displacement after shot 
 	{OV5648_8BIT, 0x3802, 0x00},/* ystart = 226 */
 	{OV5648_8BIT, 0x3803, 0xe2},/* ystart ;fe */
 	{OV5648_8BIT, 0x3804, 0x0a},/* xend = 2607 */
-	{OV5648_8BIT, 0x3805, 0x2f},/* xend */
+	{OV5648_8BIT, 0x3805, 0x47},/* xend */     //2F 0901 by zhanghf fix hava a displacement after shot 
 	{OV5648_8BIT, 0x3806, 0x06},/* yend = 1701 */
 	{OV5648_8BIT, 0x3807, 0xa5},/* yend */
 	{OV5648_8BIT, 0x3808, 0x05},/* x output size = 1296 */
@@ -661,6 +663,38 @@ static struct ov5648_reg const ov5648_5M_15fps_2lanes[] = {
 };
 
 struct ov5648_resolution ov5648_res_preview[] = {
+    /* Add for CTS test only, begin */
+	{
+	 .desc = "ov5648_480P_30fps",
+	 .width = 1282,
+	 .height = 860,
+	 .fps = 30,
+	 .pix_clk_freq = 84,
+	 .used = 0,
+	 .pixels_per_line = 2397,
+	 .lines_per_frame = 1186,
+	 .bin_factor_x = 2,
+	 .bin_factor_y = 2,
+	 .bin_mode = 1,
+	 .skip_frames = 3,
+	 .regs = ov5648_1296x864_30fps_2lanes,
+	 },
+	{
+	 .desc = "ov5648_720P_30fps",
+	 .width = 1296,
+	 .height = 736,
+	 .fps = 30,
+	 .pix_clk_freq = 84,
+	 .used = 0,
+	 .pixels_per_line = 2397,
+	 .lines_per_frame = 1186,
+	 .bin_factor_x = 2,
+	 .bin_factor_y = 2,
+	 .bin_mode = 1,
+	 .skip_frames = 3,
+	 .regs = ov5648_720p_30fps_2lanes,
+	 },
+    /* Add for CTS test only, end */
 	{
 	 .desc = "ov5648_1304_976_30fps",
 	 .width = 1304,
@@ -670,8 +704,8 @@ struct ov5648_resolution ov5648_res_preview[] = {
 	 .used = 0,
 	 .pixels_per_line = 2397,
 	 .lines_per_frame = 1186,
-	 .bin_factor_x = 2,
-	 .bin_factor_y = 2,
+	 .bin_factor_x = 1,
+	 .bin_factor_y = 1,
 	 .bin_mode = 1,
 	 .skip_frames = 3,
 	 .regs = ov5648_1304_976_30fps_2lanes,
@@ -692,7 +726,6 @@ struct ov5648_resolution ov5648_res_preview[] = {
 	 .regs = ov5648_5M_15fps_2lanes,
 	 },
 };
-
 #define N_RES_PREVIEW (ARRAY_SIZE(ov5648_res_preview))
 
 struct ov5648_resolution ov5648_res_still[] = {
@@ -712,7 +745,6 @@ struct ov5648_resolution ov5648_res_still[] = {
 	 .regs = ov5648_5M_15fps_2lanes,
 	 },
 };
-
 #define N_RES_STILL (ARRAY_SIZE(ov5648_res_still))
 
 struct ov5648_resolution ov5648_res_video[] = {
@@ -733,8 +765,8 @@ struct ov5648_resolution ov5648_res_video[] = {
 	 },
 	{
 	 .desc = "ov5648_480P_30fps",
-	 .width = 1296,
-	 .height = 864,
+	 .width = 1282,
+	 .height = 860,
 	 .fps = 30,
 	 .pix_clk_freq = 84,
 	 .used = 0,
@@ -747,15 +779,14 @@ struct ov5648_resolution ov5648_res_video[] = {
 	 .regs = ov5648_1296x864_30fps_2lanes,
 	 },
 };
-
 #define N_RES_VIDEO (ARRAY_SIZE(ov5648_res_video))
 
 static struct ov5648_resolution *ov5648_res = ov5648_res_preview;
 static int N_RES = N_RES_PREVIEW;
 //static int has_otp = -1;	/*0:has valid otp, 1:no valid otp */
 
-#define CONFIG_VIDEO_WV511
-//#define CONFIG_VIDEO_DW9714
+//#define CONFIG_VIDEO_WV511
+#define CONFIG_VIDEO_DW9714  //modify by zhanghf 2015-04-24
 #define WV511  0x11
 #define DW9714 0x14
 #define VM149  0x49

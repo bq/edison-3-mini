@@ -349,7 +349,7 @@ struct dxdi_sym_cipher_props {
 		struct dxdi_aes_ctr_props aes_ctr;
 		struct dxdi_aes_xts_props aes_xts;
 		struct dxdi_c2_cbc_props c2_cbc;
-		u32 __assure_32b_union_alignment;
+		u64 __assure_64b_union_alignment;
 		/* Reserve space for future extension? */
 	} alg_specific;
 };
@@ -383,7 +383,7 @@ struct dxdi_mac_props {
 	union {			/* Union of algorithm specific properties */
 		struct dxdi_hmac_props hmac;
 		struct dxdi_aes_mac_props aes_mac;
-		u32 __assure_32b_union_alignment;
+		u64 __assure_64b_union_alignment;
 		/* Reserve space for future extension? */
 	} alg_specific;
 };
@@ -554,7 +554,7 @@ struct dxdi_memref {
 	int ref_id;
 	/* Start address of a non-registered memory or offset within a
 	 * registered memory */
-	u32 start_or_offset;
+	u64 start_or_offset;
 	/* Size in bytes of non-registered buffer or size of chunk within a
 	 * registered buffer */
 	u32 size;

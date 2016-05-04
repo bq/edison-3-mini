@@ -17,14 +17,14 @@
 #include <asm/intel-mid.h>
 #include <media/v4l2-subdev.h>
 #include <linux/mfd/intel_mid_pmic.h>
-#include <linux/vlv2_plat_clock.h>
+#include <asm/intel_soc_pmc.h>
 #include "platform_camera.h"
 #include "platform_ov7736.h"
 
 /* workround - pin defined for byt */
 #define CAMERA_1_RESET 120 //meng 0924 :MCSI_GPIO[09]
 #define CAMERA_1_PWDN 124 //MCSI_GPIO[06]-active low to power down in P1
-#ifdef CONFIG_VLV2_PLAT_CLK
+#ifdef CONFIG_INTEL_SOC_PMC
 #define OSC_CAM1_CLK 0x1
 #define CLK_19P2MHz 0x1
 #endif
@@ -115,14 +115,14 @@ static int ov7736_gpio_ctrl(struct v4l2_subdev *sd, int flag)
 static int ov7736_flisclk_ctrl(struct v4l2_subdev *sd, int flag)
 {
 	static const unsigned int clock_khz = 19200;
-#ifdef CONFIG_VLV2_PLAT_CLK
+#ifdef CONFIG_INTEL_SOC_PMC
 	if (flag) {
 		int ret;
-		ret = vlv2_plat_set_clock_freq(OSC_CAM1_CLK, CLK_19P2MHz);
+		ret = pmc_pc_set_freq(OSC_CAM1_CLK, CLK_19P2MHz);
 		if (ret)
 			return ret;
 	}
-	return vlv2_plat_configure_clock(OSC_CAM1_CLK, flag);
+	return pmc_pc_configure(OSC_CAM1_CLK, flag);
 #endif
 	return 0;
 }

@@ -663,6 +663,7 @@ static int ov5648_v_flip(struct v4l2_subdev *sd, s32 value)
 	int ret;
 	u16 val;
 	u8 flip_flag;
+
 	ov5648_debug(&client->dev, "@%s: value:%d\n", __func__, value);
 	ret = ov5648_read_reg(client, OV5648_8BIT, OV5648_VFLIP_REG, &val);
 	if (ret)
@@ -687,8 +688,8 @@ static int ov5648_h_flip(struct v4l2_subdev *sd, s32 value)
 	int ret;
 	u16 val;
 	u8 flip_flag;
-	ov5648_debug(&client->dev, "@%s: value:%d\n", __func__, value);
 
+	ov5648_debug(&client->dev, "@%s: value:%d\n", __func__, value);
 	ret = ov5648_read_reg(client, OV5648_8BIT, OV5648_HFLIP_REG, &val);
 	if (ret)
 		return ret;
@@ -704,7 +705,207 @@ static int ov5648_h_flip(struct v4l2_subdev *sd, s32 value)
 	return ret;
 }
 
+static int ov5648_s_ctrl(struct v4l2_ctrl *ctrl)
+{
+	int ret = 0;
+	struct ov5648_device *dev = container_of(
+			ctrl->handler, struct ov5648_device, ctrl_handler);
+	struct i2c_client *client = v4l2_get_subdevdata(&dev->sd);
 
+	switch (ctrl->id) {
+	case V4L2_CID_VFLIP:
+		v_flag = (ctrl->val) ?  1 : 0;
+		break;
+
+	case V4L2_CID_HFLIP:
+		h_flag = (ctrl->val) ?  1 : 0;
+		break;
+
+	case V4L2_CID_FOCUS_ABSOLUTE:
+		ret = ov5648_t_focus_abs(&dev->sd, ctrl->val);
+		break;
+
+	case V4L2_CID_FOCUS_RELATIVE:
+		ret = ov5648_t_focus_rel(&dev->sd, ctrl->val);
+		break;
+
+	case V4L2_CID_VCM_SLEW:
+		ret = ov5648_t_vcm_slew(&dev->sd, ctrl->val);
+		break;
+
+	case V4L2_CID_VCM_TIMEING:
+		ret = ov5648_t_vcm_timing(&dev->sd, ctrl->val);
+		break;
+	}
+
+	return ret;
+}
+
+static int ov5648_g_ctrl(struct v4l2_ctrl *ctrl)
+{
+	int ret = 0;
+	struct ov5648_device *dev = container_of(
+			ctrl->handler, struct ov5648_device, ctrl_handler);
+	struct i2c_client *client = v4l2_get_subdevdata(&dev->sd);
+
+	switch (ctrl->id) {
+	case V4L2_CID_EXPOSURE_ABSOLUTE:
+		ret = ov5648_q_exposure(&dev->sd, &ctrl->val);
+		break;
+
+	case V4L2_CID_FOCAL_ABSOLUTE:
+		ret = ov5648_g_focal(&dev->sd, &ctrl->val);
+		break;
+
+	case V4L2_CID_FNUMBER_ABSOLUTE:
+		ret = ov5648_g_fnumber(&dev->sd, &ctrl->val);
+		break;
+
+	case V4L2_CID_FNUMBER_RANGE:
+		ret = ov5648_g_fnumber_range(&dev->sd, &ctrl->val);
+		break;
+
+	case V4L2_CID_FOCUS_ABSOLUTE:
+		ret = ov5648_q_focus_abs(&dev->sd, &ctrl->val);
+		break;
+
+	case V4L2_CID_FOCUS_STATUS:
+		ret = ov5648_q_focus_status(&dev->sd, &ctrl->val);
+		break;
+
+	default:
+		return -EINVAL;
+	}
+
+	return ret;
+}
+
+static const struct v4l2_ctrl_ops ctrl_ops = {
+	.s_ctrl          = ov5648_s_ctrl,
+	.g_volatile_ctrl = ov5648_g_ctrl
+};
+
+struct v4l2_ctrl_config ov5648_controls[] = {
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_EXPOSURE_ABSOLUTE,
+		.type  = V4L2_CTRL_TYPE_INTEGER,
+		.name  = "exposure",
+		.min   = 0x0,
+		.max   = 0xffff,
+		.step  = 0x01,
+		.def   = 0x00,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_VFLIP,
+		.type  = V4L2_CTRL_TYPE_BOOLEAN,
+		.name  = "Flip",
+		.min   = 0,
+		.max   = 1,
+		.step  = 1,
+		.def   = 0,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_HFLIP,
+		.type  = V4L2_CTRL_TYPE_BOOLEAN,
+		.name  = "Mirror",
+		.min   = 0,
+		.max   = 1,
+		.step  = 1,
+		.def   = 0,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_FOCAL_ABSOLUTE,
+		.type  = V4L2_CTRL_TYPE_INTEGER,
+		.name  = "focal length",
+		.min   = OV5648_FOCAL_LENGTH_DEFAULT,
+		.max   = OV5648_FOCAL_LENGTH_DEFAULT,
+		.step  = 0x01,
+		.def   = OV5648_FOCAL_LENGTH_DEFAULT,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_FNUMBER_ABSOLUTE,
+		.type  = V4L2_CTRL_TYPE_INTEGER,
+		.name  = "f-number",
+		.min   = OV5648_F_NUMBER_DEFAULT,
+		.max   = OV5648_F_NUMBER_DEFAULT,
+		.step  = 0x01,
+		.def   = OV5648_F_NUMBER_DEFAULT,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_FNUMBER_RANGE,
+		.type  = V4L2_CTRL_TYPE_INTEGER,
+		.name  = "f-number range",
+		.min   = OV5648_F_NUMBER_RANGE,
+		.max   = OV5648_F_NUMBER_RANGE,
+		.step  = 0x01,
+		.def   = OV5648_F_NUMBER_RANGE,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_FOCUS_ABSOLUTE,
+		.type  = V4L2_CTRL_TYPE_INTEGER,
+		.name  = "focus move absolute",
+		.min   = 0,
+		.max   = VCM_MAX_FOCUS_POS,
+		.step  = 0x01,
+		.def   = 0,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_FOCUS_RELATIVE,
+		.type  = V4L2_CTRL_TYPE_INTEGER,
+		.name  = "focus move relative",
+		.min   = OV5648_MAX_FOCUS_NEG,
+		.max   = OV5648_MAX_FOCUS_POS,
+		.step  = 0x01,
+		.def   = 0,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_FOCUS_STATUS,
+		.type  = V4L2_CTRL_TYPE_INTEGER,
+		.name  = "focus status",
+		.min   = 0,
+		.max   = 100, /* allow enum to grow in the future */
+		.step  = 0x01,
+		.def   = 0,
+		.flags = V4L2_CTRL_FLAG_VOLATILE,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_VCM_SLEW,
+		.type  = V4L2_CTRL_TYPE_INTEGER,
+		.name  = "vcm slew",
+		.min   = 0,
+		.max   = OV5648_VCM_SLEW_STEP_MAX,
+		.step  = 0x01,
+		.def   = 0,
+	},
+	{
+		.ops   = &ctrl_ops,
+		.id    = V4L2_CID_VCM_TIMEING,
+		.type  = V4L2_CTRL_TYPE_INTEGER,
+		.name  = "vcm step time",
+		.min   = 0,
+		.max   = OV5648_VCM_SLEW_STEP_MAX,
+		.step  = 0x01,
+		.def   = 0,
+	},
+};
+
+
+#if 0
 struct ov5648_control ov5648_controls[] = {
 	{
 		.qc = {
@@ -875,8 +1076,10 @@ struct ov5648_control ov5648_controls[] = {
 		.tweak = ov5648_h_flip,
 	},
 };
+#endif
 #define N_CONTROLS (ARRAY_SIZE(ov5648_controls))
 
+#if 0
 static struct ov5648_control *ov5648_find_control(u32 id)
 {
 	int i;
@@ -955,6 +1158,7 @@ static int ov5648_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 
 	return ret;
 }
+#endif
 
 static int ov5648_init(struct v4l2_subdev *sd)
 {
@@ -1369,8 +1573,8 @@ static int power_down(struct v4l2_subdev *sd)
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 	int ret = 0;
 
-	h_flag = 0;
-	v_flag = 0;
+//	h_flag = 0;
+//	v_flag = 0;
 	dev_dbg(&client->dev, "@%s:\n", __func__);
 	if (NULL == dev->platform_data) {
 		dev_err(&client->dev,
@@ -1698,6 +1902,26 @@ static int ov5648_enum_mbus_fmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int __ov5648_init_ctrl_handler(struct ov5648_device *dev)
+{
+       struct v4l2_ctrl_handler *hdl;
+       int i;
+
+       hdl = &dev->ctrl_handler;
+
+       v4l2_ctrl_handler_init(&dev->ctrl_handler, ARRAY_SIZE(ov5648_controls));
+
+       for (i = 0; i < ARRAY_SIZE(ov5648_controls); i++)
+               v4l2_ctrl_new_custom(&dev->ctrl_handler,
+                               &ov5648_controls[i], NULL);
+
+       dev->ctrl_handler.lock = &dev->input_lock;
+       dev->sd.ctrl_handler = hdl;
+       v4l2_ctrl_handler_setup(&dev->ctrl_handler);
+
+       return 0;
+}
+
 static int ov5648_s_config(struct v4l2_subdev *sd,
 			   int irq, void *platform_data)
 {
@@ -1711,7 +1935,7 @@ static int ov5648_s_config(struct v4l2_subdev *sd,
 	dev->platform_data =
 		(struct camera_sensor_platform_data *)platform_data;
 
-	mutex_lock(&dev->input_lock);
+//	mutex_lock(&dev->input_lock);
 	/* power off the module, then power on it in future
 	 * as first power on by board may not fulfill the
 	 * power on sequqence needed by the module
@@ -1741,12 +1965,17 @@ static int ov5648_s_config(struct v4l2_subdev *sd,
 	if(dev->current_otp.otp_en == 1)
 		update_otp(sd);
 	/* turn off sensor, after probed */
+
+       ret = __ov5648_init_ctrl_handler(dev);
+       if (ret)
+               v4l2_ctrl_handler_free(&dev->ctrl_handler);
+
 	ret = power_down(sd);
 	if (ret) {
 		dev_err(&client->dev, "ov5648 power-off err.\n");
 		goto fail_csi_cfg;
 	}
-	mutex_unlock(&dev->input_lock);
+//	mutex_unlock(&dev->input_lock);
 
 	return 0;
 
@@ -1931,9 +2160,9 @@ static const struct v4l2_subdev_video_ops ov5648_video_ops = {
 
 static const struct v4l2_subdev_core_ops ov5648_core_ops = {
 	.s_power = ov5648_s_power,
-	.queryctrl = ov5648_queryctrl,
-	.g_ctrl = ov5648_g_ctrl,
-	.s_ctrl = ov5648_s_ctrl,
+        .queryctrl = v4l2_subdev_queryctrl,
+        .g_ctrl = v4l2_subdev_g_ctrl,
+        .s_ctrl = v4l2_subdev_s_ctrl,
 	.ioctl = ov5648_ioctl,
 };
 
@@ -1959,6 +2188,7 @@ static int ov5648_remove(struct i2c_client *client)
 
 	dev->platform_data->csi_cfg(sd, 0);
 
+	v4l2_ctrl_handler_free(&dev->ctrl_handler);
 	v4l2_device_unregister_subdev(sd);
 	media_entity_cleanup(&dev->sd.entity);
 	kfree(dev);

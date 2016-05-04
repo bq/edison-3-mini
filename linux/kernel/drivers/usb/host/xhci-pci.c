@@ -174,6 +174,7 @@ static int xhci_pci_setup(struct usb_hcd *hcd)
  * function) in order to create a second roothub under xHCI.
  */
  
+/* for H350 usb reattch issue */
 struct usb_device *xhci_root_hub = NULL; /* Root hub */
 static struct wake_lock	xhci_wake_lock; 
 static int xhci_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)

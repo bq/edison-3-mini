@@ -18,7 +18,8 @@
  *
  ******************************************************************************/
 
-#include "../odm_precomp.h"
+#include "Mp_Precomp.h"
+#include "../phydm_precomp.h"
 
 
 
@@ -251,8 +252,7 @@ ODM_TxPwrTrackSetPwr_8723B(
 	u1Byte		Final_CCK_Swing_Index = 0; 
 	u1Byte		i = 0;
 
-#if (MP_DRIVER==1)
-	if ( *(pDM_Odm->mp_mode) == 1)
+	if (pDM_Odm->mp_mode == TRUE)
 	{
 #if (DM_ODM_SUPPORT_TYPE & (ODM_WIN|ODM_CE ))
 	#if (DM_ODM_SUPPORT_TYPE & (ODM_WIN))
@@ -264,7 +264,6 @@ ODM_TxPwrTrackSetPwr_8723B(
 #endif
 	}
 	else
-#endif
 	{
 		u2Byte	rate	 = *(pDM_Odm->pForcedDataRate);
 	
@@ -320,8 +319,8 @@ ODM_TxPwrTrackSetPwr_8723B(
 		pDM_Odm->Remnant_OFDMSwingIdx[RFPath] = pDM_Odm->Absolute_OFDMSwingIdx[RFPath];
 
 #if (DM_ODM_SUPPORT_TYPE & (ODM_WIN|ODM_CE ))
-	#if (MP_DRIVER == 1)
-		if ( *(pDM_Odm->mp_mode) == 1) {
+		if (pDM_Odm->mp_mode == TRUE)
+		{
 			pwr = PHY_QueryBBReg(Adapter, rTxAGC_A_Rate18_06, 0xFF);
 			pwr += pDM_Odm->RFCalibrateInfo.PowerIndexOffset[RFPath];
 			PHY_SetBBReg(Adapter, rTxAGC_A_CCK1_Mcs32, bMaskByte1, pwr);
@@ -341,7 +340,6 @@ ODM_TxPwrTrackSetPwr_8723B(
 			ODM_RT_TRACE(pDM_Odm, ODM_COMP_TX_PWR_TRACK, ODM_DBG_LOUD, ("ODM_TxPwrTrackSetPwr8723B: OFDM Tx-rf(A) Power = 0x%x\n", TxAGC));
 		}
 		else		
-	#endif
 		{
 		        pDM_Odm->Modify_TxAGC_Flag_PathA = TRUE;
 		        pDM_Odm->Modify_TxAGC_Flag_PathA_CCK = TRUE;
@@ -590,7 +588,7 @@ phy_PathA_IQK_8723B(
 
 	//	enable path A PA in TXIQK mode
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_WE_LUT, 0x80000, 0x1);
-	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_RCK_OS, bRFRegOffsetMask, 0x18000 );
+	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_RCK_OS, bRFRegOffsetMask, 0x20000 );
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_TXPA_G1, bRFRegOffsetMask, 0x0003f );
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_TXPA_G2, bRFRegOffsetMask, 0xc7f87 );
 	//	disable path B PA in TXIQK mode
@@ -608,7 +606,7 @@ phy_PathA_IQK_8723B(
 	ODM_SetBBReg(pDM_Odm, rTx_IQK_Tone_B, bMaskDWord, 0x38008c1c);
 	ODM_SetBBReg(pDM_Odm, rRx_IQK_Tone_B, bMaskDWord, 0x38008c1c);
 //	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_A, bMaskDWord, 0x8214010a);
-	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_A, bMaskDWord, 0x821303ea);
+	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_A, bMaskDWord, 0x821403ea);
 	ODM_SetBBReg(pDM_Odm, rRx_IQK_PI_A, bMaskDWord, 0x28110000);
 	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_B, bMaskDWord, 0x82110000);
 	ODM_SetBBReg(pDM_Odm, rRx_IQK_PI_B, bMaskDWord, 0x28110000);
@@ -727,7 +725,7 @@ phy_PathA_RxIQK8723B(
 	//modify RXIQK mode table
 //	ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("Path-A Rx IQK modify RXIQK mode table!\n"));
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_WE_LUT, 0x80000, 0x1);
-	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_RCK_OS, bRFRegOffsetMask, 0x18000);
+	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_RCK_OS, bRFRegOffsetMask, 0x30000);
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_TXPA_G1, bRFRegOffsetMask, 0x0001f);
 	//LNA2 off, PA on for Dcut
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_TXPA_G2, bRFRegOffsetMask, 0xf7fb7);
@@ -745,7 +743,7 @@ phy_PathA_RxIQK8723B(
 	ODM_SetBBReg(pDM_Odm, rRx_IQK_Tone_B, bMaskDWord, 0x38008c1c);
 
 //	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_A, bMaskDWord, 0x82160c1f);
-	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_A, bMaskDWord, 0x82130ff0);
+	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_A, bMaskDWord, 0x82160ff0);
 	ODM_SetBBReg(pDM_Odm, rRx_IQK_PI_A, bMaskDWord, 0x28110000);	
 	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_B, bMaskDWord, 0x82110000);
 	ODM_SetBBReg(pDM_Odm, rRx_IQK_PI_B, bMaskDWord, 0x28110000);
@@ -827,7 +825,7 @@ phy_PathA_RxIQK8723B(
 //	ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("Path-A Rx IQK modify RXIQK mode table 2!\n"));
 	ODM_SetBBReg(pDM_Odm, rFPGA0_IQK, bMaskH3Bytes, 0x000000);			
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_WE_LUT, 0x80000, 0x1);				  
-	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_RCK_OS, bRFRegOffsetMask, 0x18000 );
+	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_RCK_OS, bRFRegOffsetMask, 0x30000 );
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_TXPA_G1, bRFRegOffsetMask, 0x0001f ); 
 	//LAN2 on, PA off for Dcut
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_TXPA_G2, bRFRegOffsetMask, 0xf7d77 ); 
@@ -849,7 +847,7 @@ phy_PathA_RxIQK8723B(
 
 	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_A, bMaskDWord, 0x82110000);
 //	ODM_SetBBReg(pDM_Odm, rRx_IQK_PI_A, bMaskDWord, 0x281604c2);
-	ODM_SetBBReg(pDM_Odm, rRx_IQK_PI_A, bMaskDWord, 0x2813001f);
+	ODM_SetBBReg(pDM_Odm, rRx_IQK_PI_A, bMaskDWord, 0x2816001f);
 	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_B, bMaskDWord, 0x82110000);
 	ODM_SetBBReg(pDM_Odm, rRx_IQK_PI_B, bMaskDWord, 0x28110000);
 
@@ -970,7 +968,7 @@ phy_PathB_IQK_8723B(
 //	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_TXPA_G2, bRFRegOffsetMask, 0xc7f87 );
 	//	enable path B PA in TXIQK mode
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, 0xed, 0x20, 0x1);
-	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, 0x43, bRFRegOffsetMask, 0x30fc1);
+	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, 0x43, bRFRegOffsetMask, 0x40fc1);
 
 
 
@@ -986,7 +984,7 @@ phy_PathB_IQK_8723B(
 	ODM_SetBBReg(pDM_Odm, rRx_IQK_Tone_B, bMaskDWord, 0x38008c1c);
 	
 //	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_A, bMaskDWord, 0x82140114);
-	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_A, bMaskDWord, 0x821303ea);
+	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_A, bMaskDWord, 0x821403ea);
 	ODM_SetBBReg(pDM_Odm, rRx_IQK_PI_A, bMaskDWord, 0x28110000);
 	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_B, bMaskDWord, 0x82110000);
 	ODM_SetBBReg(pDM_Odm, rRx_IQK_PI_B, bMaskDWord, 0x28110000);
@@ -1101,12 +1099,12 @@ phy_PathB_RxIQK8723B(
 	//modify RXIQK mode table
 //	ODM_RT_TRACE(pDM_Odm,ODM_COMP_CALIBRATION, ODM_DBG_LOUD, ("Path-A Rx IQK modify RXIQK mode table!\n"));
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_WE_LUT, 0x80000, 0x1 );
-	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_RCK_OS, bRFRegOffsetMask, 0x18000 );
+	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_RCK_OS, bRFRegOffsetMask, 0x30000 );
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_TXPA_G1, bRFRegOffsetMask, 0x0001f );
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_TXPA_G2, bRFRegOffsetMask, 0xf7fb7 );
 	//open PA S1 & SMIXER
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, 0xed, 0x20, 0x1 );
-	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, 0x43, bRFRegOffsetMask, 0x30fcd );
+	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, 0x43, bRFRegOffsetMask, 0x60fcd );
 	
 
 	//IQK setting
@@ -1121,7 +1119,7 @@ phy_PathB_RxIQK8723B(
 	ODM_SetBBReg(pDM_Odm, rRx_IQK_Tone_B, bMaskDWord, 0x38008c1c);
 
 //	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_A, bMaskDWord, 0x82160c1f );
-	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_A, bMaskDWord, 0x82130ff0);
+	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_A, bMaskDWord, 0x82160ff0);
 	ODM_SetBBReg(pDM_Odm, rRx_IQK_PI_A, bMaskDWord, 0x28110000);	
 	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_B, bMaskDWord, 0x82110000);
 	ODM_SetBBReg(pDM_Odm, rRx_IQK_PI_B, bMaskDWord, 0x28110000);
@@ -1200,14 +1198,14 @@ phy_PathB_RxIQK8723B(
 	//<20121009, Kordan> RF Mode = 3
 	ODM_SetBBReg(pDM_Odm, rFPGA0_IQK, bMaskH3Bytes, 0x000000);	
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_WE_LUT, 0x80000, 0x1);				   
-	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_RCK_OS, bRFRegOffsetMask, 0x18000);
+	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_RCK_OS, bRFRegOffsetMask, 0x30000);
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_TXPA_G1, bRFRegOffsetMask, 0x0001f); 
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_TXPA_G2, bRFRegOffsetMask, 0xf7d77); 
 //	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, RF_WE_LUT, 0x80000, 0x0);	 
 
 	//open PA S1 & close SMIXER
 	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, 0xed, 0x20, 0x1); 
-	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, 0x43, bRFRegOffsetMask, 0x30ebd);
+	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, 0x43, bRFRegOffsetMask, 0x60ebd);
 
 	//PA, PAD setting
 //	ODM_SetRFReg(pDM_Odm, ODM_RF_PATH_A, 0xdf, bRFRegOffsetMask, 0xf80);
@@ -1226,7 +1224,7 @@ phy_PathB_RxIQK8723B(
 
 	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_A, bMaskDWord, 0x82110000);
 //	ODM_SetBBReg(pDM_Odm, rRx_IQK_PI_A, bMaskDWord, 0x281604c2);	
-	ODM_SetBBReg(pDM_Odm, rRx_IQK_PI_A, bMaskDWord, 0x2813001f);
+	ODM_SetBBReg(pDM_Odm, rRx_IQK_PI_A, bMaskDWord, 0x2816001f);
 	ODM_SetBBReg(pDM_Odm, rTx_IQK_PI_B, bMaskDWord, 0x82110000);
 	ODM_SetBBReg(pDM_Odm, rRx_IQK_PI_B, bMaskDWord, 0x28110000);
 
@@ -3211,7 +3209,7 @@ PHY_IQCalibrate_8723B(
 	}
 
 #if MP_DRIVER == 1
-	if ((pMptCtx->MptRfPath == ODM_RF_PATH_A) || ( *(pDM_Odm->mp_mode) == 0))
+	if ((pMptCtx->MptRfPath == ODM_RF_PATH_A) || (pDM_Odm->mp_mode == FALSE))
 #endif
 	{
 		if (RegE94 != 0)
@@ -3226,7 +3224,7 @@ PHY_IQCalibrate_8723B(
 	
 #if !(DM_ODM_SUPPORT_TYPE & ODM_AP)
 #if MP_DRIVER == 1
-	if ((pMptCtx->MptRfPath == ODM_RF_PATH_A) || ( *(pDM_Odm->mp_mode) == 0))
+	if ((pMptCtx->MptRfPath == ODM_RF_PATH_A) || (pDM_Odm->mp_mode == FALSE))
 #endif
 	{
 		if (RegEB4 != 0)

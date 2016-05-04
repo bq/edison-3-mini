@@ -321,6 +321,9 @@ struct registry_priv
 	u8 ext_iface_num;//primary/secondary iface is excluded
 #endif
 	u8 qos_opt_enable;
+	u8 adaptivity_en;
+	u8 adaptivity_mode;
+	u8 adaptivity_dml;
 };
 
 

@@ -1199,6 +1199,7 @@ static int gsl_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 {
 //	printk("Martin Debug: %s ++\n", __func__);
 	struct gsl_platform_data *pdata = (struct gsl_platform_data *)client->dev.platform_data;
+	struct input_dev *input_dev;
 	int err = 0;
 
 	print_info("=== gsl_ts_probe ===\n");
@@ -1353,6 +1354,8 @@ exit_create_singlethread:
 	unregister_early_suspend(&ddata->pm);
 	input_unregister_device(ddata->idev);
 
+exit_input_register_device_failed:
+	input_free_device(input_dev);
 
 exit_input_dev_alloc_failed:
 exit_request_reset:

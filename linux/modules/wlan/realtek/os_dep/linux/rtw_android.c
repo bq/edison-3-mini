@@ -865,14 +865,14 @@ int rtw_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		rtw_p2p_enable(padapter, P2P_ROLE_DISABLE);
 		break;
 	}
-        case ANDROID_WIFI_CMD_DRIVERVERSION:
+	case ANDROID_WIFI_CMD_DRIVERVERSION:
 	{
 		
 		bytes_written = strlen(DRIVERVERSION);
 		snprintf(command, bytes_written+1, DRIVERVERSION);
 		break;
 	}
-
+	
 	default:
 		DBG_871X("Unknown PRIVATE command %s - ignored\n", command);
 		snprintf(command, 3, "OK");

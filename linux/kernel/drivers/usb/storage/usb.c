@@ -640,6 +640,27 @@ static int get_device_info(struct us_data *us, const struct usb_device_id *id,
 	return 0;
 }
 
+
+/* Get the Huawei transport settings */
+static void get_hw_transport(struct us_data *us)
+{
+	switch (us->protocol) {
+	case USB_PR_CBI:
+		us->transport_name = "Control/Bulk/Interrupt";
+		us->transport = usb_stor_CB_transport;
+		us->transport_reset = usb_stor_CB_reset;
+		us->max_lun = 7;
+		break;
+
+	case USB_PR_BULK:
+		us->transport_name = "Bulk";
+		us->transport = usb_stor_Bulk_transport;
+		us->transport_reset = usb_stor_Bulk_reset;
+		break;
+	}
+}
+
+
 /* Get the transport settings */
 static void get_transport(struct us_data *us)
 {
@@ -958,9 +979,14 @@ int usb_stor_probe1(struct us_data **pus,
 		goto BadDevice;
 
 	/* Get standard transport and protocol settings */
-	get_transport(us);
-	get_protocol(us);
-
+	/* Adding patch from Huawei for dongle EC306 to switch to modem mode successfully*/
+	if (id->idVendor == 0x12d1) {
+		get_hw_transport(us);
+		get_protocol(us);
+	} else {
+		get_transport(us);
+		get_protocol(us);
+	}
 	/* Give the caller a chance to fill in specialized transport
 	 * or protocol settings.
 	 */

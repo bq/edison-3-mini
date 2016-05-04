@@ -35,6 +35,7 @@
 #include "sep_applets.h"
 #include "sep_power.h"
 #include "crypto_api.h"
+#include "sepapp.h"
 
 /* Global drvdata to be used by kernel clients via dx_sepapp_ API */
 static struct sep_drvdata *kapps_drvdata;
@@ -1006,7 +1007,18 @@ void dx_sepapp_init(struct sep_drvdata *drvdata)
 	kapps_drvdata = drvdata;	/* Save for dx_sepapp_ API */
 }
 
-int sepapp_image_verify(u8 *addr, ssize_t size, u32 key_index, u32 magic_num)
+/**
+ * execute_sep() - Execute command in SEP.
+ *
+ * @command: Command ID to execute in SEP.
+ * @addr: Address of buffer to be passed to SEP.
+ * @size: Size of the buffer.
+ * @data1: Arbitrary data to be passed to SEP.
+ * @data2: Arbitrary data to be passed to SEP.
+ *
+ * Returns 0 on success, -EBUSY if resources (sessions) are still allocated
+ */
+static int execute_sep(u32 command, u8 *addr, u32 size, u32 data1, u32 data2)
 {
 	int sess_id = 0;
 	enum dxdi_sep_module ret_origin;
@@ -1014,9 +1026,6 @@ int sepapp_image_verify(u8 *addr, ssize_t size, u32 key_index, u32 magic_num)
 	u8 uuid[16] = DEFAULT_APP_UUID;
 	struct dxdi_sepapp_kparams cmd_params;
 	int rc = 0;
-
-	pr_info("image verify: addr 0x%p size: %zd key_index: 0x%08X magic_num: 0x%08X\n",
-		addr, size, key_index, magic_num);
 
 	cmd_params.params_types[0] = DXDI_SEPAPP_PARAM_VAL;
 	/* addr is already a physical address, so this works on
@@ -1033,12 +1042,12 @@ int sepapp_image_verify(u8 *addr, ssize_t size, u32 key_index, u32 magic_num)
 	cmd_params.params[1].val.copy_dir = DXDI_DATA_TO_DEVICE;
 
 	cmd_params.params_types[2] = DXDI_SEPAPP_PARAM_VAL;
-	cmd_params.params[2].val.data[0] = key_index;
+	cmd_params.params[2].val.data[0] = data1;
 	cmd_params.params[2].val.data[1] = 0;
 	cmd_params.params[2].val.copy_dir = DXDI_DATA_TO_DEVICE;
 
 	cmd_params.params_types[3] = DXDI_SEPAPP_PARAM_VAL;
-	cmd_params.params[3].val.data[0] = magic_num;
+	cmd_params.params[3].val.data[0] = data2;
 	cmd_params.params[3].val.data[1] = 0;
 	cmd_params.params[3].val.copy_dir = DXDI_DATA_TO_DEVICE;
 
@@ -1055,7 +1064,7 @@ int sepapp_image_verify(u8 *addr, ssize_t size, u32 key_index, u32 magic_num)
 	if (unlikely(rc != 0))
 		goto failed;
 
-	rc = dx_sepapp_command_invoke(sctx, sess_id, CMD_IMAGE_VERIFY,
+	rc = dx_sepapp_command_invoke(sctx, sess_id, command,
 					&cmd_params, &ret_origin);
 
 	dx_sepapp_session_close(sctx, sess_id);
@@ -1068,7 +1077,32 @@ failed:
 	dx_sepapp_context_free(sctx);
 	return rc;
 }
+
+int sepapp_image_verify(u8 *addr, ssize_t size, u32 key_index, u32 magic_num)
+{
+	pr_info("image verify: addr 0x%p size: %zd key_index: 0x%08X magic_num: 0x%08X\n",
+		addr, size, key_index, magic_num);
+	return execute_sep(CMD_IMAGE_VERIFY, addr, size, key_index, magic_num);
+}
 EXPORT_SYMBOL(sepapp_image_verify);
+
+/**
+ * sepapp_key_validity_check() - Check VRL header against active key policy.
+ *
+ * @addr: Address of buffer containing the VRL header.
+ * @size: Size of the buffer. (normal VRL 728 bytes)
+ * @flags: VRL_ALLOW_ALL_KEY_INDEXES
+ *          - Ignore key policy and allow all keys found in the device.
+ *
+ * Returns 0 on success
+ */
+int sepapp_key_validity_check(u8 *addr, ssize_t size, u32 flags)
+{
+	pr_info("validity: addr 0x%p size: %zd flags: 0x%08X\n",
+		addr, size, flags);
+	return execute_sep(CMD_KEYPOLICY_CHECK, addr, size, flags, 0);
+}
+EXPORT_SYMBOL(sepapp_key_validity_check);
 
 int sepapp_hdmi_status(u8 status, u8 bksv[5])
 {
@@ -1121,3 +1155,48 @@ failed:
 	return rc;
 }
 EXPORT_SYMBOL(sepapp_hdmi_status);
+
+int sepapp_drm_playback(enum ied_status status)
+{
+	int ses_id = 0;
+	enum dxdi_sep_module ret_origin;
+	struct sep_client_ctx *sctx = NULL;
+	u8 uuid[16] = DEFAULT_APP_UUID;
+	int rc = 0;
+	int command;
+
+	pr_debug("Requesting IED status change %d\n", status);
+
+	if (status == ied_status_enable)
+		command = CMD_DRM_ENABLE_IED;
+	else if (status == ied_status_disable)
+		command = CMD_DRM_DISABLE_IED;
+	else
+		return -EINVAL;
+
+	sctx = dx_sepapp_context_alloc();
+	if (unlikely(!sctx))
+		return -ENOMEM;
+
+#ifdef SEP_RUNTIME_PM
+	dx_sep_pm_runtime_get();
+#endif
+
+	rc = dx_sepapp_session_open(sctx, uuid, 0, NULL, NULL, &ses_id,
+				    &ret_origin);
+	if (unlikely(rc != 0))
+		goto failed;
+
+	rc = dx_sepapp_command_invoke(sctx, ses_id, command, NULL, &ret_origin);
+
+	dx_sepapp_session_close(sctx, ses_id);
+
+failed:
+#ifdef SEP_RUNTIME_PM
+	dx_sep_pm_runtime_put();
+#endif
+
+	dx_sepapp_context_free(sctx);
+	return rc;
+}
+EXPORT_SYMBOL(sepapp_drm_playback);

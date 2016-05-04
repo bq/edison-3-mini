@@ -60,7 +60,7 @@ static ssize_t cm3232_config_read_proc(struct file *file, char __user *page, siz
     else
         ptr[0] = '1';
     ptr[1]= 0;
-//modify by zhanghf  fix BU413
+   //modify by zhanghf  fix BU413
     copy_to_user(page,ptr,2);
     return 0;
 }

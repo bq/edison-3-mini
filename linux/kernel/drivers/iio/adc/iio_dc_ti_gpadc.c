@@ -121,6 +121,8 @@ static struct iio_map iio_maps[] = {
 	ADC_MAP("CH1", "THERMAL", "PMICTEMP"),
 	ADC_MAP("CH2", "THERMAL", "BATTEMP"),
 	ADC_MAP("CH3", "THERMAL", "SYSTEMP0"),
+	ADC_MAP("CH1", "byt_cr_thermal", "PMICTEMP"),
+	ADC_MAP("CH3", "byt_cr_thermal", "SYSTEMP0"),
 };
 
 static irqreturn_t dc_ti_gpadc_isr(int irq, void *data)
@@ -164,13 +166,14 @@ int iio_dc_ti_gpadc_sample(struct iio_dev *indio_dev,
 	mutex_lock(&info->lock);
 
 	/*
-	 * If channel BPTHERM has been selected, first enable the BPTHERM BIAS
-	 * which provides the VREFT Voltage reference to convert BPTHERM Input
+	 * If channel BPTHERM or Systherm has been selected, first enable the BIAS
+	 * which provides the VREFT Voltage reference to convert Input
 	 * voltage to temperature.
 	 * As per PMIC Vendor specifications, BPTHERM BIAS should be enabled
 	 * 35msecs before ADC_EN command for all the temperatures.
 	 */
-	if (adc_en_mask & CNTL_ADC_CH_SEL_BPTHERM) {
+	if ((adc_en_mask & CNTL_ADC_CH_SEL_BPTHERM) ||
+			(adc_en_mask & CNTL_ADC_CH_SEL_SYSTHERM)) {
 		ret = intel_mid_pmic_setb(DC_PMIC_ADC_CNTL_REG,
 				(u8)CNTL_EN_EXT_BPTH_BIAS);
 		if (ret < 0)
@@ -241,7 +244,8 @@ int iio_dc_ti_gpadc_sample(struct iio_dev *indio_dev,
 	/* disable ADC channels */
 	intel_mid_pmic_clearb(DC_PMIC_ADC_CNTL_REG, (u8)(adc_en_mask |
 				CNTL_ADC_START | CNTL_ADC_EN));
-	if (adc_en_mask & CNTL_ADC_CH_SEL_BPTHERM)
+	if ((adc_en_mask & CNTL_ADC_CH_SEL_BPTHERM) ||
+			(adc_en_mask & CNTL_ADC_CH_SEL_SYSTHERM))
 		intel_mid_pmic_clearb(DC_PMIC_ADC_CNTL_REG, CNTL_EN_EXT_BPTH_BIAS);
 done:
 	mutex_unlock(&info->lock);
@@ -272,7 +276,7 @@ static int dc_ti_adc_read_raw(struct iio_dev *indio_dev,
 static int dc_ti_adc_read_all_raw(struct iio_channel *chan,
 					int *val)
 {
-	int ret;
+	int ret = 0;
 	int i, num = 0;
 	int ch = 0;
 	int *channels;
@@ -288,15 +292,14 @@ static int dc_ti_adc_read_all_raw(struct iio_channel *chan,
 
 	for (i = 0; i < num; i++) {
 		channels[i] = chan[i].channel->channel;
-		ch |= (1 << channels[i]);
-	}
+		ch  = (1 << channels[i]);
+		ret = iio_dc_ti_gpadc_sample(chan->indio_dev, ch, &res);
 
-	ret = iio_dc_ti_gpadc_sample(chan->indio_dev, ch, &res);
-	if (ret) {
-		dev_err(info->dev, "sample failed\n");
-		goto end;
+		if (ret) {
+			dev_err(info->dev, "sample failed\n");
+			goto end;
+		}
 	}
-
 	for (i = 0; i < num; i++)
 		val[i] = res.data[channels[i]];
 

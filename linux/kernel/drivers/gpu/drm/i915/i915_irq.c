@@ -1366,17 +1366,8 @@ static irqreturn_t valleyview_irq_handler(int irq, void *arg)
 		spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
 
 		for_each_pipe(pipe) {
-			if (pipe_stats[pipe] & PIPE_VBLANK_INTERRUPT_STATUS) {
-				if (dev_priv->pf_change_status[pipe] & BPP_CHANGED_PRIMARY)
-					I915_WRITE_BITS(VLV_DDL(pipe), dev_priv->pf_change_status[pipe], DL_PRIMARY_MASK);
-				if (dev_priv->pf_change_status[pipe] & BPP_CHANGED_SPRITEA)
-					I915_WRITE_BITS(VLV_DDL(pipe), dev_priv->pf_change_status[pipe], DL_SPRITEA_MASK);
-				if (dev_priv->pf_change_status[pipe] & BPP_CHANGED_SPRITEB)
-					I915_WRITE_BITS(VLV_DDL(pipe), dev_priv->pf_change_status[pipe], DL_SPRITEB_MASK);
-
-				dev_priv->pf_change_status[pipe] = 0x0;
+			if (pipe_stats[pipe] & PIPE_VBLANK_INTERRUPT_STATUS)
 				drm_handle_vblank(dev, pipe);
-			}
 			if (pipe_stats[pipe] & PLANE_FLIPDONE_INT_STATUS_VLV) {
 				intel_prepare_page_flip(dev, pipe);
 				intel_finish_page_flip(dev, pipe);

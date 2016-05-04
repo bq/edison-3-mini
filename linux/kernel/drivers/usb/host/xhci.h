@@ -1559,6 +1559,8 @@ struct xhci_hcd {
 #define XHCI_LPM_DISABLE_QUIRK	(1 << 18)
 #define XHCI_COMP_PLC_QUIRK		(1 << 19)
 #define XHCI_RESET		(1 << 20)
+#define XHCI_FORCE_WR		(1 << 21)
+#define XHCI_PORT_RESET		(1 << 22)
 	unsigned int		num_active_eps;
 	unsigned int		limit_active_eps;
 	/* There are two roothubs to keep track of bus suspend info for */
@@ -1585,7 +1587,6 @@ struct xhci_hcd {
 #define COMP_MODE_RCVRY_MSECS 2000
 	struct work_struct	pm_check;
 	int			pm_check_flag;
-    int    remote_time;
 	void __iomem		*pmc_base_addr;
 	struct work_struct	*reset_hcd_work;
 };
@@ -1912,5 +1913,5 @@ struct xhci_ep_ctx *xhci_get_ep_ctx(struct xhci_hcd *xhci, struct xhci_container
 
 /* xHCI quirks */
 bool xhci_compliance_mode_recovery_timer_quirk_check(void);
-
+extern unsigned is_ssic_probe(void);
 #endif /* __LINUX_XHCI_HCD_H */

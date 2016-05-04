@@ -44,6 +44,7 @@
 #include <linux/notifier.h>
 #include <linux/power/intel_fuel_gauge.h>
 #include <asm/intel_em_config.h>
+#include <linux/power/battery_id.h>
 
 #define DRIVER_NAME	"intel_fuel_gauge"
 
@@ -302,8 +303,6 @@ static int intel_fg_battery_health(struct intel_fg_info *info)
 	else
 		health = POWER_SUPPLY_HEALTH_GOOD;
 
-	pr_info("[%s] health = %d\n", __func__, health);
-
 	return health;
 }
 
@@ -370,7 +369,7 @@ static int intel_fuel_gauge_get_property(struct power_supply *psup,
 		val->intval = POWER_SUPPLY_TECHNOLOGY_LION;
 		break;
 	case POWER_SUPPLY_PROP_MODEL_NAME:
-		val->strval = "INTN0001";
+		val->strval = fg_info->batt_params.battid;
 		break;
 	default:
 		mutex_unlock(&fg_info->lock);
@@ -470,8 +469,8 @@ static void intel_fuel_gauge_algo_init(struct intel_fg_info *fg_info)
 		fg_info->algo_sec->init_done = true;
 	}
 		fg_info->batt_params.boot_flag = false;
-
-	schedule_delayed_work(&fg_info->fg_worker, 20 * HZ);
+	/* Schedule worker in 5 Sec to update the FG status during bootup.*/
+	schedule_delayed_work(&fg_info->fg_worker, 5 * HZ);
 }
 
 int intel_fg_register_input(struct intel_fg_input *input)
@@ -611,11 +610,13 @@ static int intel_fuel_gauge_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&fg_info->fg_worker, &intel_fg_worker);
 	fg_info->batt_params.status = POWER_SUPPLY_STATUS_DISCHARGING;
 
-	if (em_config_get_oem0_data(&oem0_data))
+	if (em_config_get_oem0_data(&oem0_data)) {
 		fg_info->batt_params.is_valid_battery = true;
-	else
+		strncpy(fg_info->batt_params.battid, oem0_data.batt_id, BATTID_STR_LEN);
+	} else {
 		fg_info->batt_params.is_valid_battery = false;
-
+		strncpy(fg_info->batt_params.battid, "unknown", BATTID_STR_LEN);
+	}
 	wake_lock_init(&fg_info->wake_ui.wakelock, WAKE_LOCK_SUSPEND,
 				"intel_fg_wakelock");
 

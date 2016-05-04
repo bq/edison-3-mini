@@ -40,7 +40,6 @@
 #include "intel_dsi_cmd.h"
 #include "dsi_mod_kdt_kd070d30.h"
 
-
 static u8 boe_init_sequence_01[]      = {0xF0, 0x5A, 0x5A};
 static u8 boe_init_sequence_02[]      = {0xF1, 0x5A, 0x5A};
 static u8 boe_init_sequence_03[]      = {0xFC, 0xA5, 0xA5};
@@ -63,7 +62,6 @@ static u8 boe_init_sequence_19[]      = {0xFA, 0x00, 0x34, 0x06, 0x0D, 0x04, 0x0
 static u8 boe_init_sequence_20[]      = {0xFB, 0x00, 0x34, 0x06, 0x0D, 0x04, 0x0A, 0x0F, 0x0F, 0x12, 0x1B, 0x1E, 0x1D, 0x1E, 0x1D, 0x1D, 0x1D, 0x25};
 static u8 boe_init_sequence_21[]      = {0xFE, 0x00, 0x0D, 0x03, 0x21, 0x00, 0x08};
 static u8 boe_init_sequence_22[]      = {0xC3, 0x40, 0x00, 0x28};
-
 
 void kd070d30_send_otp_cmds(struct intel_dsi_device *dsi)
 {
@@ -91,10 +89,7 @@ void kd070d30_send_otp_cmds(struct intel_dsi_device *dsi)
 	dsi_vc_dcs_write(intel_dsi, 0, boe_init_sequence_19, sizeof(boe_init_sequence_19));
 	dsi_vc_dcs_write(intel_dsi, 0, boe_init_sequence_20, sizeof(boe_init_sequence_20));
 	dsi_vc_dcs_write(intel_dsi, 0, boe_init_sequence_21, sizeof(boe_init_sequence_21));
-	//dsi_vc_dcs_write(intel_dsi, 0, boe_init_sequence_22, sizeof(boe_init_sequence_22));
-
 }
-
 
 static void  kd070d30_get_panel_info(int pipe,
 					struct drm_connector *connector)
@@ -129,6 +124,7 @@ static struct drm_display_mode *kd070d30_get_modes(
 	struct intel_dsi_device *dsi)
 {
 	struct drm_display_mode *mode = NULL;
+	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
 	DRM_DEBUG_KMS("\n");
 	/* Allocate */
 	mode = kzalloc(sizeof(*mode), GFP_KERNEL);
@@ -138,8 +134,6 @@ static struct drm_display_mode *kd070d30_get_modes(
 	}
 
 	/* Hardcode 800*1280 */
-	/*HFP = 16, HSYNC = 5, HBP = 59 */
-	/*VFP = 8, VSYNC = 5, VBP = 3 */
 	mode->hdisplay = 800;
 	mode->hsync_start = mode->hdisplay + 16;
 	mode->hsync_end = mode->hsync_start + 48;
@@ -153,7 +147,7 @@ static struct drm_display_mode *kd070d30_get_modes(
 	mode->vrefresh = 60;
 	mode->clock =  mode->vrefresh * mode->vtotal *
 	mode->htotal / 1000;
-
+	intel_dsi->pclk = mode->clock;
 	/* Configure */
 	drm_mode_set_name(mode);
 	drm_mode_set_crtcinfo(mode, 0);
@@ -161,7 +155,6 @@ static struct drm_display_mode *kd070d30_get_modes(
 
 	return mode;
 }
-
 
 static bool kd070d30_get_hw_state(struct intel_dsi_device *dev)
 {
@@ -175,7 +168,8 @@ static enum drm_connector_status kd070d30_detect(
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
 	struct drm_device *dev = intel_dsi->base.base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
- 	dev_priv->is_mipi = true;
+
+	dev_priv->is_mipi = true;
 	DRM_DEBUG_KMS("\n");
 	return connector_status_connected;
 }
@@ -218,10 +212,9 @@ static int kd070d30_mode_valid(struct intel_dsi_device *dsi,
 
 static void kd070d30_dpms(struct intel_dsi_device *dsi, bool enable)
 {
-//	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-
 	DRM_DEBUG_KMS("\n");
 }
+
 static void kd070d30_enable(struct intel_dsi_device *dsi)
 {
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
@@ -232,8 +225,8 @@ static void kd070d30_enable(struct intel_dsi_device *dsi)
 	dsi_vc_dcs_write_0(intel_dsi, 0, 0x11);
 	msleep(5);
 	dsi_vc_dcs_write_0(intel_dsi, 0, 0x29);
-
 }
+
 static void kd070d30_disable(struct intel_dsi_device *dsi)
 {
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
@@ -241,7 +234,6 @@ static void kd070d30_disable(struct intel_dsi_device *dsi)
 	DRM_DEBUG_KMS("\n");
 	dsi_vc_dcs_write_0(intel_dsi, 0, 0x28);
 	msleep(30);
-	//dsi_vc_dcs_write(intel_dsi, 0, boe_disable_ic_power, sizeof(boe_disable_ic_power));
 	msleep(15);
 	dsi_vc_dcs_write_0(intel_dsi, 0, 0x10);
 	msleep(30);
@@ -250,8 +242,6 @@ static void kd070d30_disable(struct intel_dsi_device *dsi)
 bool kd070d30_init(struct intel_dsi_device *dsi)
 {
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-//	struct drm_device *dev = intel_dsi->base.base.dev;
-//	struct drm_i915_private *dev_priv = dev->dev_private;
 
 	/* create private data, slam to dsi->dev_priv. could support many panels
 	 * based on dsi->name. This panal supports both command and video mode,
@@ -294,15 +284,15 @@ bool kd070d30_init(struct intel_dsi_device *dsi)
 	/* BTA sending at the last blanking line of VFP is disabled */
 	intel_dsi->video_frmt_cfg_bits = 1<<3;
 	intel_dsi->lane_count = 4;
+	intel_dsi->port = 0; /* PORT_A by default */
+	intel_dsi->burst_mode_ratio = 100;
 
 	intel_dsi->backlight_off_delay = 20;
 	intel_dsi->send_shutdown = true;
 	intel_dsi->shutdown_pkt_delay = 20;
-	//dev_priv->mipi.panel_bpp = 24;
 
 	return true;
 }
-
 
 /* Callbacks. We might not need them all. */
 struct intel_dsi_dev_ops kdt_kd070d30_dsi_display_ops = {

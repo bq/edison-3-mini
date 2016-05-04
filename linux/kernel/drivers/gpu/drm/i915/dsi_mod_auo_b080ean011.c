@@ -48,52 +48,50 @@ static u8 auo_password[]      = {0xF0, 0x5A, 0x5A};
 static u8 auo_init_sequence1[]      = {0xF1, 0x5A, 0x5A};
 static u8 auo_init_sequence2[]      = {0xFC, 0xA5, 0xA5};
 static u8 auo_init_sequence3[]      = {0xD0, 0x00, 0x10};
-static u8 auo_init_sequence4[]      = {0xbc, 0x1, 0x4e,0xa0};
-static u8 auo_init_sequence5[]      = {0xE1, 0x3, 0x10,0x1C,0X82,0X07};
+static u8 auo_init_sequence4[]      = {0xBC, 0x1, 0x4E, 0xA0};
+static u8 auo_init_sequence5[]      = {0xE1, 0x3, 0x10, 0x1C, 0x82, 0x07};
 static u8 auo_init_sequence6[]      = {0xB1, 0x10};
-static u8 auo_init_sequence7[]      = {0xB2, 0x14, 0x22,0x2F,0X04};
-static u8 auo_init_sequence8[]      = {0xF2, 0x02, 0xC,0x8,0X88,0X018};
-static u8 auo_init_sequence9[]      = {0xB5, 0x1e};
+static u8 auo_init_sequence7[]      = {0xB2, 0x14, 0x22, 0x2F, 0x04};
+static u8 auo_init_sequence8[]      = {0xF2, 0x02, 0xC, 0x8, 0x88, 0x18};
+static u8 auo_init_sequence9[]      = {0xB5, 0x1E};
 static u8 auo_init_sequence10[]      = {0xB0, 0x04};
 static u8 auo_init_sequence11[]      = {0xFD, 0x9};
-static u8 auo_init_sequence12[]      = {0xF6, 0x63, 0x21,0x86,0X00,0X00,0};
-static u8 auo_init_sequence13[]      = {0xD8, 0x5E, 0x4C,0x10};
-static u8 auo_init_sequence14[]      = {0xF3, 0x1, 0xC0,0xE0,0X62,0XD0,0X81,0X35,0XF3,0X30,0X24,0};
-static u8 auo_init_sequence15[]      = {0XF4,0X00,0X02,0X03 ,0X26 ,0X03 ,0X02 ,0X09 ,0X00 ,0X07 ,0X16 ,0X16 ,0X03 ,0X00
- ,0X08 ,0X08 ,0X03 ,0X00 ,0X00 ,0X12 ,0X1C ,0X1D ,0X1E ,0X01 ,0X09 ,0X01 ,0X04 ,0X02 ,0X61 ,0X74 ,0X75
- ,0X72 ,0X83 ,0X80 ,0X80,0X00 ,0X00 ,0X01 ,0X01 ,0X28 ,0X04 ,0X03 ,0X28 ,0X01 ,0XD1 ,0X32};
-static u8 auo_init_sequence16[]      = {0XF5  ,0X9D  ,0X42  ,0X42  ,0X5F  ,0XAB  ,0X98  ,0X4F  ,0X0F
-  ,0X33  ,0X43  ,0X04  ,0X59  ,0X54  ,0X52  ,0X05  ,0X40  ,0X60  ,0X40  ,0X60  ,0X40  ,0X27  ,0X26  ,0X52  ,0X25
-  ,0X6D  ,0X18}; 
+static u8 auo_init_sequence12[]      = {0xF6, 0x63, 0x21, 0x86, 0x00, 0x00, 0x00};
+static u8 auo_init_sequence13[]      = {0xD8, 0x5E, 0x4C, 0x10};
+static u8 auo_init_sequence14[]      = {0xF3, 0x1, 0xC0, 0xE0, 0x62, 0xD0, 0x81, 0x35, 0xF3, 0x30, 0x24, 0x00};
+static u8 auo_init_sequence15[]      = {0xF4, 0x00, 0x02, 0x03, 0x26, 0x03, 0x02, 0x09, 0x00, 0x07, 0x16, 0x16, 0x03, 0x00
+, 0x08, 0x08, 0x03, 0x00, 0x00, 0x12, 0x1C, 0x1D, 0x1E, 0x01, 0x09, 0x01, 0x04, 0x02, 0x61, 0x74, 0x75
+, 0x72, 0x83, 0x80, 0x80, 0x00, 0x00, 0x01, 0x01, 0x28, 0x04, 0x03, 0x28, 0x01, 0xD1, 0x32};
+static u8 auo_init_sequence16[]      = {0xF5, 0x9D, 0x42, 0x42, 0x5F, 0xAB, 0x98, 0x4F, 0x0F
+, 0x33, 0x43, 0x04, 0x59, 0x54, 0x52, 0x05, 0x40, 0x60, 0x40, 0x60, 0x40, 0x27, 0x26, 0x52, 0x25
+, 0x6D, 0x18};
 
-static u8 auo_init_sequence17[] ={0XEE ,0X3F ,0X3F ,0X3F 
-,0X00 ,0X3F ,0X3F ,0X3F
- ,0X00 ,0X11 ,0X22};
+static u8 auo_init_sequence17[] = {0xEE, 0x3F, 0x3, 0x3F, 0x00, 0x3F, 0x3F, 0x3F, 0x00, 0x11, 0x22};
 
-static u8 auo_init_sequence18[] ={0XEF ,0X12 ,0X12 ,0X43 
-,0X43 ,0X90 ,0X84 ,0X24
- ,0X81 ,0X00 ,0X21 ,0X21
- ,0X03 ,0X03 ,0X40 ,0X80 
-,0X82 ,0X00};
-static u8 auo_init_sequence19[]= {0XFA ,0X00 ,0X35 ,0X06 ,0X0A ,0X14 ,0X0D ,0X13 ,0X19 
-	,0X1C ,0X25 ,0X2B ,0X32 ,0X3B ,0X39 ,0X3D ,0X38 ,0X3D ,0X25 ,0X30 ,0X26 ,0X2A ,0X2B ,0X1E ,0X22 
-	,0X23 ,0X22 ,0X28 ,0X2D ,0X33 ,0X3B ,0X38 ,0X2D ,0X2D ,0X2A ,0X0C ,0X35 ,0X10 ,0X14 
-	,0X1C ,0X14 ,0X1A ,0X1E ,0X1F ,0X27 ,0X2C ,0X33 ,0X3B ,0X38 ,0X30 ,0X30 ,0X30};
+static u8 auo_init_sequence18[] = {0xEF, 0x12, 0x12, 0x43
+, 0x43, 0x90, 0x84, 0x24
+, 0x81, 0x00, 0x21, 0x21
+, 0x03, 0x03, 0x40, 0x80
+, 0x82, 0x00};
+static u8 auo_init_sequence19[] = {0xFA, 0x00, 0x35, 0x06, 0x0A, 0x14, 0x0D, 0x13, 0x19
+	, 0x1C, 0x25, 0x2B, 0x32, 0x3B, 0x39, 0x3D, 0x38, 0x3D, 0x25, 0x30, 0x26, 0x2A, 0x2B, 0x1E, 0x22
+	, 0x23, 0x22, 0x28, 0x2D, 0x33, 0x3B, 0x38, 0x2D, 0x2D, 0x2A, 0x0C, 0x35, 0x10, 0x14
+	, 0x1C, 0x14, 0x1A, 0x1E, 0x1F, 0x27, 0x2C, 0x33, 0x3B, 0x38, 0x30, 0x30, 0x30};
 
-static u8 auo_init_sequence20[] = {0XFA ,0X00 ,0X35 ,0X06 ,0X0A ,0X14 ,0X0D ,0X13 ,0X19 
-	,0X1C ,0X25 ,0X2B ,0X32 ,0X3B ,0X39 ,0X3D ,0X38 ,0X3D ,0X25 ,0X30 ,0X26 ,0X2A ,0X2B ,0X1E ,0X22 
-	,0X23 ,0X22 ,0X28 ,0X2D ,0X33 ,0X3B ,0X38 ,0X2D ,0X2D ,0X2A ,0X0C ,0X35 ,0X10 ,0X14 
-	,0X1C ,0X14 ,0X1A ,0X1E ,0X1F ,0X27 ,0X2C ,0X33 ,0X3B ,0X38 ,0X30 ,0X30 ,0X30};
+static u8 auo_init_sequence20[] = {0xFA, 0x00, 0x35, 0x06, 0x0A, 0x14, 0x0D, 0x13, 0x19
+	, 0x1C, 0x25, 0x2B, 0x32, 0x3B, 0x39, 0x3D, 0x38, 0x3D, 0x25, 0x30, 0x26, 0x2A, 0x2B, 0x1E, 0x22
+	, 0x23, 0x22, 0x28, 0x2D, 0x33, 0x3B, 0x38, 0x2D, 0x2D, 0x2A, 0x0C, 0x35, 0x10, 0x14
+	, 0x1C, 0x14, 0x1A, 0x1E, 0x1F, 0x27, 0x2C, 0x33, 0x3B, 0x38, 0x30, 0x30, 0x30};
 
-static u8 auo_init_sequence21[] ={0XF7 ,0X0B ,0X0B ,0X09 
-,0X09 ,0X0A ,0X0A ,0X08
- ,0X08 ,0X01 ,0X16 ,0X16
- ,0X17 ,0X17 ,0X07 ,0X01
- ,0X01 ,0X0B ,0X0B ,0X09
- ,0X09 ,0X0A ,0X0A ,0X08 
-,0X08 ,0X01 ,0X16 ,0X16
- ,0X17 ,0X17 ,0X07 ,0X01
- ,0X01};
+static u8 auo_init_sequence21[] = {0xF7, 0x0B, 0x0B, 0x09
+, 0x09, 0x0A, 0x0A, 0x08
+, 0x08, 0x01, 0x16, 0x16
+, 0x17, 0x17, 0x07, 0x01
+, 0x01, 0x0B, 0x0B, 0x09
+, 0x09, 0x0A, 0x0A, 0x08
+, 0x08, 0x01, 0x16, 0x16
+, 0x17, 0x17, 0x07, 0x01
+, 0x01};
 
 void b080ean011_send_otp_cmds(struct intel_dsi_device *dsi)
 {
@@ -122,10 +120,7 @@ void b080ean011_send_otp_cmds(struct intel_dsi_device *dsi)
 	dsi_vc_dcs_write(intel_dsi, 0, auo_init_sequence19, sizeof(auo_init_sequence19));
 	dsi_vc_dcs_write(intel_dsi, 0, auo_init_sequence20, sizeof(auo_init_sequence20));
 	dsi_vc_dcs_write(intel_dsi, 0, auo_init_sequence21, sizeof(auo_init_sequence21));
-
-
 }
-
 
 static void  b080ean011_get_panel_info(int pipe,
 					struct drm_connector *connector)
@@ -140,7 +135,6 @@ static void  b080ean011_get_panel_info(int pipe,
 		connector->display_info.width_mm = 192;
 		connector->display_info.height_mm = 120;
 	}
-
 	return;
 }
 
@@ -160,6 +154,7 @@ static struct drm_display_mode *b080ean011_get_modes(
 	struct intel_dsi_device *dsi)
 {
 	struct drm_display_mode *mode = NULL;
+	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
 	DRM_DEBUG_KMS("\n");
 	/* Allocate */
 	mode = kzalloc(sizeof(*mode), GFP_KERNEL);
@@ -169,8 +164,6 @@ static struct drm_display_mode *b080ean011_get_modes(
 	}
 
 	/* Hardcode 800*1280 */
-	/*HFP = 16, HSYNC = 5, HBP = 59 */
-	/*VFP = 8, VSYNC = 5, VBP = 3 */
 	mode->hdisplay = 800;
 	mode->hsync_start = mode->hdisplay + 24;
 	mode->hsync_end = mode->hsync_start + 8;
@@ -184,7 +177,7 @@ static struct drm_display_mode *b080ean011_get_modes(
 	mode->vrefresh = 60;
 	mode->clock =  mode->vrefresh * mode->vtotal *
 	mode->htotal / 1000;
-
+	intel_dsi->pclk = mode->clock;
 	/* Configure */
 	drm_mode_set_name(mode);
 	drm_mode_set_crtcinfo(mode, 0);
@@ -192,7 +185,6 @@ static struct drm_display_mode *b080ean011_get_modes(
 
 	return mode;
 }
-
 
 static bool b080ean011_get_hw_state(struct intel_dsi_device *dev)
 {
@@ -206,7 +198,7 @@ static enum drm_connector_status b080ean011_detect(
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
 	struct drm_device *dev = intel_dsi->base.base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
- 	dev_priv->is_mipi = true;
+	dev_priv->is_mipi = true;
 	DRM_DEBUG_KMS("\n");
 	return connector_status_connected;
 }
@@ -247,8 +239,6 @@ static int b080ean011_mode_valid(struct intel_dsi_device *dsi,
 
 static void b080ean011_dpms(struct intel_dsi_device *dsi, bool enable)
 {
-//	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-
 	DRM_DEBUG_KMS("\n");
 }
 static void b080ean011_enable(struct intel_dsi_device *dsi)
@@ -278,9 +268,9 @@ static void b080ean011_disable(struct intel_dsi_device *dsi)
 bool b080ean011_init(struct intel_dsi_device *dsi)
 {
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-//	struct drm_device *dev = intel_dsi->base.base.dev;
-//	struct drm_i915_private *dev_priv = dev->dev_private;
-
+	/*	struct drm_device *dev = intel_dsi->base.base.dev;
+			struct drm_i915_private *dev_priv = dev->dev_private;
+	*/
 	/* create private data, slam to dsi->dev_priv. could support many panels
 	 * based on dsi->name. This panal supports both command and video mode,
 	 * so check the type. */
@@ -322,11 +312,13 @@ bool b080ean011_init(struct intel_dsi_device *dsi)
 	/* BTA sending at the last blanking line of VFP is disabled */
 	intel_dsi->video_frmt_cfg_bits = 1<<3;
 	intel_dsi->lane_count = 4;
+	intel_dsi->port = 0; /* PORT_A by default */
+	intel_dsi->burst_mode_ratio = 100;
 
 	intel_dsi->backlight_off_delay = 20;
 	intel_dsi->send_shutdown = true;
 	intel_dsi->shutdown_pkt_delay = 20;
-	//dev_priv->mipi.panel_bpp = 24;
+	/*dev_priv->mipi.panel_bpp = 24;*/
 	return true;
 }
 
@@ -349,3 +341,4 @@ struct intel_dsi_dev_ops auo_b080ean011_dsi_display_ops = {
 	.disable = b080ean011_disable,
 	.send_otp_cmds = b080ean011_send_otp_cmds,
 };
+

@@ -71,9 +71,9 @@ void free_mlme_ap_info(_adapter *padapter)
 
 	//free bc/mc sta_info
 	psta = rtw_get_bcmc_stainfo(padapter);	
-        //_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+	//_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);		
 	rtw_free_stainfo(padapter, psta);
-        //_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+	//_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 	
 
 	_rtw_spinlock_free(&pmlmepriv->bcn_update_lock);
@@ -405,9 +405,9 @@ void	expire_timeout_chk(_adapter *padapter)
 				
 				_exit_critical_bh(&pstapriv->auth_list_lock, &irqL);
 				
-                                //_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+				//_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);	
 				rtw_free_stainfo(padapter, psta);
-                                //_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+				//_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);	
 				
 				_enter_critical_bh(&pstapriv->auth_list_lock, &irqL);
 			}	
@@ -1241,7 +1241,13 @@ void start_bss_network(_adapter *padapter, u8 *pbuf)
 	cur_channel = pnetwork->Configuration.DSConfig;
 	cur_bwmode = CHANNEL_WIDTH_20;
 	cur_ch_offset = HAL_PRIME_CHNL_OFFSET_DONT_CARE;
-
+	
+#if 0
+#ifdef CONFIG_BT_COEXIST
+	if(is_primary_adapter(padapter))
+		rtw_btcoex_IpsNotify(padapter, IPS_NONE);
+#endif // CONFIG_BT_COEXIST
+#endif
 
 	//check if there is wps ie, 
 	//if there is wpsie in beacon, the hostapd will update beacon twice when stating hostapd,
@@ -2925,9 +2931,9 @@ u8 ap_free_sta(_adapter *padapter, struct sta_info *psta, bool active, u16 reaso
 
 	beacon_updated = bss_cap_update_on_sta_leave(padapter, psta);
 
-        //_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+	//_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);					
 	rtw_free_stainfo(padapter, psta);
-        //_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+	//_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 	
 
 	return beacon_updated;
@@ -3145,7 +3151,7 @@ void rtw_ap_restore_network(_adapter *padapter)
 			if(	(padapter->securitypriv.dot11PrivacyAlgrthm == _TKIP_) ||
 				(padapter->securitypriv.dot11PrivacyAlgrthm == _AES_))
 			{
-				rtw_setstakey_cmd(padapter, (unsigned char *)psta, _TRUE,_FALSE);
+				rtw_setstakey_cmd(padapter, (unsigned char *)psta, UNICAST_KEY,_FALSE);
 			}			
 		}
 	}
@@ -3259,9 +3265,9 @@ void stop_ap_mode(_adapter *padapter)
 	rtw_free_all_stainfo(padapter);
 	
 	psta = rtw_get_bcmc_stainfo(padapter);
-        //_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+	//_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);		
 	rtw_free_stainfo(padapter, psta);
-        //_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+	//_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 	
 	rtw_init_bcmc_stainfo(padapter);	
 

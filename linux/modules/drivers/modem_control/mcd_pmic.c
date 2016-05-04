@@ -44,8 +44,9 @@
 #include <linux/delay.h>
 #include <asm/intel_scu_pmic.h>
 #include <linux/mdm_ctrl_board.h>
-#define POWER_OFF 100
 
+#define POWER_OFF 100
+#define H350
 int pmic_io_init(void *data)
 {
 	return 0;
@@ -60,7 +61,7 @@ int pmic_io_power_on_ctp_mdm(void *data)
 
 int pmic_io_power_on_mdm(void *data)
 {
-#if 1
+#ifdef H350
     int retval = 0;
     int err = 0;
     pr_info("DRVNAME: kz IRQ request for GPIO (POWER_OFF: %d)", POWER_OFF);

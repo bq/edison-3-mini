@@ -68,14 +68,11 @@ static acpi_status acpi_i2c_add_device(acpi_handle handle, u32 level,
 		return AE_OK;
 
 	strlcpy(info.type, dev_name(&adev->dev), sizeof(info.type));
-	/*add apci device i2c register device list, by xmyyq 20140818*/
-	if(!strcmp(dev_name(&adev->dev), "KXCJ9000:00"))
-		return AE_OK;
-	else if (!i2c_new_device(adapter, &info)) {
-			dev_err(&adapter->dev,
-				"failed to add I2C device %s from ACPI\n",
-				dev_name(&adev->dev));
-		}
+	if (!i2c_new_device(adapter, &info)) {
+		dev_err(&adapter->dev,
+			"failed to add I2C device %s from ACPI\n",
+			dev_name(&adev->dev));
+	}
 
 	return AE_OK;
 }

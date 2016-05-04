@@ -53,7 +53,7 @@
 #endif
 
 
-struct chgr_info {
+	struct chgr_info {
 	struct platform_device *pdev;
 	struct crystalcove_chgr_pdata	*pdata;
 	int irq;
@@ -594,3 +594,4 @@ MODULE_AUTHOR("Kannappan R <r.kannappan@intel.com>");
 MODULE_AUTHOR("Ramakrishna Pallala <ramakrishna.pallala@intel.com>");
 MODULE_DESCRIPTION("CrystalCove Charger Driver");
 MODULE_LICENSE("GPL");
+

@@ -30,6 +30,7 @@
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-chip-ident.h>
+#include <media/v4l2-ctrls.h>
 #include <linux/v4l2-mediabus.h>
 #include <media/media-entity.h>
 
@@ -85,7 +86,7 @@
 #define OV2680_FINE_INTG_TIME_MIN 0
 #define OV2680_FINE_INTG_TIME_MAX_MARGIN 0
 #define OV2680_COARSE_INTG_TIME_MIN 1
-#define OV2680_COARSE_INTG_TIME_MAX_MARGIN (0xffff - 6)
+#define OV2680_COARSE_INTG_TIME_MAX_MARGIN 4
 
 /*
  * OV2680 System control registers
@@ -191,6 +192,7 @@ struct ov2680_control {
 
 		struct camera_sensor_platform_data *platform_data;
 		struct timespec timestamp_t_focus_abs;
+		struct v4l2_ctrl_handler ctrl_handler;
 		int vt_pix_clk_freq_mhz;
 		int fmt_idx;
 		int run_mode;
@@ -1059,6 +1061,21 @@ static struct ov2680_resolution ov2680_res_video[] = {
 		.bin_mode = 0,
 		.skip_frames = 3,
 		.regs = ov2680_1616x916_30fps,
+	},
+	{
+		.desc = "ov2680_1616x1216_30fps",
+		.width = 1616,
+		.height = 1216,
+		.pix_clk_freq = 66,
+		.fps = 30,
+		.used = 0,
+		.pixels_per_line = 1698,//1704,
+		.lines_per_frame = 1294,
+		.bin_factor_x = 0,
+		.bin_factor_y = 0,
+		.bin_mode = 0,
+		.skip_frames = 3,
+		.regs = ov2680_1616x1216_30fps,
 	},
 };
 #define N_RES_VIDEO (ARRAY_SIZE(ov2680_res_video))

@@ -124,9 +124,6 @@ int _rtw_write8(_adapter *adapter, u32 addr, u8 val)
 	_func_enter_;
 	_write8 = pintfhdl->io_ops._write8;
 
-	 //if (addr == 0x765)
-	//		DBG_871X("[WIFIDBG] driver write 0x765 to 0x%08X!!!!!!!!!!\n", val);
-
 	ret = _write8(pintfhdl, addr, val);
 	_func_exit_;
 	
@@ -141,9 +138,6 @@ int _rtw_write16(_adapter *adapter, u32 addr, u16 val)
 	int ret;
 	_func_enter_;
 	_write16 = pintfhdl->io_ops._write16;
-
-	 //if (addr == 0x764)
-	//		DBG_871X("[WIFIDBG] driver write 0x764 to 0x%04X!!!!!!!!!!\n", val);
 
 	val = rtw_cpu_to_le16(val);
 	ret = _write16(pintfhdl, addr, val);
@@ -160,13 +154,6 @@ int _rtw_write32(_adapter *adapter, u32 addr, u32 val)
 	int ret;
 	_func_enter_;
 	_write32 = pintfhdl->io_ops._write32;
-	
-	 //if (addr == 0x948)
-	//		DBG_871X("[WIFIDBG] driver write 0x948 to 0x%08X!!!!!!!!!!\n", val);
-
-	//  if (addr == 0x764)
-	//		DBG_871X("[WIFIDBG] driver write 0x764 to 0x%08X!!!!!!!!!!\n", val);
-
 	
 	val = rtw_cpu_to_le32(val);
 	ret = _write32(pintfhdl, addr, val);

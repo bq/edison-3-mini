@@ -46,8 +46,15 @@ struct byt_machine_ops {
 	int  (*byt_init)(struct snd_soc_pcm_runtime *runtime);
 	int  (*jack_detection)(void);
 };
-
+#ifdef CONFIG_SND_BYT_RT5645
 extern struct byt_machine_ops byt_bl_alc5645_ops;
+#endif
+#ifdef CONFIG_SND_BYT_RT5651
+extern struct byt_machine_ops byt_cr_rt5651_ops;
+#endif
+#ifdef CONFIG_SND_BYT_ES8396
+extern struct byt_machine_ops byt_bl_es8396_ops;
+#endif
 
 
 /* data for drivers */

@@ -28,9 +28,10 @@
 #include <linux/irq.h>
 #include <linux/slab.h>
 #include <linux/acpi.h>
-#include <linux/pci.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/workqueue.h>
+
 
 #define VIRTUAL_GPIO_DRIVER_VERSION	"1.1.0"
 #define VIRTUAL_GPIO_DRIVER_NAME	"virtual_gpio"
@@ -39,81 +40,57 @@
 #define GPE0A_PME_EN_BIT                0x2000
 #define GPE0A_STS_PORT			0x420
 #define GPE0A_EN_PORT			0x428
+#define BYT_MODEL				0x37
+
+struct workqueue_struct *vgpio_wq;
 
 struct virtual_gpio_data {
 	int irq;
 	struct platform_device	*pdev;
+	struct work_struct periodic_work;
+	struct mutex vg_mutex;
 };
-
-static int ush_pci_match(struct device *dev, void *data)
+static irqreturn_t virtual_gpio_irq_handler(int irq, void *data)
 {
-	struct pci_dev *pci_dev;
-
-	pci_dev = to_pci_dev(dev);
-
-	if ((pci_dev->vendor == PCI_VENDOR_ID_INTEL) &&
-		(pci_dev->device == PCI_DEVICE_ID_INTEL_BYT_USH))
-		return true;
-
-	return false;
+	struct virtual_gpio_data *gd;
+	gd = data;
+	queue_work(vgpio_wq, &gd->periodic_work);
+	return IRQ_HANDLED;
 }
-
-static irqreturn_t virtual_gpio_irq_handler_isr(int irq, void *data)
+void virtual_gpio_irq_handler_isr(struct work_struct *work)
 {
 	u32 gpe_sts_reg = inl(GPE0A_STS_PORT);
 	u32 gpe_en_reg = inl(GPE0A_EN_PORT), temp = 0;
+	acpi_status status;
+	u64 tmp;
+	acpi_handle handle;
+		struct virtual_gpio_data *gd =
+		container_of(work, struct virtual_gpio_data, periodic_work);
+	struct device *dev = &gd->pdev->dev;
 
+	handle = ACPI_HANDLE(dev);
+	if (!handle)
+		return;
+	mutex_lock(&gd->vg_mutex);
 	if (gpe_en_reg & GPE0A_PME_EN_BIT) {
 		/* Clear the STS Bit */
 		temp = gpe_en_reg&(~GPE0A_PME_EN_BIT);
 		outl(temp, GPE0A_EN_PORT);
 	}
-
-	if (gpe_sts_reg & GPE0A_PME_STS_BIT)
-		outl(GPE0A_PME_STS_BIT, GPE0A_STS_PORT);
-
-	if (gpe_en_reg & GPE0A_PME_EN_BIT)
-		outl(gpe_en_reg, GPE0A_EN_PORT);
-
-	return IRQ_HANDLED;
-}
-
-static irqreturn_t virtual_gpio_irq_threaded_handler_isr(int irq, void *data)
-{
-	u32 gpe_sts_reg = inl(GPE0A_STS_PORT);
-	u32 gpe_en_reg = inl(GPE0A_EN_PORT), temp = 0;
-	struct device *dev;
-	struct pci_dev *pci_dev;
-
-	if (gpe_en_reg & GPE0A_PME_EN_BIT) {
-		/* Clear the STS Bit */
-		temp = gpe_en_reg&(~GPE0A_PME_EN_BIT);
-		outl(temp, GPE0A_EN_PORT);
+	if (boot_cpu_data.x86_model != BYT_MODEL) {
+		status = acpi_evaluate_object(handle,
+						"_E02", NULL, NULL);
+		if (ACPI_FAILURE(status))
+			dev_err(dev, "_E02 call failed in virtual gpio\n");
 	}
 
 	if (gpe_sts_reg & GPE0A_PME_STS_BIT)
-		outl(GPE0A_PME_STS_BIT, GPE0A_STS_PORT);
-
-	/* resume USH PCI device directly */
-	dev = bus_find_device(&pci_bus_type, NULL, NULL,
-			ush_pci_match);
-	if (dev) {
-		pci_dev = to_pci_dev(dev);
-
-		if (pci_dev->pme_poll)
-			pci_dev->pme_poll = false;
-
-		if (pci_dev->pme_support)
-			pci_check_pme_status(pci_dev);
-
-		pm_wakeup_event(&pci_dev->dev, 100);
-		pm_runtime_resume(&pci_dev->dev);
-	}
+			outl(GPE0A_PME_STS_BIT, GPE0A_STS_PORT);
 
 	if (gpe_en_reg & GPE0A_PME_EN_BIT)
 		outl(gpe_en_reg, GPE0A_EN_PORT);
-
-	return IRQ_HANDLED;
+	mutex_unlock(&gd->vg_mutex);
+	return;
 }
 
 
@@ -128,7 +105,6 @@ static void acpi_virtual_gpio_request_interrupts(struct virtual_gpio_data *gd)
 	int ret;
 	char ev_name[5];
 	unsigned long irq_flags;
-
 	handle = ACPI_HANDLE(dev);
 	if (!handle)
 		return;
@@ -165,21 +141,15 @@ static void acpi_virtual_gpio_request_interrupts(struct virtual_gpio_data *gd)
 			continue;
 
 		irq_flags = IRQF_SHARED | IRQF_NO_SUSPEND;
-		if (acpi_gbl_reduced_hardware) {
-			irq_flags = IRQF_ONESHOT;
-			ret = devm_request_threaded_irq(dev, gd->irq,
-					NULL,
-					virtual_gpio_irq_threaded_handler_isr,
-					irq_flags,
-					VIRTUAL_GPIO_DRIVER_NAME,
-					ev_handle);
-		} else {
+		if (acpi_gbl_reduced_hardware)
+			irq_flags = 0;
+
 			ret = devm_request_irq(dev, gd->irq,
-					virtual_gpio_irq_handler_isr,
-					irq_flags,
-					VIRTUAL_GPIO_DRIVER_NAME,
-					ev_handle);
-		}
+						virtual_gpio_irq_handler,
+						irq_flags,
+						VIRTUAL_GPIO_DRIVER_NAME,
+						gd);
+
 		if (ret)
 			dev_err(dev,
 				"Failed to request IRQ %d ACPI event handler\n",
@@ -193,6 +163,8 @@ static int virtual_gpio_probe(struct platform_device *pdev)
 {
 	struct virtual_gpio_data *gd;
 	struct device *dev = &pdev->dev;
+	u32 gpe_en_reg = inl(GPE0A_EN_PORT);
+	u32 ret = 0;
 
 	gd = devm_kzalloc(dev, sizeof(struct virtual_gpio_data), GFP_KERNEL);
 	if (!gd) {
@@ -205,11 +177,21 @@ static int virtual_gpio_probe(struct platform_device *pdev)
 
 	/* set up interrupt */
 	gd->irq = platform_get_irq(pdev, 0);
+
+	INIT_WORK(&gd->periodic_work, virtual_gpio_irq_handler_isr);
+	vgpio_wq = create_singlethread_workqueue(dev_name(dev));
+	if (!vgpio_wq) {
+		dev_err(dev, "virtual gpio worker thread create failed\n");
+		ret = -ENOMEM;
+		return ret;
+	}
 	acpi_virtual_gpio_request_interrupts(gd);
-
+	mutex_init(&gd->vg_mutex);
 	pm_runtime_enable(dev);
+	gpe_en_reg |= GPE0A_PME_EN_BIT;
+	outl(gpe_en_reg, GPE0A_EN_PORT);
 
-	return 0;
+	return ret;
 }
 
 static int virtual_gpio_runtime_suspend(struct device *dev)
@@ -235,6 +217,7 @@ MODULE_DEVICE_TABLE(acpi, virtual_gpio_acpi_ids);
 
 static int virtual_gpio_remove(struct platform_device *pdev)
 {
+	destroy_workqueue(vgpio_wq);
 	platform_set_drvdata(pdev, NULL);
 	return 0;
 }

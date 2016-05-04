@@ -727,9 +727,9 @@ void mgt_dispatcher(_adapter *padapter, union recv_frame *precv_frame)
 
 #ifdef CONFIG_TDLS
 	if((index << 4)==WIFI_ACTION){
-		//category==public (4), action==TDLS_DISCOVERY_RESPONSE
-		if(*(pframe+24)==0x04 && *(pframe+25)==TDLS_DISCOVERY_RESPONSE){
-			DBG_871X("recv tdls discovery response frame from "MAC_FMT"\n", MAC_ARG(GetAddr2Ptr(pframe)));
+		/* category==public (4), action==TDLS_DISCOVERY_RESPONSE */
+		if (*(pframe+24) == RTW_WLAN_CATEGORY_PUBLIC && *(pframe+25) == TDLS_DISCOVERY_RESPONSE) {
+			DBG_871X("[TDLS] Recv %s from "MAC_FMT"\n", rtw_tdls_action_txt(TDLS_DISCOVERY_RESPONSE), MAC_ARG(GetAddr2Ptr(pframe)));
 			On_TDLS_Dis_Rsp(padapter, precv_frame);
 		}
 	}
@@ -1247,6 +1247,10 @@ unsigned int OnBeacon(_adapter *padapter, union recv_frame *precv_frame)
 	int ret = _SUCCESS;
 	u8 *p = NULL;
 	u32 ielen = 0;
+#ifdef CONFIG_TDLS
+	struct sta_info *ptdls_sta;
+	struct tdls_info *ptdlsinfo = &padapter->tdlsinfo;
+#endif /* CONFIG_TDLS */
 
 #ifdef CONFIG_ATTEMPT_TO_FIX_AP_BEACON_ERROR
 	p = rtw_get_ie(pframe + sizeof(struct rtw_ieee80211_hdr_3addr) + _BEACON_IE_OFFSET_, _EXT_SUPPORTEDRATES_IE_, &ielen, precv_frame->u.hdr.len -sizeof(struct rtw_ieee80211_hdr_3addr) - _BEACON_IE_OFFSET_);
@@ -1356,6 +1360,24 @@ unsigned int OnBeacon(_adapter *padapter, union recv_frame *precv_frame)
 
 				adaptive_early_32k(pmlmeext, pframe, len);			 	
 				
+#ifdef CONFIG_TDLS
+#ifdef CONFIG_TDLS_CH_SW
+				if (padapter->tdlsinfo.ch_switch_prohibited == _FALSE)
+				{
+					/* Send TDLS Channel Switch Request when receiving Beacon */
+					if ((padapter->tdlsinfo.chsw_info.ch_sw_state & TDLS_CH_SW_INITIATOR_STATE) && (pmlmeext->cur_channel == rtw_get_oper_ch(padapter))) {
+							ptdlsinfo->chsw_info.ch_sw_state |= TDLS_WAIT_CH_RSP_STATE;
+						/* DBG_871X("[%s] issue_tdls_ch_switch_req to "MAC_FMT"\n", __FUNCTION__, MAC_ARG(padapter->tdlsinfo.chsw_info.addr)); */
+							ptdls_sta = rtw_get_stainfo(&padapter->stapriv, padapter->tdlsinfo.chsw_info.addr);
+						if (ptdls_sta != NULL) {
+							if (ptdls_sta->tdls_sta_state | TDLS_LINKED_STATE)
+								issue_tdls_ch_switch_req(padapter, ptdls_sta);
+						}
+					}
+				}
+#endif				
+#endif /* CONFIG_TDLS */
+
 #ifdef CONFIG_DFS
 				process_csa_ie(padapter, pframe, len);	//channel switch announcement
 #endif //CONFIG_DFS
@@ -2523,7 +2545,15 @@ unsigned int OnAssocRsp(_adapter *padapter, union recv_frame *precv_frame)
 
 			case _ERPINFO_IE_:
 				ERP_IE_handler(padapter, pIE);
-
+				break;
+#ifdef CONFIG_TDLS
+			case _EXT_CAP_IE_:
+				if (check_ap_tdls_prohibited(pIE->data, pIE->Length) == _TRUE)
+					padapter->tdlsinfo.ap_prohibited = _TRUE;
+				if (check_ap_tdls_ch_switching_prohibited(pIE->data, pIE->Length) == _TRUE)
+					padapter->tdlsinfo.ch_switch_prohibited = _TRUE;
+				break;
+#endif /* CONFIG_TDLS */
 			default:
 				break;
 		}
@@ -11111,6 +11141,16 @@ static void rtw_mlmeext_disconnect(_adapter *padapter)
 	pmlmepriv->LinkDetectInfo.TrafficTransitionCount = 0;
 	pmlmepriv->LinkDetectInfo.LowPowerTransitionCount = 0;
 
+#ifdef CONFIG_TDLS
+	padapter->tdlsinfo.ap_prohibited = _FALSE;
+
+	/* For TDLS channel switch, currently we only allow it to work in wifi logo test mode */
+	if (padapter->registrypriv.wifi_spec == 1)
+	{
+		padapter->tdlsinfo.ch_switch_prohibited = _FALSE;
+	}
+#endif /* CONFIG_TDLS */
+
 }
 
 void mlmeext_joinbss_event_callback(_adapter *padapter, int join_res)
@@ -11183,8 +11223,8 @@ void mlmeext_joinbss_event_callback(_adapter *padapter, int join_res)
 		
 		rtw_sta_media_status_rpt(padapter, psta, 1);
 
-		/* wakeup macid after join bss successfully to ensure
-		the subsequent data frames can be sent out normally */
+		/* wakeup macid after join bss successfully to ensure 
+			the subsequent data frames can be sent out normally */
 		rtw_hal_macid_wakeup(padapter, psta->mac_id);
 	}
 
@@ -11481,8 +11521,7 @@ struct candidate_pool{
 			for(i=0; i< num_checkalive; i++)
 			{
 #ifdef CONFIG_XMIT_ACK
-				//TDLS: Should we set wait_ms to 300 for keeping alive?
-				ack_chk = issue_nulldata_to_TDLS_peer_STA(padapter, 	checkalive[i].addr, 0, 3, 300);
+				ack_chk = issue_nulldata_to_TDLS_peer_STA(padapter, 	checkalive[i].addr, 0, 3, 500);
 
 				if(ack_chk == _SUCCESS)
 				{
@@ -11539,11 +11578,11 @@ void linked_status_chk(_adapter *padapter, u8 from_timer)
 		#else
 		rx_chk_limit = 8;
 		#endif
-        //In LPS, driver may miss beacon for rx_chk.
-        //Therefore, rx_chk_limit should be increased.
-        if (from_timer) {
-            rx_chk_limit = 30;
-        }
+		//In LPS, driver may miss beacon for rx_chk.
+		//Therefore, rx_chk_limit should be increased.
+		if (from_timer) {
+			rx_chk_limit = 30;
+		}
 #ifdef CONFIG_P2P
 		if (!rtw_p2p_chk_state(&padapter->wdinfo, P2P_STATE_NONE))
 		{
@@ -11561,13 +11600,16 @@ void linked_status_chk(_adapter *padapter, u8 from_timer)
 				link_count_limit = 149; // 60 sec
 		}		
 
-		// Marked by Kurt 20130715
-		// For WiDi 3.5 and latered on, they don't ask WiDi sink to do roaming, so we could not check rx limit that strictly.
-		// todo: To check why we under miracast session, rx_chk would be _FALSE
-		//#ifdef CONFIG_INTEL_WIDI
-		//if (padapter->mlmepriv.widi_state != INTEL_WIDI_STATE_NONE)
-		//	rx_chk_limit = 1;
-		//#endif
+#ifdef CONFIG_TDLS
+#ifdef CONFIG_TDLS_CH_SW
+		if (ATOMIC_READ(&padapter->tdlsinfo.chsw_info.chsw_on) == _TRUE)
+			return;
+#endif /* CONFIG_TDLS_CH_SW */
+
+#ifdef CONFIG_TDLS_AUTOCHECKALIVE
+		linked_status_chk_tdls(padapter);
+#endif /* CONFIG_TDLS_AUTOCHECKALIVE */
+#endif /* CONFIG_TDLS */
 
 		if ((psta = rtw_get_stainfo(pstapriv, pmlmeinfo->network.MacAddress)) != NULL)
 		{
@@ -11592,8 +11634,14 @@ void linked_status_chk(_adapter *padapter, u8 from_timer)
 					SelectChannel(padapter, pmlmeext->cur_channel);
 				}
 
-				if (rx_chk != _SUCCESS)
+				if (rx_chk != _SUCCESS) {
+					/*
+					*  If from_timer ==1, driver is in LPS mode.
+					*  Therefore, linked_status_chk() do not need to send probereq for keeping alive
+					*/
+					if(!from_timer)					
 					issue_probereq_ex(padapter, &pmlmeinfo->network.Ssid, psta->hwaddr, 0, 0, 3, 1);
+				}
 
 				if ((tx_chk != _SUCCESS && pmlmeinfo->link_count++ == link_count_limit) || rx_chk != _SUCCESS) {
 					tx_chk = issue_nulldata(padapter, psta->hwaddr, 0, 3, 1);
@@ -11615,8 +11663,13 @@ void linked_status_chk(_adapter *padapter, u8 from_timer)
 						#ifdef DBG_EXPIRATION_CHK
 						DBG_871X("issue_probereq to trigger probersp, retry=%d\n", pmlmeext->retry);
 						#endif
-						//if (!from_timer)
-							//issue_probereq_ex(padapter, &pmlmeinfo->network.Ssid, pmlmeinfo->network.MacAddress, 0, 0, 3, 1);
+                        			/*
+			                         *  If from_timer ==1, driver is in LPS mode.
+                        			 *  Therefore, linked_status_chk() do not need to send probereq for keeping alive
+			                         */
+                        			if (!from_timer) { 
+							issue_probereq_ex(padapter, &pmlmeinfo->network.Ssid, pmlmeinfo->network.MacAddress, 0, 0, 3, 1);
+                        			}
 						//issue_probereq_ex(padapter, &pmlmeinfo->network.Ssid, pmlmeinfo->network.MacAddress, 0, 0, 0, 0);
 						//issue_probereq_ex(padapter, &pmlmeinfo->network.Ssid, pmlmeinfo->network.MacAddress, 0, 0, 0, 0);
 					}
@@ -11651,10 +11704,6 @@ void linked_status_chk(_adapter *padapter, u8 from_timer)
 			}
 
 		} //end of if ((psta = rtw_get_stainfo(pstapriv, passoc_res->network.MacAddress)) != NULL)
-
-#if defined (CONFIG_TDLS) && defined (CONFIG_TDLS_AUTOCHECKALIVE)
-		linked_status_chk_tdls(padapter);
-#endif //CONFIG_TDLS
 
 	}
 	else if (is_client_associated_to_ibss(padapter))
@@ -12762,9 +12811,6 @@ u8 set_stakey_hdl(_adapter *padapter, u8 *pbuf)
 	struct set_stakey_parm	*pparm = (struct set_stakey_parm *)pbuf;
 	struct sta_priv *pstapriv = &padapter->stapriv;
 	struct sta_info *psta;
-#ifdef CONFIG_TDLS
-	struct tdls_info	*ptdlsinfo = &padapter->tdlsinfo;
-#endif //CONFIG_TDLS
 
 	//cam_entry:
 	//0~3 for default key
@@ -12872,7 +12918,6 @@ u8 add_ba_hdl(_adapter *padapter, unsigned char *pbuf)
 		(psta->htpriv.ampdu_enable==_TRUE) )
 	{
 		issue_action_BA(padapter, pparm->addr, RTW_WLAN_ACTION_ADDBA_REQ, (u16)pparm->tid);		
-		//_set_timer(&pmlmeext->ADDBA_timer, ADDBA_TO);
 		_set_timer(&psta->addba_retry_timer, ADDBA_TO);
 	}
 #endif //CONFIG
@@ -14350,201 +14395,171 @@ u8 set_csa_hdl(_adapter *padapter, unsigned char *pbuf)
 
 }
 
-// TDLS_ESTABLISHED	: write RCR DATA BIT
-// TDLS_CS_OFF		: go back to the channel linked with AP, terminating channel switch procedure
-// TDLS_INIT_CH_SEN	: init channel sensing, receive all data and mgnt frame
-// TDLS_DONE_CH_SEN: channel sensing and report candidate channel
-// TDLS_OFF_CH		: first time set channel to off channel
-// TDLS_BASE_CH		: go back tp the channel linked with AP when set base channel as target channel
-// TDLS_P_OFF_CH	: periodically go to off channel
-// TDLS_P_BASE_CH	: periodically go back to base channel
-// TDLS_RS_RCR		: restore RCR
-// TDLS_TEAR_STA	: free tdls sta
 u8 tdls_hdl(_adapter *padapter, unsigned char *pbuf)
 {
 #ifdef CONFIG_TDLS
 	_irqL irqL;
 	struct tdls_info *ptdlsinfo = &padapter->tdlsinfo;
+#ifdef CONFIG_TDLS_CH_SW	
+	struct tdls_ch_switch *pchsw_info = &ptdlsinfo->chsw_info;
+#endif
 	struct TDLSoption_param *TDLSoption;
-	struct sta_info *ptdls_sta;
+	struct sta_info *ptdls_sta = NULL;
 	struct mlme_ext_priv *pmlmeext = &padapter->mlmeextpriv;
 	struct mlme_ext_info *pmlmeinfo = &pmlmeext->mlmext_info;
 	u8 survey_channel, i, min, option;
+	struct tdls_txmgmt txmgmt;
+	u32 setchtime, resp_sleep = 0, wait_time;
+	u8 zaddr[ETH_ALEN] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-	if(!pbuf)
+	if (!pbuf)
 		return H2C_PARAMETERS_ERROR;
 
 	TDLSoption = (struct TDLSoption_param *)pbuf;
-
-	ptdls_sta = rtw_get_stainfo( &(padapter->stapriv), TDLSoption->addr );
 	option = TDLSoption->option;
 
-	if( ptdls_sta == NULL )
-	{
-		if( option != TDLS_RS_RCR )
+	if (!_rtw_memcmp(TDLSoption->addr, zaddr, ETH_ALEN)) {
+		ptdls_sta = rtw_get_stainfo( &(padapter->stapriv), TDLSoption->addr );
+		if (ptdls_sta == NULL) {
+			return H2C_REJECTED;
+		}
+	} else {
+		if (!(option == TDLS_RS_RCR || option == TDLS_CH_SW_BACK))
 			return H2C_REJECTED;
 	}
 
 	//_enter_critical_bh(&(ptdlsinfo->hdl_lock), &irqL);
-	DBG_871X("[%s] option:%d\n", __FUNCTION__, option);
+	//DBG_871X("[%s] option:%d\n", __FUNCTION__, option);
 		
-	switch(option){
-		case TDLS_ESTABLISHED:
-		{
-			u8 sta_band = 0;
-			
-			//leave ALL PS when TDLS is established
+	switch (option) {
+	case TDLS_ESTABLISHED:
+	{
+		/* As long as TDLS handshake success, we should set RCR_CBSSID_DATA bit to 0 */
+		/* So we can receive all kinds of data frames. */
+		u8 sta_band = 0;
+
+		//leave ALL PS when TDLS is established
 			rtw_pwr_wakeup(padapter);
+
+		rtw_hal_set_hwreg(padapter, HW_VAR_TDLS_WRCR, 0);
+		DBG_871X("Created Direct Link with "MAC_FMT"\n", MAC_ARG(ptdls_sta->hwaddr));
+
+		pmlmeinfo->FW_sta_info[ptdls_sta->mac_id].psta = ptdls_sta;
+		/* Set TDLS sta rate. */
+		/* Update station supportRate */
+		rtw_hal_update_sta_rate_mask(padapter, ptdls_sta);
+		if (pmlmeext->cur_channel > 14) {
+			if (ptdls_sta->ra_mask & 0xffff000)
+				sta_band |= WIRELESS_11_5N ;
+
+			if (ptdls_sta->ra_mask & 0xff0)
+				sta_band |= WIRELESS_11A;
+
+			/* 5G band */
+			#ifdef CONFIG_80211AC_VHT
+			if (ptdls_sta->vhtpriv.vht_option)
+				sta_band = WIRELESS_11_5AC;
+			#endif
 			
-			//As long as TDLS handshake success, we should set RCR_CBSSID_DATA bit to 0
-			//so we can receive all kinds of data frames.			
-			rtw_hal_set_hwreg(padapter, HW_VAR_TDLS_WRCR, 0);
-			DBG_871X("Created Direct Link with "MAC_FMT"\n", MAC_ARG(ptdls_sta->hwaddr));
+		} else {
+			if (ptdls_sta->ra_mask & 0xffff000)
+				sta_band |= WIRELESS_11_24N;
 
-			pmlmeinfo->FW_sta_info[ptdls_sta->mac_id].psta = ptdls_sta;
-			//set TDLS sta rate.
-			//update station supportRate
-			rtw_hal_update_sta_rate_mask(padapter, ptdls_sta);
-			if(padapter->mlmeextpriv.cur_channel > 14) {
-				if (ptdls_sta->ra_mask & 0xffff000)
-					sta_band |= WIRELESS_11_5N ;
+			if (ptdls_sta->ra_mask & 0xff0)
+				sta_band |= WIRELESS_11G;
 
-				if (ptdls_sta->ra_mask & 0xff0)
-					sta_band |= WIRELESS_11A;
+			if (ptdls_sta->ra_mask & 0x0f)
+				sta_band |= WIRELESS_11B;
+		}
+		ptdls_sta->wireless_mode = sta_band;
+		ptdls_sta->raid = rtw_hal_networktype_to_raid(padapter,ptdls_sta);
+		set_sta_rate(padapter, ptdls_sta);
+		rtw_sta_media_status_rpt(padapter, ptdls_sta, 1);
+		/* Sta mode */
+		rtw_hal_set_odm_var(padapter, HAL_ODM_STA_INFO, ptdls_sta,_TRUE);
+		break;
+	}
+	case TDLS_ISSUE_PTI:
+		ptdls_sta->tdls_sta_state |= TDLS_WAIT_PTR_STATE;
+		issue_tdls_peer_traffic_indication(padapter, ptdls_sta);
+		_set_timer(&ptdls_sta->pti_timer, TDLS_PTI_TIME);
+		break;
+#ifdef CONFIG_TDLS_CH_SW		
+	case TDLS_CH_SW_RESP:
+		_rtw_memset(&txmgmt, 0x00, sizeof(struct tdls_txmgmt));
+		txmgmt.status_code = 0;
+		_rtw_memcpy(txmgmt.peer, ptdls_sta->hwaddr, ETH_ALEN);
 
-				// 5G band
-				#ifdef CONFIG_80211AC_VHT
-				if (ptdls_sta->vhtpriv.vht_option)  {
-					sta_band = WIRELESS_11_5AC;
-				}		
-				#endif
-				
-			} else {
-				if (ptdls_sta->ra_mask & 0xffff000)
-					sta_band |= WIRELESS_11_24N;
+		issue_nulldata(padapter, NULL, 1, 0, 0);
 
-				if (ptdls_sta->ra_mask & 0xff0)
-					sta_band |= WIRELESS_11G;
+		DBG_871X("issue tdls channel switch response\n");
+		issue_tdls_ch_switch_rsp(padapter, &txmgmt, _FALSE);
+		resp_sleep = 5;
+		rtw_msleep_os(resp_sleep);
 
-				if (ptdls_sta->ra_mask & 0x0f)
-					sta_band |= WIRELESS_11B;
-			}
-			ptdls_sta->wireless_mode = sta_band;
-			ptdls_sta->raid = rtw_hal_networktype_to_raid(padapter,ptdls_sta);
-			set_sta_rate(padapter, ptdls_sta);
-			//sta mode
-			rtw_hal_set_odm_var(padapter,HAL_ODM_STA_INFO,ptdls_sta,_TRUE);
+		/* If we receive TDLS_CH_SW_REQ at off channel which it's target is AP's channel */
+		/* then we just SelectChannel to AP's channel*/
+		if (padapter->mlmeextpriv.cur_channel == pchsw_info->off_ch_num) {
+			SelectChannel(padapter, padapter->mlmeextpriv.cur_channel);
+			issue_nulldata(padapter, NULL, 0, 0, 0);
+			pchsw_info->ch_sw_state &= ~(TDLS_PEER_AT_OFF_STATE);
+			ATOMIC_SET(&pchsw_info->chsw_on, _FALSE);
 			break;
 		}
-		case TDLS_SD_PTI:
-			ptdls_sta->tdls_sta_state |= TDLS_WAIT_PTR_STATE;
-			issue_tdls_peer_traffic_indication(padapter, ptdls_sta);
-			_set_timer(&ptdls_sta->pti_timer, TDLS_PTI_TIME);
-			break;
-		case TDLS_CS_OFF:
-			_cancel_timer_ex(&ptdls_sta->base_ch_timer);
-			_cancel_timer_ex(&ptdls_sta->off_ch_timer);
-			SelectChannel(padapter, pmlmeext->cur_channel);
-			ptdls_sta->tdls_sta_state &= ~(TDLS_CH_SWITCH_ON_STATE | 
-								TDLS_PEER_AT_OFF_STATE | 
-								TDLS_AT_OFF_CH_STATE);
-			DBG_871X("go back to base channel\n ");
+
+		_set_timer(&ptdls_sta->delay_timer, pmlmeinfo->bcn_interval - 40);
+
+		/* Continue following actions */
+
+	case TDLS_CH_SW:
+		issue_nulldata(padapter, NULL, 1, 0, 0);
+		_set_timer(&ptdls_sta->ch_sw_timer, (u32)(ptdls_sta->ch_switch_timeout)/1000);
+
+		setchtime = rtw_systime_to_ms(rtw_get_current_time());
+		SelectChannel(padapter, pchsw_info->off_ch_num);
+		setchtime = rtw_systime_to_ms(rtw_get_current_time()) - setchtime;
+		setchtime += resp_sleep;
+
+		if (pmlmeext->cur_channel != rtw_get_oper_ch(padapter))
 			issue_nulldata(padapter, NULL, 0, 0, 0);
-			break;
-		case TDLS_INIT_CH_SEN:
-			rtw_hal_set_hwreg(padapter, HW_VAR_TDLS_INIT_CH_SEN, 0);
-			pmlmeext->sitesurvey_res.channel_idx = 0;
-			ptdls_sta->option = TDLS_DONE_CH_SEN;
-			rtw_tdls_cmd(padapter, ptdls_sta->hwaddr, TDLS_DONE_CH_SEN);
-			break;
-		case TDLS_DONE_CH_SEN:
-			survey_channel = pmlmeext->channel_set[pmlmeext->sitesurvey_res.channel_idx].ChannelNum;
-			if(survey_channel){
-				SelectChannel(padapter, survey_channel);
-				ptdlsinfo->cur_channel = survey_channel;
-				pmlmeext->sitesurvey_res.channel_idx++;
-				_set_timer(&ptdls_sta->option_timer, SURVEY_TO);
-			}else{
-				SelectChannel(padapter, pmlmeext->cur_channel);
+		pchsw_info->ch_sw_state &= ~(TDLS_PEER_AT_OFF_STATE);
 
-				rtw_hal_set_hwreg(padapter, HW_VAR_TDLS_DONE_CH_SEN, 0);
+		if ((u32)ptdls_sta->ch_switch_time/1000 > setchtime)
+			wait_time = (u32)ptdls_sta->ch_switch_time/1000 - setchtime;
+		else
+			wait_time = 0;
 
-				if(ptdlsinfo->ch_sensing==1){
-					ptdlsinfo->ch_sensing=0;
-					ptdlsinfo->cur_channel=1;
-					min=ptdlsinfo->collect_pkt_num[0];
-					for(i=1; i<MAX_CHANNEL_NUM-1; i++){
-						if(min > ptdlsinfo->collect_pkt_num[i]){
-							ptdlsinfo->cur_channel=i+1;
-							min=ptdlsinfo->collect_pkt_num[i];
-						}
-						ptdlsinfo->collect_pkt_num[i]=0;
-					}
-					ptdlsinfo->collect_pkt_num[0]=0;
-					ptdlsinfo->candidate_ch=ptdlsinfo->cur_channel;
-					DBG_871X("TDLS channel sensing done, candidate channel: %02x\n", ptdlsinfo->candidate_ch);
-					ptdlsinfo->cur_channel=0;
+		if (wait_time > 0)
+			rtw_msleep_os(wait_time);
 
-				}
+		issue_nulldata_to_TDLS_peer_STA(ptdls_sta->padapter, ptdls_sta->hwaddr, 0, 0, 0);
+		issue_nulldata_to_TDLS_peer_STA(ptdls_sta->padapter, ptdls_sta->hwaddr, 0, 0, 0);
 
-				if(ptdls_sta->tdls_sta_state & TDLS_PEER_SLEEP_STATE){
-					ptdls_sta->tdls_sta_state |= TDLS_APSD_CHSW_STATE;
-				}else{
-					//send null data with pwrbit==1 before send ch_switching_req to peer STA.
-					issue_nulldata(padapter, NULL, 1, 0, 0);
-
-					ptdls_sta->tdls_sta_state |= TDLS_CH_SW_INITIATOR_STATE;
-
-					issue_tdls_ch_switch_req(padapter, ptdls_sta->hwaddr);
-					DBG_871X("issue tdls ch switch req\n");
-				}
-			}
-			break;
-		case TDLS_OFF_CH:
-			issue_nulldata(padapter, NULL, 1, 0, 0);
-			SelectChannel(padapter, ptdls_sta->off_ch);
-
-			DBG_871X("change channel to tar ch:%02x\n", ptdls_sta->off_ch);
-			ptdls_sta->tdls_sta_state |= TDLS_AT_OFF_CH_STATE;
-			ptdls_sta->tdls_sta_state &= ~(TDLS_PEER_AT_OFF_STATE);
-			_set_timer(&ptdls_sta->option_timer, (u32)ptdls_sta->ch_switch_time);
-			break;
-		case TDLS_BASE_CH:
-			_cancel_timer_ex(&ptdls_sta->base_ch_timer);
-			_cancel_timer_ex(&ptdls_sta->off_ch_timer);
-			SelectChannel(padapter, pmlmeext->cur_channel);
-			ptdls_sta->tdls_sta_state &= ~(TDLS_CH_SWITCH_ON_STATE | 
-								TDLS_PEER_AT_OFF_STATE | 
-								TDLS_AT_OFF_CH_STATE);
-			DBG_871X("go back to base channel\n ");
-			issue_nulldata(padapter, NULL, 0, 0, 0);
-			_set_timer(&ptdls_sta->option_timer, (u32)ptdls_sta->ch_switch_time);
-			break;
-		case TDLS_P_OFF_CH:
-			SelectChannel(padapter, pmlmeext->cur_channel);
-			issue_nulldata(padapter, NULL, 0, 0, 0);
-			DBG_871X("change channel to base ch:%02x\n", pmlmeext->cur_channel);
-			ptdls_sta->tdls_sta_state &= ~(TDLS_PEER_AT_OFF_STATE| TDLS_AT_OFF_CH_STATE);
-			_set_timer(&ptdls_sta->off_ch_timer, TDLS_STAY_TIME);
-			break;
-		case TDLS_P_BASE_CH:
-			issue_nulldata(ptdls_sta->padapter, NULL, 1, 0, 0);
-			SelectChannel(padapter, ptdls_sta->off_ch);
-			DBG_871X("change channel to off ch:%02x\n", ptdls_sta->off_ch);
-			ptdls_sta->tdls_sta_state |= TDLS_AT_OFF_CH_STATE;
-			if((ptdls_sta->tdls_sta_state & TDLS_PEER_AT_OFF_STATE) != TDLS_PEER_AT_OFF_STATE){
-				issue_nulldata_to_TDLS_peer_STA(padapter, ptdls_sta->hwaddr, 0, 3, 300);
-			}
-			_set_timer(&ptdls_sta->base_ch_timer, TDLS_STAY_TIME);	
-			break;
-		case TDLS_RS_RCR:
-			rtw_hal_set_hwreg(padapter, HW_VAR_TDLS_RS_RCR, 0);
-			DBG_871X("wirte REG_RCR, set bit6 on\n");
-			break;
-		case TDLS_TEAR_STA:
-			free_tdls_sta(padapter, ptdls_sta);
-			break;
-			
+		break;
+	case TDLS_CH_SW_BACK:
+		pchsw_info->ch_sw_state &= ~(TDLS_PEER_AT_OFF_STATE | TDLS_WAIT_CH_RSP_STATE);
+		ATOMIC_SET(&pchsw_info->chsw_on, _FALSE);
+		SelectChannel(padapter, padapter->mlmeextpriv.cur_channel);
+		issue_nulldata(padapter, NULL, 0, 0, 0);
+		break;
+#endif		
+	case TDLS_RS_RCR:
+		rtw_hal_set_hwreg(padapter, HW_VAR_TDLS_RS_RCR, 0);
+		DBG_871X("wirte REG_RCR, set bit6 on\n");
+		break;
+	case TDLS_TEAR_STA:
+#ifdef CONFIG_TDLS_CH_SW	
+		if (_rtw_memcmp(TDLSoption->addr, pchsw_info->addr, ETH_ALEN) == _TRUE) {
+			pchsw_info->ch_sw_state &= ~(TDLS_CH_SW_INITIATOR_STATE |
+										TDLS_CH_SWITCH_ON_STATE |
+										TDLS_PEER_AT_OFF_STATE);
+			ATOMIC_SET(&pchsw_info->chsw_on, _FALSE);
+			_rtw_memset(pchsw_info->addr, 0x00, ETH_ALEN);
+		}
+#endif		
+		rtw_sta_media_status_rpt(padapter, ptdls_sta, 0);
+		free_tdls_sta(padapter, ptdls_sta);
+		break;			
 	}
 
 	//_exit_critical_bh(&(ptdlsinfo->hdl_lock), &irqL);
@@ -14552,7 +14567,22 @@ u8 tdls_hdl(_adapter *padapter, unsigned char *pbuf)
 	return H2C_SUCCESS;
 #else
 	return H2C_REJECTED;
-#endif //CONFIG_TDLS
+#endif /* CONFIG_TDLS */
 
+}
+
+u8 run_in_thread_hdl(_adapter *padapter, u8 *pbuf)
+{
+	struct RunInThread_param *p;
+
+
+	if (NULL == pbuf)
+		return H2C_PARAMETERS_ERROR;
+	p = (struct RunInThread_param*)pbuf;
+
+	if (p->func)
+		p->func(p->context);
+
+	return H2C_SUCCESS;
 }
 

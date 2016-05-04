@@ -21,7 +21,7 @@
 
 #include <drv_types.h>
 
-#include "../hal/OUTSRC/odm_precomp.h"
+#include "../hal/OUTSRC/phydm_precomp.h"
 
 u8 rtw_hal_data_init(_adapter *padapter)
 {

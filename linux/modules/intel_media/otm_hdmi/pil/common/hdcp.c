@@ -697,7 +697,7 @@ static bool hdcp_stage1_authentication(bool *is_repeater)
 	/* Wait (up to 2s) for HDMI sink to be in HDMI mode */
 	retry = 40;
 	if (hdcp_context->hdmi) {
-		while (retry--) {
+		while (--retry) {
 			if (hdcp_read_bstatus(&bstatus.value) == false) {
 				pr_err("hdcp: failed to read bstatus\n");
 				return false;
@@ -1134,6 +1134,12 @@ static void hdcp_task_event_handler(struct work_struct *work)
 	if (hdcp_context == NULL || hwq == NULL)
 		goto EXIT_HDCP_HANDLER;
 
+	if (!ospm_power_using_hw_begin(OSPM_DISPLAY_ISLAND,
+				OSPM_UHB_FORCE_POWER_ON)) {
+		pr_err("Unable to power on display island!");
+		goto EXIT_HDCP_HANDLER;
+	}
+
 	switch (msg) {
 	case HDCP_ENABLE:
 #ifndef OTM_HDMI_HDCP_ALWAYS_ENC
@@ -1261,6 +1267,7 @@ static void hdcp_task_event_handler(struct work_struct *work)
 				ctx->is_phase1_enabled, ctx->hpd);
 	}
 
+	ospm_power_using_hw_end(OSPM_DISPLAY_ISLAND);
 EXIT_HDCP_HANDLER:
 	if (msg_data != NULL)
 		kfree(msg_data);

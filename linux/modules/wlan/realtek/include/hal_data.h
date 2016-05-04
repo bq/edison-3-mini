@@ -22,7 +22,7 @@
 
 #if 1//def  CONFIG_SINGLE_IMG
 
-#include "../hal/OUTSRC/odm_precomp.h"
+#include "../hal/OUTSRC/phydm_precomp.h"
 #ifdef CONFIG_BT_COEXIST
 #include <hal_btcoex.h>
 #endif
@@ -245,6 +245,7 @@ struct dm_priv
 
 	// Add for Reading Initial Data Rate SEL Register 0x484 during watchdog. Using for fill tx desc. 2011.3.21 by Thomas
 	u8	INIDATA_RATE[32];
+    _lock IQKSpinLock;
 };
 
 

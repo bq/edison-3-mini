@@ -27,13 +27,14 @@
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #include "./pmic.h"
+#include <linux/gpio.h>
 
 #define PMIC_NUM_REG       0xEF
 #define PMIC_READ_STRLEN   4
 #define PMIC_WRITE_STRLEN  9
 #define NR_RETRY_CNT       3
 
-enum pmic_chip_type {CCOVE, DCOVE};
+enum pmic_chip_type {CCOVE, DCOVE, WCOVE};
 
 static LIST_HEAD(pdata_list);
 struct cell_dev_pdata {
@@ -41,6 +42,7 @@ struct cell_dev_pdata {
 	const char		*name;
 	void			*data;
 	int			len;
+	int			id;
 };
 
 static struct intel_mid_pmic *pmic;
@@ -78,7 +80,6 @@ int intel_mid_pmic_write_multi(int reg, u8 len, u8 *buf)
 	mutex_unlock(&pmic->io_lock);
 	return ret;
 }
-EXPORT_SYMBOL(intel_mid_pmic_write_multi);
 
 int intel_mid_pmic_readb(int reg)
 {
@@ -225,7 +226,7 @@ int intel_scu_ipc_writev(u16 *addr, u8 *data, int len)
 }
 EXPORT_SYMBOL(intel_scu_ipc_writev);
 
-int intel_mid_pmic_set_pdata(const char *name, void *data, int len)
+int intel_mid_pmic_set_pdata(const char *name, void *data, int len, int id)
 {
 	struct cell_dev_pdata *pdata;
 
@@ -237,6 +238,7 @@ int intel_mid_pmic_set_pdata(const char *name, void *data, int len)
 	pdata->name = name;
 	pdata->data = data;
 	pdata->len = len;
+	pdata->id = id;
 	list_add_tail(&pdata->list, &pdata_list);
 	return 0;
 }
@@ -265,6 +267,7 @@ static int pmic_regmap_write(struct intel_pmic_regmap *map, int val)
 		return -ENXIO;
 	if (IS_PMIC_REG_INV(map))
 		val = ~val;
+
 	mutex_lock(&pmic->io_lock);
 	if (cache_offset == map->offset) {
 		if (cache_flags != map->flags) {
@@ -297,9 +300,9 @@ static int pmic_regmap_write(struct intel_pmic_regmap *map, int val)
 		cache_read_val = cache_write_val;
 err:
 	dev_dbg(pmic->dev, "[%s]: offset=%x, shift=%x, mask=%x, flags=%x\n",
-		map->offset, map->shift, map->mask, map->flags);
+		__func__, map->offset, map->shift, map->mask, map->flags);
 	dev_dbg(pmic->dev, "[%s]: cache_read=%x, cache_write=%x, ret=%x\n",
-		cache_read_val, cache_write_val, ret);
+		__func__, cache_read_val, cache_write_val, ret);
 	mutex_unlock(&pmic->io_lock);
 	return ret;
 }
@@ -344,9 +347,9 @@ static int pmic_regmap_read(struct intel_pmic_regmap *map)
 		cache_write_val = cache_read_val;
 err:
 	dev_dbg(pmic->dev, "[%s]: offset=%x, shift=%x, mask=%x, flags=%x\n",
-		map->offset, map->shift, map->mask, map->flags);
+		__func__, map->offset, map->shift, map->mask, map->flags);
 	dev_dbg(pmic->dev, "[%s]: cache_read=%x, cache_write=%x, ret=%x\n",
-		cache_read_val, cache_write_val, ret);
+		__func__, cache_read_val, cache_write_val, ret);
 	mutex_unlock(&pmic->io_lock);
 	return ret;
 }
@@ -356,6 +359,9 @@ static void pmic_irq_enable(struct irq_data *data)
 	clear_bit((data->irq - pmic->irq_base) % 32,
 		&(pmic->irq_mask[(data->irq - pmic->irq_base) / 32]));
 	pmic->irq_need_update = 1;
+
+	dev_dbg(pmic->dev, "[%s]: irq_mask = %x", __func__,
+				pmic->irq_mask[(data->irq - pmic->irq_base)/32]);
 }
 
 static void pmic_irq_disable(struct irq_data *data)
@@ -363,19 +369,25 @@ static void pmic_irq_disable(struct irq_data *data)
 	set_bit((data->irq - pmic->irq_base) % 32,
 		&(pmic->irq_mask[(data->irq - pmic->irq_base) / 32]));
 	pmic->irq_need_update = 1;
+	dev_dbg(pmic->dev, "[%s]: irq_mask = %x", __func__,
+				pmic->irq_mask[(data->irq - pmic->irq_base)/32]);
 }
 
 static void pmic_irq_sync_unlock(struct irq_data *data)
 {
+	struct intel_pmic_regmap *map;
+
+	dev_dbg(pmic->dev, "[%s]: irq_mask = %x", __func__,
+				pmic->irq_mask[(data->irq - pmic->irq_base)/32]);
 	if (pmic->irq_need_update) {
+		map = &pmic->irq_regmap[(data->irq - pmic->irq_base)].mask;
+
 		if (test_bit((data->irq - pmic->irq_base) % 32,
-			&(pmic->irq_mask[(data->irq
-			- pmic->irq_base) / 32])))
-			pmic_regmap_write(&pmic->irq_regmap[(data->irq
-				- pmic->irq_base)].mask, 1);
+			&(pmic->irq_mask[(data->irq - pmic->irq_base) / 32])))
+			pmic_regmap_write(map, map->mask);
 		else
-			pmic_regmap_write(&pmic->irq_regmap[(data->irq
-				- pmic->irq_base)].mask, 0);
+			pmic_regmap_write(map, 0);
+
 		pmic->irq_need_update = 0;
 		pmic_regmap_flush();
 	}
@@ -401,7 +413,8 @@ static irqreturn_t pmic_irq_thread(int irq, void *data)
 		if (test_bit(i % 32, &(pmic->irq_mask[i / 32])))
 			continue;
 		if (pmic_regmap_read(&pmic->irq_regmap[i].status)) {
-			pmic_regmap_write(&pmic->irq_regmap[i].ack, 1);
+			pmic_regmap_write(&pmic->irq_regmap[i].ack,
+				pmic->irq_regmap[i].ack.mask);
 			handle_nested_irq(pmic->irq_base + i);
 		}
 	}
@@ -423,19 +436,25 @@ static int pmic_irq_init(void)
 	int cur_irq;
 	int ret;
 	int i;
+	struct intel_pmic_regmap *map;
 
 	/* Mostly, it can help to increase cache hit if merge same register
 	   access in one loop */
 	for (i = 0; i < pmic->irq_num; i++) {
-		pmic_regmap_write(&pmic->irq_regmap[i].mask, 1);
-		set_bit(i % 32, &(pmic->irq_mask[i / 32]));
+		map = &pmic->irq_regmap[i].mask;
+		if (IS_PMIC_REG_VALID(map)) {
+			pmic_regmap_write(map, map->mask);
+			set_bit(i % 32, &(pmic->irq_mask[i / 32]));
+		}
 	}
 	for (i = 0; i < pmic->irq_num; i++) {
-		pmic_regmap_write(&pmic->irq_regmap[i].ack, 1);
+		map = &pmic->irq_regmap[i].ack;
+		if (IS_PMIC_REG_VALID(map))
+			pmic_regmap_write(map, map->mask);
 	}
 	pmic_regmap_flush();
 
-	pmic->irq_base = irq_alloc_descs(VV_PMIC_IRQBASE, 0, pmic->irq_num, 0);
+	pmic->irq_base = irq_alloc_descs(-1, VV_PMIC_IRQBASE, pmic->irq_num, 0);
 	if (pmic->irq_base < 0) {
 		dev_warn(pmic->dev, "Failed to allocate IRQs: %d\n",
 			 pmic->irq_base);
@@ -455,11 +474,25 @@ static int pmic_irq_init(void)
 		irq_set_nested_thread(cur_irq, 1);
 		irq_set_noprobe(cur_irq);
 	}
+
+	if (gpio_is_valid(pmic->pmic_int_gpio)) {
+		ret = gpio_request_one(pmic->pmic_int_gpio,
+					GPIOF_DIR_IN, "PMIC Interupt");
+		if (ret) {
+			dev_err(pmic->dev, "Request PMIC_INT gpio error\n");
+			return ret;
+		}
+
+		pmic->irq = gpio_to_irq(pmic->pmic_int_gpio);
+	}
+
 	ret = request_threaded_irq(pmic->irq, pmic_irq_isr, pmic_irq_thread,
 			pmic->irq_flags, "intel_mid_pmic", pmic);
 	if (ret != 0) {
 		dev_err(pmic->dev, "Failed to request IRQ %d: %d\n",
 				pmic->irq, ret);
+		if (gpio_is_valid(pmic->pmic_int_gpio))
+			gpio_free(pmic->pmic_int_gpio);
 		return ret;
 	}
 	ret = enable_irq_wake(pmic->irq);
@@ -538,50 +571,23 @@ struct file_operations addr_fops = {
     .write = pmic_addr_write,
 };
 
-static char special_reg[] = {0xBC, 0xE2, 0xE0, 0xBA, 0x56, 0x58, 0x5A, 0x78, 0x7A, 0x7C};
-
-static int reg_is_special(char reg)
-{
-	int i, sum;
-	sum = sizeof(special_reg);
-	for(i = 0; i < sum; i++)
-		if (reg == special_reg[i])
-			return true;
-	return false;
-}
 static int pmic_all_show(struct seq_file *seq, void *v)
 {
 	int i = 0, j = 0;
 	int ret = 0;
-	u8 buf[2];
 	for (i = 0; i < PMIC_NUM_REG; ++i) {
 		pmic_reg = i;
-		if (reg_is_special(pmic_reg)){
-			for (j = 0; j < NR_RETRY_CNT; j++) {
-				ret = intel_mid_pmic_read_multi(pmic_reg, 2, buf);
-				if (ret == -EAGAIN || ret == -ETIMEDOUT)
-					continue;
-				else
-					break;
-
-			}
-			if (ret < 0)
-				dev_dbg(pmic->dev, "pmic_reg multi read err:%d\n", ret);
-			seq_printf(seq, "0x%x=0x%x\n", pmic_reg, buf[0]);
-			seq_printf(seq, "0x%x=0x%x\n", pmic_reg + 1, buf[1]);
-			i++;
-		} else {
-			for (j = 0; j < NR_RETRY_CNT; j++) {
-				ret = intel_mid_pmic_readb(pmic_reg);
-				if (ret == -EAGAIN || ret == -ETIMEDOUT)
-					continue;
-				else
-					break;
-			}
-			if (ret < 0)
-				dev_dbg(pmic->dev, "pmic_reg read err:%d\n", ret);
-			seq_printf(seq, "0x%x=0x%x\n", pmic_reg, ret);
+		for (j = 0; j < NR_RETRY_CNT; j++) {
+			ret = intel_mid_pmic_readb(pmic_reg);
+			if (ret == -EAGAIN || ret == -ETIMEDOUT)
+				continue;
+			else
+				break;
 		}
+		if (ret < 0)
+			dev_dbg(pmic->dev, "pmic_reg read err:%d\n", ret);
+
+		seq_printf(seq, "0x%x=0x%x\n", pmic_reg, ret);
 	}
 
     return 0;
@@ -645,7 +651,8 @@ int intel_pmic_add(struct intel_mid_pmic *chip)
 	pmic_irq_init();
 	for (i = 0; pmic->cell_dev[i].name != NULL; i++) {
 		list_for_each_entry(pdata, &pdata_list, list) {
-			if (!strcmp(pdata->name, pmic->cell_dev[i].name)) {
+			if (!strcmp(pdata->name, pmic->cell_dev[i].name) &&
+					(pdata->id == pmic->cell_dev[i].id)) {
 				pmic->cell_dev[i].platform_data = pdata->data;
 				pmic->cell_dev[i].pdata_size = pdata->len;
 			}

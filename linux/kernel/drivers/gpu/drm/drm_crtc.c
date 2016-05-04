@@ -38,7 +38,6 @@
 #include <drm/drm_edid.h>
 #include <drm/drm_fourcc.h>
 
-
 /**
  * drm_modeset_lock_all - take all modeset locks
  * @dev: drm device

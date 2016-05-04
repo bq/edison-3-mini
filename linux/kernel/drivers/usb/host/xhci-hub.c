@@ -24,6 +24,7 @@
 #include <asm/unaligned.h>
 
 #include "xhci.h"
+#include "pci-quirks.h"
 
 #define	PORT_WAKE_BITS	(PORT_WKOC_E | PORT_WKDISC_E | PORT_WKCONN_E)
 #define	PORT_RWC_BITS	(PORT_CSC | PORT_PEC | PORT_WRC | PORT_OCC | \
@@ -245,7 +246,7 @@ int xhci_find_slot_id_by_port(struct usb_hcd *hcd, struct xhci_hcd *xhci,
 
 	slot_id = 0;
 	for (i = 0; i < MAX_HC_SLOTS; i++) {
-		if (!xhci->devs[i])
+		if (!xhci->devs[i] || !xhci->devs[i]->udev)
 			continue;
 		speed = xhci->devs[i]->udev->speed;
 		if (((speed == USB_SPEED_SUPER) == (hcd->speed == HCD_USB3))
@@ -874,11 +875,33 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 			spin_lock_irqsave(&xhci->lock, flags);
 			break;
 		case USB_PORT_FEAT_RESET:
-			temp = (temp | PORT_RESET);
-			xhci_writel(xhci, temp, port_array[wIndex]);
+			/*
+			 * WR solution to individual USB3.0 UMS address fail due
+			 * to link state unstable after Hot reset.
+			 */
+			if ((xhci->quirks & XHCI_FORCE_WR) && (DEV_SUPERSPEED(temp)))
+				temp = (temp | PORT_WR);
+			else
+				temp = (temp | PORT_RESET);
 
+			if (xhci->quirks & XHCI_PORT_RESET)
+				quirk_intel_xhci_port_reset(hcd->self.controller, false);
+
+			xhci_writel(xhci, temp, port_array[wIndex]);
 			temp = xhci_readl(xhci, port_array[wIndex]);
 			xhci_dbg(xhci, "set port reset, actual port %d status  = 0x%x\n", wIndex, temp);
+			if (xhci->quirks & XHCI_PORT_RESET) {
+				int delay_time;
+				spin_unlock_irqrestore(&xhci->lock, flags);
+				for (delay_time = 0; delay_time < 800; delay_time += 10) {
+					if (!(temp & PORT_RESET))
+						break;
+					mdelay(2);
+					temp = xhci_readl(xhci, port_array[wIndex]);
+				}
+				spin_lock_irqsave(&xhci->lock, flags);
+				quirk_intel_xhci_port_reset(hcd->self.controller, true);
+			}
 			break;
 		case USB_PORT_FEAT_REMOTE_WAKE_MASK:
 			xhci_set_remote_wake_mask(xhci, port_array,

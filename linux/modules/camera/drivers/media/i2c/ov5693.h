@@ -31,6 +31,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-chip-ident.h>
 #include <linux/v4l2-mediabus.h>
+#include <media/v4l2-ctrls.h>
 #include <media/media-entity.h>
 
 #include <linux/atomisp_platform.h>
@@ -87,7 +88,7 @@
 #define OV5693_FINE_INTG_TIME_MIN 0
 #define OV5693_FINE_INTG_TIME_MAX_MARGIN 0
 #define OV5693_COARSE_INTG_TIME_MIN 1
-#define OV5693_COARSE_INTG_TIME_MAX_MARGIN (0xffff - 6)
+#define OV5693_COARSE_INTG_TIME_MAX_MARGIN (6)
 
 /*
  * OV5693 System control registers
@@ -241,6 +242,7 @@ struct ov5693_device {
 	u8 type;
 	u8 *otp_data;
 	int otp_size;
+	struct v4l2_ctrl_handler ctrl_handler;
 };
 
 enum ov5693_tok_type {
@@ -903,6 +905,22 @@ static struct ov5693_resolution ov5693_res_preview[] = {
 
 static struct ov5693_resolution ov5693_res_still[] = {
 	{
+	 .desc = "ov5693_1296x976_30fps",
+	 .width = 1296,
+	 .height = 976,
+	 .fps = 30,
+	 .pix_clk_freq = 160,
+	 .used = 0,
+	 .pixels_per_line = 2688,
+	 .lines_per_frame = 1984,
+	 .bin_factor_x = 1,
+	 .bin_factor_y = 1,
+	 .bin_mode = 1,
+	 .skip_frames = 1,
+	 .regs = ov5693_1296x976,
+	},
+#if 0
+	{
 	 .desc = "ov5693_1080P_30fps",
 	 .width = 1940,
 	 .height = 1096,
@@ -917,6 +935,7 @@ static struct ov5693_resolution ov5693_res_still[] = {
 	 .skip_frames = 1,
 	 .regs = ov5693_1940x1096,
 	 },
+#endif
 	{
 	 .desc = "ov5693_5M_30fps",
 	 .width = 2592,

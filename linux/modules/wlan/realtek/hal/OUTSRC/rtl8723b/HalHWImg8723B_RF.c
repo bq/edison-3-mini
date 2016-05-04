@@ -18,8 +18,8 @@
 * 
 ******************************************************************************/
 
-
-#include "../odm_precomp.h"
+#include "Mp_Precomp.h"
+#include "../phydm_precomp.h"
 
 #if (RTL8723B_SUPPORT == 1)
 static BOOLEAN
@@ -136,30 +136,36 @@ u4Byte Array_MP_8723B_RadioA[] = {
 		0x0DF, 0x00000780,
 		0x050, 0x00067435,
 	0x80002000,0x00000000,0x40000000,0x00000000,
-		0x051, 0x0006B10E,
+		0x051, 0x0006F10E,
+		0x052, 0x000007D3,
 	0x90003000,0x00000000,0x40000000,0x00000000,
-		0x051, 0x0006B10E,
+		0x051, 0x0006F10E,
+		0x052, 0x000007D3,
 	0x90004000,0x00000000,0x40000000,0x00000000,
-		0x051, 0x0006B10E,
+		0x051, 0x0006F10E,
+		0x052, 0x000007D3,
 	0xA0000000,0x00000000,
 		0x051, 0x0006B04E,
-	0xB0000000,0x00000000,
 		0x052, 0x000007D2,
+	0xB0000000,0x00000000,
 		0x053, 0x00000000,
 		0x054, 0x00050400,
 		0x055, 0x0004026E,
 		0x0DD, 0x0000004C,
 		0x070, 0x00067435,
 	0x80002000,0x00000000,0x40000000,0x00000000,
-		0x071, 0x0006B10E,
+		0x071, 0x0006F10E,
+		0x072, 0x000007D3,
 	0x90003000,0x00000000,0x40000000,0x00000000,
-		0x071, 0x0006B10E,
+		0x071, 0x0006F10E,
+		0x072, 0x000007D3,
 	0x90004000,0x00000000,0x40000000,0x00000000,
-		0x071, 0x0006B10E,
+		0x071, 0x0006F10E,
+		0x072, 0x000007D3,
 	0xA0000000,0x00000000,
 		0x071, 0x0006B04E,
-	0xB0000000,0x00000000,
 		0x072, 0x000007D2,
+	0xB0000000,0x00000000,
 		0x073, 0x00000000,
 		0x074, 0x00050400,
 		0x075, 0x0004026E,
@@ -245,72 +251,69 @@ ODM_ReadAndConfig_MP_8723B_RadioA(
  	)
 {
     u4Byte     i         = 0;
+    u1Byte     cCond;
+    BOOLEAN bMatched = TRUE, bSkipped = FALSE;
+//ask by Luke.Lee
     u4Byte     ArrayLen    = sizeof(Array_MP_8723B_RadioA)/sizeof(u4Byte);
     pu4Byte    Array       = Array_MP_8723B_RadioA;
 	
     ODM_RT_TRACE(pDM_Odm, ODM_COMP_INIT, ODM_DBG_LOUD, ("===> ODM_ReadAndConfig_MP_8723B_RadioA\n"));
 
-    for (i = 0; i < ArrayLen; i += 2 )
-    {
-        u4Byte v1 = Array[i];
-        u4Byte v2 = Array[i+1];
-    
-        // This (offset, data) pair doesn't care the condition.
-        if ( v1 < 0x40000000 )
-        {
-           odm_ConfigRF_RadioA_8723B(pDM_Odm, v1, v2);
-           continue;
-        }
-        else
-        {   // This line is the beginning of branch.
-            BOOLEAN bMatched = TRUE;
-            u1Byte  cCond  = (u1Byte)((v1 & (BIT29|BIT28)) >> 28);
+	while(( i+1) < ArrayLen)
+	{
+		u4Byte v1 = Array[i];
+		u4Byte v2 = Array[i+1];
 
-            if (cCond == COND_ELSE) { // ELSE, ENDIF
-                bMatched = TRUE;
-                READ_NEXT_PAIR(v1, v2, i);
-            } else if ( ! CheckPositive(pDM_Odm, v1, v2) ) { 
-                bMatched = FALSE;
-                READ_NEXT_PAIR(v1, v2, i);
-                READ_NEXT_PAIR(v1, v2, i);
-            } else {
-                READ_NEXT_PAIR(v1, v2, i);
-                if ( ! CheckNegative(pDM_Odm, v1, v2) )
-                    bMatched = FALSE;
-                else
-                    bMatched = TRUE;
-                READ_NEXT_PAIR(v1, v2, i);
-            }
-
-            if ( bMatched == FALSE )
-            {   // Condition isn't matched. Discard the following (offset, data) pairs.
-                while (v1 < 0x40000000 && i < ArrayLen -2)
-                    READ_NEXT_PAIR(v1, v2, i);
-
-                i -= 2; // prevent from for-loop += 2
-            }
-            else // Configure matched pairs and skip to end of if-else.
-            {
-                while (v1 < 0x40000000 && i < ArrayLen-2) {
-                    odm_ConfigRF_RadioA_8723B(pDM_Odm, v1, v2);
-                    READ_NEXT_PAIR(v1, v2, i);
-                }
-
-                // Keeps reading until ENDIF.
-                cCond = (u1Byte)((v1 & (BIT29|BIT28)) >> 28);
-                while (cCond != COND_ENDIF && i < ArrayLen-2) {
-                    READ_NEXT_PAIR(v1, v2, i);
-                    cCond = (u1Byte)((v1 & (BIT29|BIT28)) >> 28);
-                }
-            }
-        } 
-    }
+		if(v1 & (BIT31|BIT30)) //positive & negative condition
+		{
+			if(v1 & BIT31) // positive condition
+			{
+				cCond  = (u1Byte)((v1 & (BIT29|BIT28)) >> 28);
+				if(cCond == COND_ENDIF) //end
+				{
+					bMatched = TRUE;
+					bSkipped = FALSE;
+				}
+				else if(cCond == COND_ELSE) //else
+				{
+					bMatched = bSkipped?FALSE:TRUE;
+				}
+				else //if , else if
+				{
+					if(bSkipped)
+						bMatched = FALSE;
+					else
+					{
+						if(CheckPositive(pDM_Odm, v1, v2))
+						{
+							bMatched = TRUE;
+							bSkipped = TRUE;
+						}
+						else
+						{
+							bMatched = FALSE;
+							bSkipped = FALSE;
+						}
+					}
+				}
+			}
+			else if(v1 & BIT30){ //negative condition
+			//do nothing
+			}
+		}
+		else
+		{
+			if(bMatched)
+			odm_ConfigRF_RadioA_8723B(pDM_Odm, v1, v2);
+		}
+	i = i + 2;
+	}
 }
 
 u4Byte
 ODM_GetVersion_MP_8723B_RadioA(void)
 {
-	   return 11;
+	   return 13;
 }
 
 /******************************************************************************

@@ -1,5 +1,4 @@
 ifneq (,$(filter rtl,$(COMBO_CHIP_VENDOR)))
-
 LOCAL_PATH := $(call my-dir)
 ifeq ($(strip $(BOARD_HAVE_WIFI)),true)
 
@@ -15,8 +14,7 @@ endif
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_REQUIRED_MODULES :=  \
-    lib_driver_cmd_rtl  \
-	wlan_prov.rtl
+    lib_driver_cmd_rtl
 
 # WARNING: To be kept as the last required module.
 LOCAL_REQUIRED_MODULES +=  \

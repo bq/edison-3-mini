@@ -34,9 +34,8 @@ int rt5651_ioctl_common(struct snd_hwdep *hw, struct file *file,
 	buf = kmalloc(sizeof(*buf) * rt56xx.number, GFP_KERNEL);
 	if (buf == NULL)
 		return -ENOMEM;
-	if (copy_from_user(buf, rt56xx.buf, sizeof(*buf) * rt56xx.number)) {
+	if (copy_from_user(buf, rt56xx.buf, sizeof(*buf) * rt56xx.number))
 		goto err;
-	}
 
 	switch (cmd) {
 

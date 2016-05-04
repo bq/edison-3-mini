@@ -1,6 +1,6 @@
 /*
  * Regulator driver for DollarCove TB PMIC
- *	(Based on TI Design)
+ *	(Based on Te. Ins. Design)
  * Copyright(c) 2014 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
@@ -35,7 +35,6 @@
 
 #define DCOVET_VOLT_CTRL_EDGEMASK	0x3E	/* 111110 */
 
-/* All LDOs from 6 to 14 have same voltage ranges */
 static const unsigned int LDO6_14_table[] = {
 	900000, 950000, 1000000, 1050000, 1100000, 1150000, 1200000, 1250000, 1300000, 1350000,
 	1400000, 1450000, 1500000, 1550000, 1600000, 1650000, 1700000, 1750000, 1800000, 1850000,
@@ -106,7 +105,6 @@ static int dcovet_regulator_get_voltage_sel(struct regulator_dev *rdev)
 	mask = ((1 << info->volt_nbits) - 1) << info->volt_shift;
 	reg_val = (reg_val & mask) >> info->volt_shift;
 
-	/* Increasing values in reg. corresp to decreasing voltages...so we subtract */
 	return DCOVET_VOLT_CTRL_EDGEMASK - reg_val;
 }
 
@@ -124,7 +122,6 @@ static int dcovet_regulator_set_voltage_sel(struct regulator_dev *rdev,
 
 	mask = ((1 << info->volt_nbits) - 1) << info->volt_shift;
 	reg_val &= ~mask;
-	/* Increasing values in reg. corresp to decreasing voltages...so we subtract */
 	reg_val |= ((DCOVET_VOLT_CTRL_EDGEMASK - selector) << info->volt_shift);
 
 	return intel_mid_pmic_writeb(info->ctrl_reg, reg_val);

@@ -19,13 +19,7 @@
  ******************************************************************************/
 #ifndef __DRV_CONF_H__
 #define __DRV_CONF_H__
-#ifdef CONFIG_RTL8188E
-#include "../autoconf_rtl8189e_sdio_linux.h"
-#endif
-#ifdef CONFIG_RTL8723B
-#include "../autoconf_rtl8723b_sdio_linux.h"
-#endif
-//#include "autoconf.h"
+#include "autoconf.h"
 
 #if defined (PLATFORM_LINUX) && defined (PLATFORM_WINDOWS)
 

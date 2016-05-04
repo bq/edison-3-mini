@@ -190,8 +190,7 @@ static void dump_batt_chrg_profile(struct ps_pse_mod_prof *bcprof,
 
 static void platform_get_sfi_batt_table(void *table, bool fpo_override_bit)
 {
-	struct sfi_table_simple *sb =
-			 (struct sfi_table_simple *)get_oem0_table();
+	struct sfi_table_simple *sb = NULL;
 	struct platform_batt_profile *batt_prof;
 	u8 *bprof_ptr;
 
@@ -199,6 +198,9 @@ static void platform_get_sfi_batt_table(void *table, bool fpo_override_bit)
 
 	pr_debug("%s\n", __func__);
 
+#ifdef CONFIG_SFI
+	sb = (struct sfi_table_simple *)get_oem0_table();
+#endif
 	if (sb == NULL) {
 		pr_debug("Invalid Battery detected\n");
 		return;

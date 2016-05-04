@@ -20,6 +20,7 @@
  */
 
 #include "ia_css_queue.h"
+#include <math_support.h>
 #include <ia_css_circbuf.h>
 #include <ia_css_circbuf_desc.h>
 #include "queue_access.h"
@@ -34,7 +35,7 @@ int ia_css_queue_local_init(
 	if (NULL == qhandle || NULL == desc
 		|| NULL == desc->cb_elems || NULL == desc->cb_desc) {
 		/* Invalid parameters, return error*/
-		return EINVAL ;
+		return EINVAL;
 	}
 
 	/* Mark the queue as Local */
@@ -117,7 +118,7 @@ int ia_css_queue_enqueue(
 		/* a. Load the queue cb_desc from remote */
 		QUEUE_CB_DESC_INIT(&cb_desc);
 		error = ia_css_queue_load(qhandle, &cb_desc, ignore_desc_flags);
-		if(error !=0)
+		if (error != 0)
 			return error;
 
 		/* b. Operate on the queue */
@@ -127,7 +128,7 @@ int ia_css_queue_enqueue(
 		cb_elem.val = item;
 
 		error = ia_css_queue_item_store(qhandle, cb_desc.end, &cb_elem);
-		if(error != 0)
+		if (error != 0)
 			return error;
 
 		cb_desc.end = (cb_desc.end + 1) % cb_desc.size;
@@ -140,7 +141,7 @@ int ia_css_queue_enqueue(
 		ignore_desc_flags = QUEUE_IGNORE_SIZE_START_STEP_FLAGS;
 
 		error = ia_css_queue_store(qhandle, &cb_desc, ignore_desc_flags);
-		if(error != 0)
+		if (error != 0)
 			return error;
 	}
 
@@ -175,7 +176,7 @@ int ia_css_queue_dequeue(
 		QUEUE_CB_DESC_INIT(&cb_desc);
 
 		error = ia_css_queue_load(qhandle, &cb_desc, ignore_desc_flags);
-		if(error != 0)
+		if (error != 0)
 			return error;
 
 		/* b. Operate on the queue */
@@ -183,7 +184,7 @@ int ia_css_queue_dequeue(
 			return ENODATA;
 
 		error = ia_css_queue_item_load(qhandle, cb_desc.start, &cb_elem);
-		if(error != 0)
+		if (error != 0)
 			return error;
 
 		*item = cb_elem.val;
@@ -197,7 +198,7 @@ int ia_css_queue_dequeue(
 		 */
 		ignore_desc_flags = QUEUE_IGNORE_SIZE_END_STEP_FLAGS;
 		error = ia_css_queue_store(qhandle, &cb_desc, ignore_desc_flags);
-		if(error != 0)
+		if (error != 0)
 			return error;
 	}
 	return 0;
@@ -224,7 +225,7 @@ int ia_css_queue_is_full(
 		uint32_t ignore_desc_flags = QUEUE_IGNORE_STEP_FLAG;
 		QUEUE_CB_DESC_INIT(&cb_desc);
 		error = ia_css_queue_load(qhandle, &cb_desc, ignore_desc_flags);
-		if(error != 0)
+		if (error != 0)
 			return error;
 
 		/* b. Operate on the queue */
@@ -256,7 +257,7 @@ int ia_css_queue_get_free_space(
 		uint32_t ignore_desc_flags = QUEUE_IGNORE_STEP_FLAG;
 		QUEUE_CB_DESC_INIT(&cb_desc);
 		error = ia_css_queue_load(qhandle, &cb_desc, ignore_desc_flags);
-		if(error != 0)
+		if (error != 0)
 			return error;
 
 		/* b. Operate on the queue */
@@ -288,7 +289,7 @@ int ia_css_queue_get_used_space(
 		uint32_t ignore_desc_flags = QUEUE_IGNORE_STEP_FLAG;
 		QUEUE_CB_DESC_INIT(&cb_desc);
 		error = ia_css_queue_load(qhandle, &cb_desc, ignore_desc_flags);
-		if(error != 0)
+		if (error != 0)
 			return error;
 
 		/* b. Operate on the queue */
@@ -320,7 +321,7 @@ int ia_css_queue_peek(
 		if (offset > num_elems)
 			return EINVAL;
 
-		*element = ia_css_circbuf_peek(&qhandle->desc.cb_local, offset);
+		*element = ia_css_circbuf_peek_from_start(&qhandle->desc.cb_local, (int) offset);
 		return 0;
 	} else if (qhandle->type == IA_CSS_QUEUE_TYPE_REMOTE) {
 		/* a. Load the queue from remote */
@@ -331,7 +332,7 @@ int ia_css_queue_peek(
 		QUEUE_CB_DESC_INIT(&cb_desc);
 
 		error =  ia_css_queue_load(qhandle, &cb_desc, ignore_desc_flags);
-		if(error != 0)
+		if (error != 0)
 			return error;
 
 		/* Check if offset is valid */
@@ -339,8 +340,9 @@ int ia_css_queue_peek(
 		if (offset > num_elems)
 			return EINVAL;
 
-		error = ia_css_queue_item_load(qhandle, offset, &cb_elem);
-		if(error != 0)
+		offset = OP_std_modadd(cb_desc.start, offset, cb_desc.size);
+		error = ia_css_queue_item_load(qhandle, (uint8_t)offset, &cb_elem);
+		if (error != 0)
 			return error;
 
 		*element = cb_elem.val;
@@ -372,7 +374,7 @@ int ia_css_queue_is_empty(
 
 		QUEUE_CB_DESC_INIT(&cb_desc);
 		error = ia_css_queue_load(qhandle, &cb_desc, ignore_desc_flags);
-		if(error != 0)
+		if (error != 0)
 			return error;
 
 		/* b. Operate on the queue */
@@ -406,7 +408,7 @@ int ia_css_queue_get_size(
 		QUEUE_CB_DESC_INIT(&cb_desc);
 
 		error = ia_css_queue_load(qhandle, &cb_desc, ignore_desc_flags);
-		if(error != 0)
+		if (error != 0)
 			return error;
 
 		/* Return maximum usable capacity */

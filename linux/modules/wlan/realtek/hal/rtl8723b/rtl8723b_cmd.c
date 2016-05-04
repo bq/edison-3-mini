@@ -546,11 +546,15 @@ static void ConstructPnoInfo(
 
 	u8	*pPnoInfoPkt = pframe;
 	pPnoInfoPkt =  (u8*)(pframe+ *pLength);
-	_rtw_memcpy(pPnoInfoPkt, &pwrctl->pnlo_info->ssid_num, 4);
+	_rtw_memcpy(pPnoInfoPkt, &pwrctl->pnlo_info->ssid_num, 1);
 
-	*pLength+=4;
-	pPnoInfoPkt += 4;
-	_rtw_memcpy(pPnoInfoPkt, &pwrctl->pnlo_info->fast_scan_period, 4);
+	*pLength+=1;
+	pPnoInfoPkt += 1;
+	_rtw_memcpy(pPnoInfoPkt, &pwrctl->pnlo_info->hidden_ssid_num, 1);
+
+	*pLength+=3;
+	pPnoInfoPkt += 3;
+	_rtw_memcpy(pPnoInfoPkt, &pwrctl->pnlo_info->fast_scan_period, 1);
 
 	*pLength+=4;
 	pPnoInfoPkt += 4;
@@ -577,6 +581,11 @@ static void ConstructPnoInfo(
 
 	*pLength+=MAX_PNO_LIST_COUNT;
 	pPnoInfoPkt += MAX_PNO_LIST_COUNT;
+	_rtw_memcpy(pPnoInfoPkt, &pwrctl->pnlo_info->loc_probe_req,
+			MAX_HIDDEN_AP);
+
+	*pLength+=MAX_HIDDEN_AP;
+	pPnoInfoPkt += MAX_HIDDEN_AP;
 }
 
 static void ConstructSSIDList(
@@ -776,7 +785,8 @@ static void ConstructGTKResponse(
 #endif //CONFIG_GTK_OL
 
 #ifdef CONFIG_PNO_SUPPORT
-static void ConstructProbeReq(_adapter *padapter, u8 *pframe, u32 *pLength)
+static void ConstructProbeReq(_adapter *padapter, u8 *pframe, u32 *pLength,
+		pno_ssid_t *ssid)
 {
 	struct rtw_ieee80211_hdr	*pwlanhdr;
 	u16				*fctrl;
@@ -808,7 +818,12 @@ static void ConstructProbeReq(_adapter *padapter, u8 *pframe, u32 *pLength)
 	pktlen = sizeof(struct rtw_ieee80211_hdr_3addr);
 	pframe += pktlen;
 
-	pframe = rtw_set_ie(pframe, _SSID_IE_, 0, NULL, &pktlen);
+	if (ssid == NULL) {
+		pframe = rtw_set_ie(pframe, _SSID_IE_, 0, NULL, &pktlen);
+	} else {
+		DBG_871X("%s len:%d\n", ssid->SSID, ssid->SSID_len);
+		pframe = rtw_set_ie(pframe, _SSID_IE_, ssid->SSID_len, ssid->SSID, &pktlen);
+	}
 
 	get_rate_set(padapter, bssrate, &bssrate_len);
 
@@ -1513,10 +1528,10 @@ static void rtl8723b_set_FwRemoteWakeCtrl_Cmd(PADAPTER padapter, u8 benable)
 #endif //CONFIG_GTK_OL
 
 	SET_H2CCMD_REMOTE_WAKE_CTRL_FW_UNICAST_EN(u1H2CRemoteWakeCtrlParm, 1);
-    //2014.09.19 Adam
+	//2014.09.19 Adam
 	//filter NetBios name service pkt to avoid being waked-up by this kind of unicast pkt
-    //this exceptional modification is used for match competitor's behavior
-    SET_H2CCMD_REMOTE_WAKE_CTRL_NBNS_FILTER_EN(u1H2CRemoteWakeCtrlParm, 1);
+	//this exceptional modification is used for match competitor's behavior
+	SET_H2CCMD_REMOTE_WAKE_CTRL_NBNS_FILTER_EN(u1H2CRemoteWakeCtrlParm, 1);
 
 		if ((psecuritypriv->dot11PrivacyAlgrthm == _AES_) ||
 				(psecuritypriv->dot11PrivacyAlgrthm == _NO_PRIVACY_))
@@ -1881,6 +1896,10 @@ static void rtl8723b_set_FwRsvdPagePkt(PADAPTER padapter, BOOLEAN bDLFinished)
 	u8 kek[RTW_KEK_LEN];
 	u8 kck[RTW_KCK_LEN];
 #endif
+#ifdef	CONFIG_PNO_SUPPORT 
+	int index;
+	u8 ssid_num;
+#endif //CONFIG_PNO_SUPPORT
 #endif
 #ifdef DBG_CONFIG_ERROR_DETECT
 	struct sreset_priv *psrtpriv;
@@ -2154,16 +2173,23 @@ static void rtl8723b_set_FwRsvdPagePkt(PADAPTER padapter, BOOLEAN bDLFinished)
 	{
 #ifdef CONFIG_PNO_SUPPORT
 		if (pwrctl->pno_in_resume == _FALSE && pwrctl->pno_inited == _TRUE) {
-			//Probe Request
+
+			//Broadcast Probe Request
 			RsvdPageLoc.LocProbePacket = TotalPageNum;
+
+			DBG_871X("loc_probe_req: %d\n",
+					RsvdPageLoc.LocProbePacket);
+
 			ConstructProbeReq(
 				padapter,
 				&ReservedPagePacket[BufIndex],
-				&ProbeReqLength);
+				&ProbeReqLength,
+				NULL);
 
 			rtl8723b_fill_fake_txdesc(padapter,
 				&ReservedPagePacket[BufIndex-TxDescLen],
 				ProbeReqLength, _FALSE, _FALSE, _FALSE);
+
 #ifdef CONFIG_PNO_SET_DEBUG
 	{
 			int gj;
@@ -2182,6 +2208,45 @@ static void rtl8723b_set_FwRsvdPagePkt(PADAPTER padapter, BOOLEAN bDLFinished)
 			TotalPageNum += CurtPktPageNum;
 
 			BufIndex += (CurtPktPageNum*PageSize);
+
+			//Hidden SSID Probe Request
+			ssid_num = pwrctl->pnlo_info->hidden_ssid_num;
+
+			for (index = 0 ; index < ssid_num ; index++) {
+				DBG_871X("%d\n", pwrctl->pno_ssid_list->node[index].SSID_len);
+				pwrctl->pnlo_info->loc_probe_req[index] = TotalPageNum;
+				DBG_871X("loc_probe_req: %d\n",
+					pwrctl->pnlo_info->loc_probe_req[index]);
+
+				ConstructProbeReq(
+					padapter,
+					&ReservedPagePacket[BufIndex],
+					&ProbeReqLength,
+					&pwrctl->pno_ssid_list->node[index]);
+
+				rtl8723b_fill_fake_txdesc(padapter,
+					&ReservedPagePacket[BufIndex-TxDescLen],
+					ProbeReqLength, _FALSE, _FALSE, _FALSE);
+
+#ifdef CONFIG_PNO_SET_DEBUG
+				{
+					int gj;
+					printk("probe req pkt=> \n");
+					for(gj=0; gj < ProbeReqLength + TxDescLen; gj++) {
+						printk(" %02x ", ReservedPagePacket[BufIndex- TxDescLen + gj]);
+						if ((gj + 1)%8==0)
+							printk("\n");
+					}
+					printk(" <=end\n");
+				}
+#endif
+				CurtPktPageNum =
+					(u8)PageNum_128(TxDescLen + ProbeReqLength);
+
+				TotalPageNum += CurtPktPageNum;
+
+				BufIndex += (CurtPktPageNum*PageSize);
+			}
 
 			//PNO INFO Page
 			RsvdPageLoc.LocPNOInfo = TotalPageNum;

@@ -1373,8 +1373,8 @@ int rtw_get_mac_addr_intel(unsigned char *buf)
 		buf[jj] = key_2char2num(c_mac[kk], c_mac[kk+ 1]);
 	}
 
-	DBG_871X("%s: read from file mac address: %x:%x:%x:%x:%x:%x\n",
-			 __FUNCTION__, buf[0], buf[1], buf[2], buf[3], buf[4], buf[5]);
+	DBG_871X("%s: read from file mac address: "MAC_FMT"\n",
+		 __FUNCTION__, MAC_ARG(buf));
 
 	return 0;
 }
@@ -1395,13 +1395,13 @@ void rtw_macaddr_cfg(u8 *mac_addr)
 		}
 		_rtw_memcpy(mac_addr, mac, ETH_ALEN);
 	}
-//modify by ysx @20141106(6000072642)
-#if 0
+	//don't get from mac.txt xmysx@20151203
+	#if 0
 	else if (0 == rtw_get_mac_addr_intel(mac))
 	{
 		_rtw_memcpy(mac_addr, mac, ETH_ALEN);
 	}
-#endif
+	#endif
 	else
 	{	//	Use the mac address stored in the Efuse
 		_rtw_memcpy(mac, mac_addr, ETH_ALEN);

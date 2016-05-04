@@ -4,7 +4,10 @@
 menu "IIO staging drivers"
 	depends on IIO
 
-source "drivers/staging/iio/accel/Kconfig"
+# 
+# Remove "drivers/staging/iio/accel/Kconfig" for avoid compile fail, in the "Kconfig" file need to set a default value, but infact it without a default value!
+#
+# source "drivers/staging/iio/accel/Kconfig"
 source "drivers/staging/iio/adc/Kconfig"
 source "drivers/staging/iio/addac/Kconfig"
 source "drivers/staging/iio/cdc/Kconfig"

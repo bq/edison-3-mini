@@ -18,8 +18,8 @@
 #include <media/v4l2-subdev.h>
 #include <linux/mfd/intel_mid_pmic.h>
 
-#ifdef CONFIG_VLV2_PLAT_CLK
-#include <linux/vlv2_plat_clock.h>
+#ifdef CONFIG_INTEL_SOC_PMC
+#include <asm/intel_soc_pmc.h>
 #endif
 
 #include "platform_camera.h"
@@ -30,7 +30,7 @@
 #define CAMERA_1_PWDN 124
 #define CAM28_EN 119
 
-#ifdef CONFIG_VLV2_PLAT_CLK
+#ifdef CONFIG_INTEL_SOC_PMC
 #define OSC_CAM1_CLK 0x1
 #define CLK_19P2MHz 0x1
 #endif
@@ -117,14 +117,14 @@ static int bf3a20_gpio_ctrl(struct v4l2_subdev *sd, int flag)
 static int bf3a20_flisclk_ctrl(struct v4l2_subdev *sd, int flag)
 {
 	static const unsigned int clock_khz = 19200;
-#ifdef CONFIG_VLV2_PLAT_CLK
+#ifdef CONFIG_INTEL_SOC_PMC
 	int ret = 0;
 	if (flag) {
-		ret = vlv2_plat_set_clock_freq(OSC_CAM1_CLK, CLK_19P2MHz);
+		ret = pmc_pc_set_freq(OSC_CAM1_CLK, CLK_19P2MHz);
 		if (ret)
 			return ret;
 	}
-	return vlv2_plat_configure_clock(OSC_CAM1_CLK, flag);
+	return pmc_pc_configure(OSC_CAM1_CLK, flag);
 #endif
 	
 	return 0;

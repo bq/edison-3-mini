@@ -42,9 +42,9 @@ config MMC_PARANOID_SD_INIT
 	  work-around for buggy controllers and hardware. Enable
 	  if you are experiencing issues with SD detection.
 
+
 config MMC_MRVL_CWS
 	bool "Enable sw rescan for detect marvell CWS module"
 	help
 	  If you say Y here, the sw rescan interface is avaliable.
-
 

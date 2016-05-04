@@ -55,7 +55,6 @@ struct rt5645_init_reg {
 };
 
 static struct rt5645_init_reg init_list[] = {
-	{ RT5645_DIG_MISC	, 0x0121 },
 	{ RT5645_ADDA_CLK1	, 0x0000 },
 	{ RT5645_PRIV_INDEX	, 0x003d },
 	{ RT5645_PRIV_DATA	, 0x3600 },
@@ -64,6 +63,7 @@ static struct rt5645_init_reg init_list[] = {
 #endif
 	{RT5645_GEN_CTRL2	, 0x0068 },
 	/* playback */
+	{ RT5645_CHARGE_PUMP	, 0x0e06 },
 	{ RT5645_DAC_CTRL	, 0x0011 },
 	{ RT5645_STO_DAC_MIXER	, 0x1616 },/* Dig inf 1 -> Sto DAC mixer -> DACL */
 	{ RT5645_MONO_DAC_MIXER	, 0x4444 },
@@ -76,7 +76,7 @@ static struct rt5645_init_reg init_list[] = {
 #else /* HP via mixer path */
 	{ RT5645_HPOMIXL_CTRL	, 0x001e },/* DAC1 -> HPOVOL */
 	{ RT5645_HPOMIXR_CTRL	, 0x001e },/* DAC1 -> HPOVOL */
-	{ RT5645_HPO_MIXER	, 0x1000 },/* HPOVOL -> HPOLMIX */
+	{ RT5645_HPO_MIXER	, 0x4000 },/* HPOVOL -> HPOLMIX */
 #endif
 	{ RT5645_HP_VOL		, 0x8888 },/* OUTMIX -> HPVOL */
 #if 0 /* SPK direct path */
@@ -259,7 +259,7 @@ static const u16 rt5645_reg[RT5645_VENDOR_ID2 + 1] = {
 	[RT5645_DRC2_CTRL2] = 0x020c,
 	[RT5645_DRC2_CTRL3] = 0x1f00,
 	[RT5645_DRC2_CTRL5] = 0x4000,
-	[RT5645_DIG_MISC] = 0x0120,
+	[RT5645_DIG_MISC] = 0x2060,
 };
 
 static int rt5645_reset(struct snd_soc_codec *codec)
@@ -749,7 +749,7 @@ static unsigned int bst_tlv[] = {
 };
 
 /* IN1/IN2 Input Type */
-static const char *rt5645_input_mode[] = {
+static const char * const  const rt5645_input_mode[] = {
 	"Single ended", "Differential"
 };
 
@@ -762,7 +762,7 @@ static const SOC_ENUM_SINGLE_DECL(
 	RT5645_IN_SFT2, rt5645_input_mode);
 
 /* Interface data select */
-static const char *rt5645_data_select[] = {
+static const char * const  const rt5645_data_select[] = {
 	"Normal", "Swap", "left copy to right", "right copy to left"
 };
 
@@ -1124,7 +1124,7 @@ static const struct snd_kcontrol_new rt5645_lout_mix[] = {
 };
 
 /*DAC1 L/R source*/ /* MX-29 [9:8] [11:10] */
-static const char *rt5645_dac1_src[] = {
+static const char * const  const rt5645_dac1_src[] = {
 	"IF1 DAC", "IF2 DAC", "IF3 DAC"
 };
 
@@ -1143,7 +1143,7 @@ static const struct snd_kcontrol_new rt5645_dac1r_mux =
 	SOC_DAPM_ENUM("DAC1 R source", rt5645_dac1r_enum);
 
 /*DAC2 L/R source*/ /* MX-1B [6:4] [2:0] */
-static const char *rt5645_dac12_src[] = {
+static const char * const  const rt5645_dac12_src[] = {
 	"IF1 DAC", "IF2 DAC", "IF3 DAC", "Mono ADC", "VAD_ADC"
 };
 
@@ -1154,7 +1154,7 @@ static const SOC_ENUM_SINGLE_DECL(
 static const struct snd_kcontrol_new rt5645_dac_l2_mux =
 	SOC_DAPM_ENUM("DAC2 L source", rt5645_dac2l_enum);
 
-static const char *rt5645_dacr2_src[] = {
+static const char * const rt5645_dacr2_src[] = {
 	"IF1 DAC", "IF2 DAC", "IF3 DAC", "Mono ADC", "Haptic"
 };
 
@@ -1167,7 +1167,7 @@ static const struct snd_kcontrol_new rt5645_dac_r2_mux =
 
 
 /* INL/R source */
-static const char *rt5645_inl_src[] = {
+static const char * const  const rt5645_inl_src[] = {
 	"IN2P", "MonoP"
 };
 
@@ -1178,7 +1178,7 @@ static const SOC_ENUM_SINGLE_DECL(
 static const struct snd_kcontrol_new rt5645_inl_mux =
 	SOC_DAPM_ENUM("INL source", rt5645_inl_enum);
 
-static const char *rt5645_inr_src[] = {
+static const char * const  const rt5645_inr_src[] = {
 	"IN2N", "MonoN"
 };
 
@@ -1191,7 +1191,7 @@ static const struct snd_kcontrol_new rt5645_inr_mux =
 
 /* Stereo1 ADC source */
 /* MX-27 [12] */
-static const char *rt5645_stereo_adc1_src[] = {
+static const char * const  const rt5645_stereo_adc1_src[] = {
 	"DAC MIX", "ADC"
 };
 
@@ -1206,7 +1206,7 @@ static const struct snd_kcontrol_new rt5645_sto_adc_r1_mux =
 	SOC_DAPM_ENUM("Stereo1 ADC R1 source", rt5645_stereo1_adc1_enum);
 
 /* MX-27 [11] */
-static const char *rt5645_stereo_adc2_src[] = {
+static const char * const  const rt5645_stereo_adc2_src[] = {
 	"DAC MIX", "DMIC"
 };
 
@@ -1221,7 +1221,7 @@ static const struct snd_kcontrol_new rt5645_sto_adc_r2_mux =
 	SOC_DAPM_ENUM("Stereo1 ADC R2 source", rt5645_stereo1_adc2_enum);
 
 /* MX-27 [8] */
-static const char *rt5645_stereo_dmic_src[] = {
+static const char * const  const rt5645_stereo_dmic_src[] = {
 	"DMIC1", "DMIC2"
 };
 
@@ -1234,7 +1234,7 @@ static const struct snd_kcontrol_new rt5645_sto1_dmic_mux =
 
 /* Mono ADC source */
 /* MX-28 [12] */
-static const char *rt5645_mono_adc_l1_src[] = {
+static const char * const  const rt5645_mono_adc_l1_src[] = {
 	"Mono DAC MIXL", "ADC"
 };
 
@@ -1245,7 +1245,7 @@ static const SOC_ENUM_SINGLE_DECL(
 static const struct snd_kcontrol_new rt5645_mono_adc_l1_mux =
 	SOC_DAPM_ENUM("Mono ADC1 left source", rt5645_mono_adc_l1_enum);
 /* MX-28 [11] */
-static const char *rt5645_mono_adc_l2_src[] = {
+static const char * const  const rt5645_mono_adc_l2_src[] = {
 	"Mono DAC MIXL", "DMIC"
 };
 
@@ -1257,7 +1257,7 @@ static const struct snd_kcontrol_new rt5645_mono_adc_l2_mux =
 	SOC_DAPM_ENUM("Mono ADC2 left source", rt5645_mono_adc_l2_enum);
 
 /* MX-28 [8] */
-static const char *rt5645_mono_dmic_src[] = {
+static const char * const  const rt5645_mono_dmic_src[] = {
 	"DMIC1", "DMIC2"
 };
 
@@ -1275,7 +1275,7 @@ static const SOC_ENUM_SINGLE_DECL(
 static const struct snd_kcontrol_new rt5645_mono_dmic_r_mux =
 	SOC_DAPM_ENUM("Mono DMIC Right source", rt5645_mono_dmic_r_enum);
 /* MX-28 [4] */
-static const char *rt5645_mono_adc_r1_src[] = {
+static const char * const  const rt5645_mono_adc_r1_src[] = {
 	"Mono DAC MIXR", "ADC"
 };
 
@@ -1286,7 +1286,7 @@ static const SOC_ENUM_SINGLE_DECL(
 static const struct snd_kcontrol_new rt5645_mono_adc_r1_mux =
 	SOC_DAPM_ENUM("Mono ADC1 right source", rt5645_mono_adc_r1_enum);
 /* MX-28 [3] */
-static const char *rt5645_mono_adc_r2_src[] = {
+static const char * const  const rt5645_mono_adc_r2_src[] = {
 	"Mono DAC MIXR", "DMIC"
 };
 
@@ -1298,7 +1298,7 @@ static const struct snd_kcontrol_new rt5645_mono_adc_r2_mux =
 	SOC_DAPM_ENUM("Mono ADC2 right source", rt5645_mono_adc_r2_enum);
 
 /* MX-77 [9:8] */
-static const char *rt5645_if1_adc_in_src[] = {
+static const char * const rt5645_if1_adc_in_src[] = {
 	"IF_ADC1", "IF_ADC2", "VAD_ADC"
 };
 
@@ -1310,7 +1310,7 @@ static const struct snd_kcontrol_new rt5645_if1_adc_in_mux =
 	SOC_DAPM_ENUM("IF1 ADC IN source", rt5645_if1_adc_in_enum);
 
 /* MX-2F [13:12] */
-static const char *rt5645_if2_adc_in_src[] = {
+static const char * const rt5645_if2_adc_in_src[] = {
 	"IF_ADC1", "IF_ADC2", "VAD_ADC"
 };
 
@@ -1322,7 +1322,7 @@ static const struct snd_kcontrol_new rt5645_if2_adc_in_mux =
 	SOC_DAPM_ENUM("IF2 ADC IN source", rt5645_if2_adc_in_enum);
 
 /* MX-2F [1:0] */
-static const char *rt5645_if3_adc_in_src[] = {
+static const char * const rt5645_if3_adc_in_src[] = {
 	"IF_ADC1", "IF_ADC2", "VAD_ADC"
 };
 
@@ -1334,7 +1334,7 @@ static const struct snd_kcontrol_new rt5645_if3_adc_in_mux =
 	SOC_DAPM_ENUM("IF3 ADC IN source", rt5645_if3_adc_in_enum);
 
 /* MX-31 [15] [13] [11] [9] */
-static const char *rt5645_pdm_src[] = {
+static const char * const rt5645_pdm_src[] = {
 	"Mono DAC", "Stereo DAC"
 };
 
@@ -1353,7 +1353,7 @@ static const struct snd_kcontrol_new rt5645_pdm1_r_mux =
 	SOC_DAPM_ENUM("PDM1 R source", rt5645_pdm1_r_enum);
 
 /* MX-9D [9:8] */
-static const char *rt5645_vad_adc_src[] = {
+static const char * const rt5645_vad_adc_src[] = {
 	"Sto1 ADC L", "Mono ADC L", "Mono ADC R"
 };
 
@@ -1510,19 +1510,15 @@ static void hp_amp_power(struct snd_soc_codec *codec, int on)
 			/* headphone amp power on */
 			snd_soc_update_bits(codec, RT5645_PWR_ANLG1,
 				RT5645_PWR_FV1 | RT5645_PWR_FV2 , 0);
-			snd_soc_update_bits(codec, RT5645_PWR_VOL,
-				RT5645_PWR_HV_L | RT5645_PWR_HV_R,
-				RT5645_PWR_HV_L | RT5645_PWR_HV_R);
 			snd_soc_update_bits(codec, RT5645_PWR_ANLG1,
-				RT5645_PWR_HP_L | RT5645_PWR_HP_R | RT5645_PWR_HA,
-				RT5645_PWR_HP_L | RT5645_PWR_HP_R | RT5645_PWR_HA);
+				RT5645_PWR_HP_L | RT5645_PWR_HP_R |
+				RT5645_PWR_HA, RT5645_PWR_HP_L |
+				RT5645_PWR_HP_R | RT5645_PWR_HA);
 			mdelay(5);
 			snd_soc_update_bits(codec, RT5645_PWR_ANLG1,
 				RT5645_PWR_FV1 | RT5645_PWR_FV2,
 				RT5645_PWR_FV1 | RT5645_PWR_FV2);
 
-			snd_soc_update_bits(codec, RT5645_HP_CALIB_AMP_DET,
-				RT5645_HPD_PS_MASK, RT5645_HPD_PS_EN);
 			snd_soc_update_bits(codec, RT5645_DEPOP_M1,
 				RT5645_HP_CO_MASK | RT5645_HP_SG_MASK,
 				RT5645_HP_CO_EN | RT5645_HP_SG_EN);
@@ -1938,10 +1934,9 @@ static int rt5645_hpvol_r_event(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
-static int rt5645_post_event(struct snd_soc_dapm_widget *w,
+static int rt5645_asrc_event(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event)
 {
-#ifdef USE_ASRC
 	struct snd_soc_codec *codec = w->codec;
 
 	switch (event) {
@@ -1949,27 +1944,9 @@ static int rt5645_post_event(struct snd_soc_dapm_widget *w,
 		snd_soc_write(codec, RT5645_ASRC_1, 0xffff);
 		snd_soc_write(codec, RT5645_ASRC_2, 0x1111);
 		break;
-	default:
-		return 0;
-	}
-#endif
-	return 0;
-}
-
-static int rt5645_pre_event(struct snd_soc_dapm_widget *w,
-	struct snd_kcontrol *kcontrol, int event)
-{
-	struct snd_soc_codec *codec = w->codec;
-
-	switch (event) {
 	case SND_SOC_DAPM_PRE_PMD:
-#ifdef USE_ASRC
 		snd_soc_write(codec, RT5645_ASRC_1, 0x0);
 		snd_soc_write(codec, RT5645_ASRC_2, 0x0);
-#endif
-		break;
-	case SND_SOC_DAPM_PRE_PMU:
-		snd_soc_update_bits(codec, RT5645_PWR_ANLG1, RT5645_LDO_SEL_MASK, 0x2);
 		break;
 	default:
 		return 0;
@@ -1978,6 +1955,8 @@ static int rt5645_pre_event(struct snd_soc_dapm_widget *w,
 }
 
 static const struct snd_soc_dapm_widget rt5645_dapm_widgets[] = {
+	SND_SOC_DAPM_SUPPLY_S("ASRC enable", 1, SND_SOC_NOPM, 0, 0,
+		rt5645_asrc_event, SND_SOC_DAPM_POST_PMU | SND_SOC_DAPM_PRE_PMD),
 	SND_SOC_DAPM_SUPPLY("LDO2", RT5645_PWR_MIXER,
 		RT5645_PWR_LDO2_BIT, 0, NULL, 0),
 	SND_SOC_DAPM_SUPPLY("PLL1", RT5645_PWR_ANLG2,
@@ -2288,12 +2267,14 @@ static const struct snd_soc_dapm_widget rt5645_dapm_widgets[] = {
 	SND_SOC_DAPM_OUTPUT("PDM1R"),
 	SND_SOC_DAPM_OUTPUT("SPOL"),
 	SND_SOC_DAPM_OUTPUT("SPOR"),
-
-	SND_SOC_DAPM_POST("DAPM_POST", rt5645_post_event),
-	SND_SOC_DAPM_PRE("DAPM_PRE", rt5645_pre_event),
 };
 
 static const struct snd_soc_dapm_route rt5645_dapm_routes[] = {
+#ifdef USE_ASRC
+	{"I2S1", NULL, "ASRC enable"},
+	{"I2S2", NULL, "ASRC enable"},
+#endif
+
 	{ "IN1P", NULL, "LDO2" },
 	{ "IN2P", NULL, "LDO2" },
 
@@ -2967,7 +2948,7 @@ static ssize_t rt5645_index_store(struct device *dev,
 			break;
 	}
 
-	for (i = i + 1 ; i < count; i++) {
+	for (i = i + 1; i < count; i++) {
 		if (*(buf + i) <= '9' && *(buf + i) >= '0')
 			val = (val << 4) | (*(buf + i) - '0');
 		else if (*(buf + i) <= 'f' && *(buf + i) >= 'a')
@@ -3036,7 +3017,7 @@ static ssize_t rt5645_codec_store(struct device *dev, struct device_attribute *a
 			break;
 	}
 
-	for (i = i + 1 ; i < count; i++) {
+	for (i = i + 1; i < count; i++) {
 		if (*(buf + i) <= '9' && *(buf + i) >= '0')
 			val = (val << 4) | (*(buf + i)-'0');
 		else if (*(buf + i) <= 'f' && *(buf + i) >= 'a')
@@ -3069,6 +3050,7 @@ static int rt5645_set_bias_level(struct snd_soc_codec *codec,
 		break;
 
 	case SND_SOC_BIAS_PREPARE:
+		snd_soc_update_bits(codec, RT5645_PWR_ANLG1, RT5645_LDO_SEL_MASK, 0x2);
 		break;
 
 	case SND_SOC_BIAS_STANDBY:
@@ -3093,7 +3075,8 @@ static int rt5645_set_bias_level(struct snd_soc_codec *codec,
 
 	case SND_SOC_BIAS_OFF:
 		snd_soc_write(codec, RT5645_DEPOP_M2, 0x1100);
-		snd_soc_write(codec, RT5645_DIG_MISC, 0x0120);
+		snd_soc_update_bits(codec, RT5645_DIG_MISC,
+				RT5645_DIG_GATE_CTRL, 0);
 /*		snd_soc_write(codec, RT5645_PWR_DIG1, 0x0000); */
 /*		snd_soc_write(codec, RT5645_PWR_DIG2, 0x0000); */
 /*		snd_soc_write(codec, RT5645_PWR_VOL, 0x0000); */
@@ -3122,8 +3105,6 @@ static int rt5645_probe(struct snd_soc_codec *codec)
 
 	pr_info("Codec driver version %s\n", VERSION);
 
-	codec->dapm.idle_bias_off = 1;
-
 	ret = snd_soc_codec_set_cache_io(codec, 8, 16, SND_SOC_I2C);
 	if (ret != 0) {
 		dev_err(codec->dev, "Failed to set cache I/O: %d\n", ret);
@@ -3141,6 +3122,8 @@ static int rt5645_probe(struct snd_soc_codec *codec)
 		RT5645_PWR_FV1 | RT5645_PWR_FV2,
 		RT5645_PWR_FV1 | RT5645_PWR_FV2);
 
+	snd_soc_update_bits(codec, RT5645_DIG_MISC,
+				RT5645_DIG_GATE_CTRL, RT5645_DIG_GATE_CTRL);
 	rt5645_reg_init(codec);
 
 	snd_soc_update_bits(codec, RT5645_PWR_ANLG1, RT5645_LDO_SEL_MASK, 0x0);
@@ -3331,6 +3314,7 @@ struct i2c_driver rt5645_i2c_driver = {
 
 static int __init rt5645_modinit(void)
 {
+
 	return i2c_add_driver(&rt5645_i2c_driver);
 }
 module_init(rt5645_modinit);

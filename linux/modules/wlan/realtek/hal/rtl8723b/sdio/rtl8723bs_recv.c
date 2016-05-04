@@ -124,6 +124,8 @@ void update_recvframe_phyinfo(
 		!pattrib->icv_err && !pattrib->crc_err &&
 		_rtw_memcmp(get_hdr_bssid(wlanhdr), get_bssid(&padapter->mlmepriv), ETH_ALEN));
 
+	pkt_info.bToSelf = ((!pattrib->icv_err) && (!pattrib->crc_err)) && (_rtw_memcmp(get_ra(wlanhdr), myid(&padapter->eeprompriv), ETH_ALEN));
+
 	pkt_info.bPacketToSelf = pkt_info.bPacketMatchBSSID && (_rtw_memcmp(get_ra(wlanhdr), myid(&padapter->eeprompriv), ETH_ALEN));
 
 	pkt_info.bPacketBeacon = pkt_info.bPacketMatchBSSID && (GetFrameSubType(wlanhdr) == WIFI_BEACON);
@@ -492,14 +494,14 @@ static void rtl8723bs_recv_tasklet(void *priv)
 				if(pattrib->pkt_rpt_type == NORMAL_RX)//Normal rx packet
 				{
 #endif
-                                   //from Realtek patch for fixing panic issue caused by abnormal packet length
-                                   //skip the rx packet with abnormal length
-                                   if (pattrib->pkt_len < 14 || pattrib->pkt_len > 8192)
-                                   {
-                                      DBG_8192C("skip abnormal rx packet(%d)\n", pattrib->pkt_len);
-                                      rtw_free_recvframe(precvframe, &precvpriv->free_recv_queue);
-                                      break;
-                                   }
+                                        //skip the rx packet with abnormal length
+					if (pattrib->pkt_len < 14 || pattrib->pkt_len > 8192)
+					{	
+						DBG_8192C("skip abnormal rx packet(%d)\n", pattrib->pkt_len);
+						rtw_free_recvframe(precvframe, &precvpriv->free_recv_queue);
+						break;
+					}
+
 #ifdef CONFIG_CONCURRENT_MODE
 				if(rtw_buddy_adapter_up(padapter))
 				{

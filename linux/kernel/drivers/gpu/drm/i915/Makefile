@@ -61,21 +61,24 @@ i915-y := i915_drv.o i915_dma.o i915_irq.o \
 	  dsi_mod_panasonic_vvx09f006a00.o	\
 	  dsi_mod_auo_b101uan01.o	\
 	  dsi_mod_jdi_lpm070w425b.o	\
-	  dsi_mod_vbt_generic.o \
-	  edp_bridge_ps8622.o \
-	  dsi_mod_auo_b080xan020.o\
+	  dsi_mod_vbt_generic.o	\
 	  dsi_mod_auo_b080ean011.o \
+	  dsi_mod_auo_b080xan020.o \
 	  dsi_mod_rayken_rk785x32a1ci.o \
+	  dsi_mod_mjk_m080wx01b.o \
 	  dsi_mod_kdt_kd070d30.o \
-          dsi_mod_mjk_m080wx01b.o \
 	  dsi_mod_cpt_claa080wq05.o \
 	  dsi_mod_innolux_n080ice_gb1.o \
-	  dsi_mod_boe_bp080wx7.o \
-	  tc35876x_vid.o \
 	  dsi_mod_sdc_bp080wx7.o \
+	  dsi_mod_boe_bp080wx7.o \
 	  dsi_mod_rayken_rk089wu45j1ai.o \
 	  dsi_mod_cpt_claa080fp01.o \
-	  dsi_mod_boe_kd079d5_31nb_a9.o
+	  dsi_mod_kdt_kd079d5_31nb_a9.o	\
+	  tc35876x_vid.o \
+	  edp_bridge_ps8622.o	\
+	  dsi_mod_kdt_kd080d10_31na_a11.o \
+	  dsi_mod_auo_b101uan017.o \
+	  dsi_mod_ivo_kr079ia1t.o
 
 i915-$(CONFIG_COMPAT)   += i915_ioc32.o
 

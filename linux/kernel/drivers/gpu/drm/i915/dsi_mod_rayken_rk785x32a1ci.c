@@ -58,6 +58,7 @@ static struct drm_display_mode *rk785x32a1ci_get_modes(
 	struct intel_dsi_device *dsi)
 {
 	struct drm_display_mode *mode = NULL;
+	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
 
 	/* Allocate */
 	mode = kzalloc(sizeof(*mode), GFP_KERNEL);
@@ -66,19 +67,20 @@ static struct drm_display_mode *rk785x32a1ci_get_modes(
 		return NULL;
 	}
 	mode->hdisplay = 768;
-	mode->hsync_start = 828;//mode->hdisplay + 60;
-	mode->hsync_end = 892;//mode->hsync_start + 64;
-	mode->htotal = 948;//mode->hsync_end + 56;
+	mode->hsync_start = 828;
+	mode->hsync_end = 892;
+	mode->htotal = 948;
 
 	mode->vdisplay = 1024;
-	mode->vsync_start = 1060;//mode->vdisplay + 36;
-	mode->vsync_end = 1110;//mode->vsync_start + 50;
-	mode->vtotal = 1140;//mode->vsync_end + 30;
+	mode->vsync_start = 1060;
+	mode->vsync_end = 1110;
+	mode->vtotal = 1140;
 
 	mode->vrefresh = 60;
 	mode->clock =  mode->vrefresh * mode->vtotal *
 	mode->htotal / 1000;
 
+	intel_dsi->pclk = mode->clock;
 	/* Configure */
 	drm_mode_set_name(mode);
 	drm_mode_set_crtcinfo(mode, 0);
@@ -97,8 +99,8 @@ static void  rk785x32a1ci_get_panel_info(int pipe,
 	}
 
 	if (pipe == 0) {
-	connector->display_info.width_mm = 160;
-	connector->display_info.height_mm = 120;
+		connector->display_info.width_mm = 160;
+		connector->display_info.height_mm = 120;
 	}
 
 	return;
@@ -116,7 +118,7 @@ static enum drm_connector_status rk785x32a1ci_detect(
 	struct drm_device *dev = intel_dsi->base.base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
-	dev_priv->is_mipi = true;	
+	dev_priv->is_mipi = true;
 
 	return connector_status_connected;
 }
@@ -147,7 +149,6 @@ void rk785x32a1ci_panel_reset(struct intel_dsi_device *dsi)
 	vlv_gpio_nc_write(dev_priv, GPIO_NC_11_PAD, 0x00000005);
 	usleep_range(100000, 120000);
 	vlv_gpio_nc_write(dev_priv, GPIO_NC_9_PAD, 0x00000005);
-	
 }
 
 static int rk785x32a1ci_mode_valid(struct intel_dsi_device *dsi,
@@ -158,14 +159,12 @@ static int rk785x32a1ci_mode_valid(struct intel_dsi_device *dsi,
 
 static void rk785x32a1ci_dpms(struct intel_dsi_device *dsi, bool enable)
 {
-//	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-
 	DRM_DEBUG_KMS("\n");
 }
+
 static void rk785x32a1ci_enable(struct intel_dsi_device *dsi)
 {
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-	//bool mode;
 
 	DRM_DEBUG_KMS("\n");
 
@@ -173,7 +172,6 @@ static void rk785x32a1ci_enable(struct intel_dsi_device *dsi)
 	msleep(10);
 	dsi_vc_dcs_write_0(intel_dsi, 0, 0x29);
 	msleep(100);
-
 }
 static void rk785x32a1ci_disable(struct intel_dsi_device *dsi)
 {
@@ -189,9 +187,7 @@ static void rk785x32a1ci_disable(struct intel_dsi_device *dsi)
 bool rk785x32a1ci_init(struct intel_dsi_device *dsi)
 {
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-//	struct drm_device *dev = intel_dsi->base.base.dev;
-//	struct drm_i915_private *dev_priv = dev->dev_private;
-//	int err = 0;
+
 	/* create private data, slam to dsi->dev_priv. could support many panels
 	 * based on dsi->name. This panal supports both command and video mode,
 	 * so check the type. */
@@ -212,7 +208,7 @@ bool rk785x32a1ci_init(struct intel_dsi_device *dsi)
 		return false;
 	}
 	intel_dsi->eotp_pkt = 1;
-	intel_dsi->dsi_clock_freq = 513;
+	/*intel_dsi->dsi_clock_freq = 513;*/
 	intel_dsi->operation_mode = DSI_VIDEO_MODE;
 	intel_dsi->video_mode_type = DSI_VIDEO_BURST;
 	intel_dsi->pixel_format = VID_MODE_FORMAT_RGB666_LOOSE;
@@ -231,44 +227,33 @@ bool rk785x32a1ci_init(struct intel_dsi_device *dsi)
 	intel_dsi->backlight_off_delay = 20;
 	intel_dsi->send_shutdown = true;
 	intel_dsi->shutdown_pkt_delay = 20;
-	//dev_priv->mipi.panel_bpp = 24;
 	intel_dsi->lane_count = 4;
+	intel_dsi->port = 0; /* PORT_A by default */
+	intel_dsi->burst_mode_ratio = 100;
 	return true;
 }
-
 
 void rk785x32a1ci_send_otp_cmds(struct intel_dsi_device *dsi)
 {
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-	
+
 	DRM_DEBUG_KMS("\n");
 
 	intel_dsi->hs = 0;
 	dsi_vc_dcs_write_0(intel_dsi, 0, 0x11);
 	msleep(100);
-	
-	intel_dsi->hs = 1;
 
+	intel_dsi->hs = 1;
 }
 
 void rk785x32a1ci_enable_panel_power(struct intel_dsi_device *dsi)
 {
-//	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-//	struct drm_device *dev = intel_dsi->base.base.dev;
-//	struct drm_i915_private *dev_priv = dev->dev_private;
-
 	DRM_DEBUG_KMS("\n");
-
 }
 
 void rk785x32a1ci_disable_panel_power(struct intel_dsi_device *dsi)
 {
-//	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-//	struct drm_device *dev = intel_dsi->base.base.dev;
-//	struct drm_i915_private *dev_priv = dev->dev_private;
-
 	DRM_DEBUG_KMS("\n");
-
 }
 
 /* Callbacks. We might not need them all. */
@@ -288,6 +273,5 @@ struct intel_dsi_dev_ops rayken_rk785x32a1ci_dsi_display_ops = {
 	.enable = rk785x32a1ci_enable,
 	.disable = rk785x32a1ci_disable,
 	.send_otp_cmds = rk785x32a1ci_send_otp_cmds,
-	//.enable_panel_power = rk785x32a1ci_enable_panel_power,
 	.disable_panel_power = rk785x32a1ci_disable_panel_power,
 };

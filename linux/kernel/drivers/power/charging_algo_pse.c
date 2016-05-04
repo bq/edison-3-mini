@@ -43,7 +43,7 @@ static inline bool __is_battery_full
 	pr_devel("%s:current=%d pse_mod_bprof->chrg_term_ma =%d voltage_now=%d full_cond=%d",
 			__func__, cur, iterm, volt * 100, (FULL_CV_MIN * cv));
 
-	return ((cur >= 0) && (cur <= iterm) &&
+	return ((cur > 0) && (cur <= iterm) &&
 	((volt * 100)  >= (FULL_CV_MIN * cv)));
 
 }
@@ -84,9 +84,6 @@ static int  pse_get_bat_thresholds(struct ps_batt_chg_prof  bprof,
 	bat_thresh->iterm = pse_mod_bprof->chrg_term_ma;
 	bat_thresh->temp_min = pse_mod_bprof->temp_low_lim;
 	bat_thresh->temp_max = pse_mod_bprof->temp_mon_range[0].temp_up_lim;
-
-	pr_info("[%s] bat_thresh: iterm = %d, temp_min = %d, temp_max = %d\n",
-			__func__, bat_thresh->iterm, bat_thresh->temp_min, bat_thresh->temp_max);
 
 	return 0;
 }
@@ -166,8 +163,7 @@ static enum psy_algo_stat pse_get_next_cc_cv(struct batt_props bat_prop,
 		algo_stat = PSY_ALGO_STAT_CHARGE;
 	}
 
-	/*fixed voltage now > CV, show not charging, xmyyq*/
-	if (bat_prop.voltage_now > (*cv + MAINT_EXIT_OFFSET)) {
+	if (bat_prop.voltage_now > *cv) {
 		algo_stat = PSY_ALGO_STAT_NOT_CHARGE;
 		return algo_stat;
 	}

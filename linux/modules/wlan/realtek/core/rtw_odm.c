@@ -205,3 +205,32 @@ void rtw_odm_get_perpkt_rssi(void *sel, _adapter *adapter)
 	DBG_871X_SEL_NL(sel,"RxRate = %s, RSSI_A = %d(%%), RSSI_B = %d(%%)\n", 
 	HDATA_RATE(odm->RxRate), odm->RSSI_A, odm->RSSI_B);	
 }
+void rtw_odm_acquirespinlock(_adapter *adapter, RT_SPINLOCK_TYPE type)
+{
+        PHAL_DATA_TYPE   pHalData = GET_HAL_DATA(adapter);
+        struct dm_priv        *pdmpriv = &pHalData->dmpriv;
+        _irqL irqL;
+
+        switch(type)
+        {
+                case RT_IQK_SPINLOCK:
+                        _enter_critical_bh(&pdmpriv->IQKSpinLock, &irqL);
+                default:
+                        break;
+        }
+}
+
+void rtw_odm_releasespinlock(_adapter *adapter, RT_SPINLOCK_TYPE type)
+{
+        PHAL_DATA_TYPE   pHalData = GET_HAL_DATA(adapter);
+        struct dm_priv        *pdmpriv = &pHalData->dmpriv;
+        _irqL irqL;
+
+        switch(type)
+        {
+                case RT_IQK_SPINLOCK:
+                        _exit_critical_bh(&pdmpriv->IQKSpinLock, &irqL);
+                default:
+                        break;
+        }
+}

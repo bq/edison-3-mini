@@ -42,7 +42,6 @@
 #include <linux/acpi.h>
 #include <linux/mfd/intel_mid_pmic.h>
 #include <linux/power/dc_xpwr_charger.h>
-#include <linux/usb/dwc3-intel-mid.h>
 
 #define DC_PS_STAT_REG			0x00
 #define PS_STAT_VBUS_TRIGGER		(1 << 0)
@@ -71,8 +70,14 @@
 #define VBUS_ISPOUT_VHOLD_SET_LSB_RES	100	/* 100mV */
 #define VBUS_ISPOUT_VHOLD_SET_4300MV	0x3	/* 4300mV */
 #define VBUS_ISPOUT_VBUS_PATH_DIS	(1 << 7)
-#define VBUS_IPSOUT_VBUS_SET_4400MV	(1 << 5) /*4400mV*/
-#define VBUS_IPSOUT_VBUS_SET_4600MV	(0x6 << 3) /*4600mV*/
+#define VBUS_IPSOUT_VBUS_SET_4700MV    (0x7 << 3) /*4700mV*/
+#define VBUS_IPSOUT_VBUS_SET_4600MV    (0x6 << 3) /*4600mV*/
+#define VBUS_IPSOUT_VBUS_SET_4500MV    (0x5 << 3) /*4500mV*/
+#define VBUS_IPSOUT_VBUS_SET_4400MV    (0x4 << 3) /*4400mV*/
+#define VBUS_IPSOUT_VBUS_SET_4300MV    (0x3 << 3) /*4300mV*/
+#define VBUS_IPSOUT_VBUS_SET_4200MV    (0x2 << 3) /*4200mV*/
+#define VBUS_IPSOUT_VBUS_SET_4100MV    (0x1 << 3) /*4100mV*/
+#define VBUS_IPSOUT_VBUS_SET_4000MV    (0x0 << 3) /*4000mV*/
 
 #define DC_CHRG_CCCV_REG		0x33
 #define CHRG_CCCV_CC_MASK		0xf		/* 4 bits */
@@ -115,12 +120,10 @@
 #define DC_CHRG_VLTFC_REG		0x38
 #define CHRG_VLTFC_0C			0xB5	/* 0  DegC */
 #define CHRG_VLTFC_N5C			0xD3 	/* -5 DegC */
-#define CHRG_VLTFC_N5C_FOR_60UA		0xC0 	/* -5 DegC for 60uA*/
 
 #define DC_CHRG_VHTFC_REG		0x39
 #define CHRG_VHTFC_55C			0x16	/* 55 DegC */
 #define CHRG_VHTFC_60C			0x13    /* 60 DegC */
-#define CHRG_VHTFC_52C_FOR_60UA			0x10  	/* 52 DegC for 60uA */
 
 #define DC_PWRSRC_IRQ_CFG_REG		0x40
 #define PWRSRC_IRQ_CFG_VBUS_LOW		(1 << 2)
@@ -188,26 +191,9 @@
 #define DC_CHRG_INTR_NUM		9
 #define FULL_THREAD_JIFFIES		(HZ * 30) /* 30sec */
 
-#ifdef CONFIG_BATTERY_TYPE
-#if defined(CONFIG_BATTERY_BT_B0BFQ)
-#define DC_CHRG_VLTFC_VALUE	CHRG_VLTFC_N5C_FOR_60UA
-#define DC_CHRG_VHTFC_VALUE	CHRG_VHTFC_52C_FOR_60UA
-#elif defined(CONFIG_BATTERY_BT_E002H)
-#define DC_CHRG_VLTFC_VALUE	CHRG_VLTFC_N5C
-#define DC_CHRG_VHTFC_VALUE	CHRG_VHTFC_60C
-#endif
-#else
-#define DC_CHRG_VLTFC_VALUE	CHRG_VLTFC_N5C
-#define DC_CHRG_VHTFC_VALUE	CHRG_VHTFC_60C
-#endif
-
-#if defined(CONFIG_MALATA_E1008) || defined(CONFIG_MALATA_E1008_3G)
-#define VBUS_IPSOUT_VBUS_VALUE		VBUS_IPSOUT_VBUS_SET_4400MV
-#elif defined(CONFIG_MALATA_E8005)  // xmsxm modified @ 2014-09-28, temporarily use project building-switch to avoid affecting other projects.
+#define RETRY_RW			3
+#define VBUS_IPSOUT_VBUS_MASK			(0x7 << 3)
 #define VBUS_IPSOUT_VBUS_VALUE		VBUS_IPSOUT_VBUS_SET_4600MV
-#else
-#define VBUS_IPSOUT_VBUS_VALUE		VBUS_IPSOUT_VBUS_SET_4400MV
-#endif
 
 #define DEV_NAME			"dollar_cove_charger"
 
@@ -255,8 +241,6 @@ struct pmic_chrg_info {
 	struct delayed_work chrg_full_wrkr;
 };
 
-static struct pmic_chrg_info *g_info;
-
 static enum power_supply_property pmic_chrg_usb_props[] = {
 	POWER_SUPPLY_PROP_PRESENT,
 	POWER_SUPPLY_PROP_ONLINE,
@@ -278,47 +262,71 @@ static enum power_supply_property pmic_chrg_usb_props[] = {
 };
 
 static struct pmic_chrg_info *pinfo;
+static int probe_retry_cnt;
 
 static int pmic_chrg_reg_readb(struct pmic_chrg_info *info, int reg)
 {
-	int ret;
+	int ret, i;
 
-	ret = intel_mid_pmic_readb(reg);
-	if (ret < 0)
-		dev_err(&info->pdev->dev, "pmic reg read err:%d\n", ret);
-
+	for (i = 0; i < RETRY_RW; i++) {
+		ret = intel_mid_pmic_readb(reg);
+		if (ret < 0) {
+			dev_warn(&info->pdev->dev,
+				"failed to read reg 0x%x: %d\n", reg, ret);
+			usleep_range(1000, 2000);
+		} else
+			break;
+	}
 	return ret;
 }
 
 static int pmic_chrg_reg_writeb(struct pmic_chrg_info *info, int reg, u8 val)
 {
-	int ret;
+	int ret, i;
 
-	ret = intel_mid_pmic_writeb(reg, val);
-	if (ret < 0)
-		dev_err(&info->pdev->dev, "pmic reg write err:%d\n", ret);
+	for (i = 0; i < RETRY_RW; i++) {
+		ret = intel_mid_pmic_writeb(reg, val);
+		if (ret < 0) {
+			dev_warn(&info->pdev->dev,
+				"failed to write reg 0x%x: %d\n", reg, ret);
+			usleep_range(1000, 2000);
+		} else
+			break;
+	}
 
 	return ret;
 }
 
 static int pmic_chrg_reg_setb(struct pmic_chrg_info *info, int reg, u8 mask)
 {
-	int ret;
+	int ret, i;
 
-	ret = intel_mid_pmic_setb(reg, mask);
-	if (ret < 0)
-		dev_err(&info->pdev->dev, "pmic reg set mask err:%d\n", ret);
+	for (i = 0; i < RETRY_RW; i++) {
+		ret = intel_mid_pmic_setb(reg, mask);
+		if (ret < 0) {
+			dev_warn(&info->pdev->dev,
+				"failed to set reg 0x%x: %d\n", reg, ret);
+			usleep_range(1000, 2000);
+		} else
+			break;
+	}
 
 	return ret;
 }
 
 static int pmic_chrg_reg_clearb(struct pmic_chrg_info *info, int reg, u8 mask)
 {
-	int ret;
+	int ret, i;
 
-	ret = intel_mid_pmic_clearb(reg, mask);
-	if (ret < 0)
-		dev_err(&info->pdev->dev, "pmic reg set mask err:%d\n", ret);
+	for (i = 0; i < RETRY_RW; i++) {
+		ret = intel_mid_pmic_clearb(reg, mask);
+		if (ret < 0) {
+			dev_warn(&info->pdev->dev,
+				"failed to clear reg 0x%x: %d\n", reg, ret);
+			usleep_range(1000, 2000);
+		} else
+			break;
+	}
 
 	return ret;
 }
@@ -352,6 +360,7 @@ static inline int pmic_chrg_set_cc(struct pmic_chrg_info *info, int cc)
 	u8 reg_val;
 	int ret;
 
+	dev_info(&info->pdev->dev, "%s: cc=%d\n", __func__, cc);
 	/* read CCCV register */
 	ret = pmic_chrg_reg_readb(info, DC_CHRG_CCCV_REG);
 	if (ret < 0)
@@ -375,6 +384,7 @@ static inline int pmic_chrg_set_cv(struct pmic_chrg_info *info, int cv)
 	u8 reg_val;
 	int ret;
 
+	dev_info(&info->pdev->dev, "%s: cv=%d\n", __func__, cv);
 	/* read CCCV register */
 	ret = pmic_chrg_reg_readb(info, DC_CHRG_CCCV_REG);
 	if (ret < 0)
@@ -407,7 +417,7 @@ static inline int pmic_chrg_set_inlmt(struct pmic_chrg_info *info, int inlmt)
 	ret = pmic_chrg_reg_readb(info, DC_CHRG_ILIM_REG);
 	if (ret < 0)
 		goto set_inlmt_fail;
-#if 0 //fixed:in low power charging, pluging or unpluging in charger, can't charging by xmyyq
+
 	if (inlmt <= ILIM_100MA)
 		reg_val = CHRG_ILIM_100MA;
 	else if (inlmt <= ILIM_500MA)
@@ -425,21 +435,6 @@ static inline int pmic_chrg_set_inlmt(struct pmic_chrg_info *info, int inlmt)
 
 	reg_val = (ret & ~CHRG_ILIM_MASK) | (reg_val << CHRG_ILIM_BIT_POS);
 	ret = pmic_chrg_reg_writeb(info, DC_CHRG_ILIM_REG, reg_val);
-#else
-	 if (inlmt <= ILIM_500MA)
-		return 0;
-	else if (inlmt <= ILIM_900MA)
-		reg_val = VBUS_ISPOUT_CUR_LIM_900MA;
-	else if (inlmt <= ILIM_1500MA)
-		reg_val = VBUS_ISPOUT_CUR_LIM_1500MA;
-	else if (inlmt <= ILIM_2000MA)
-		reg_val = VBUS_ISPOUT_CUR_LIM_2000MA;
-	else
-		reg_val = VBUS_ISPOUT_CUR_NO_LIM;
-
-	reg_val = (ret & ~VBUS_ISPOUT_CUR_LIM_MASK) | (reg_val << VBUS_ISPOUT_CUR_LIM_BIT_POS);
-	ret = pmic_chrg_reg_writeb(info, DC_VBUS_ISPOUT_REG, reg_val);
-#endif
 
 set_inlmt_fail:
 	return ret;
@@ -449,6 +444,7 @@ static int pmic_chrg_enable_charger(struct pmic_chrg_info *info, bool enable)
 {
 	int ret;
 
+	dev_info(&info->pdev->dev, "%s: enable=%d\n", __func__, enable);
 	if (enable)
 		ret = pmic_chrg_reg_clearb(info,
 			DC_VBUS_ISPOUT_REG, VBUS_ISPOUT_VBUS_PATH_DIS);
@@ -462,19 +458,13 @@ static int pmic_chrg_enable_charging(struct pmic_chrg_info *info, bool enable)
 {
 	int ret;
 
-	pr_info("[%s] enable = %d\n", __func__, enable);
-
-	ret = pmic_chrg_enable_charger(info, true);
-	if (ret < 0)
-		dev_warn(&info->pdev->dev, "vbus path disable failed\n");
-
+	dev_info(&info->pdev->dev, "%s: enable=%d\n", __func__, enable);
 	if (enable)
 		ret = pmic_chrg_reg_setb(info,
 			DC_CHRG_CCCV_REG, CHRG_CCCV_CHG_EN);
 	else
 		ret = pmic_chrg_reg_clearb(info,
 			DC_CHRG_CCCV_REG, CHRG_CCCV_CHG_EN);
-
 	return ret;
 }
 
@@ -527,20 +517,32 @@ static int get_charger_health(struct pmic_chrg_info *info)
 	else
 		pwr_irq = ret;
 
-	if (!(pwr_stat & PS_STAT_VBUS_VALID))
+	if (!(pwr_stat & PS_STAT_VBUS_VALID)) {
 		health = POWER_SUPPLY_HEALTH_DEAD;
-	else if (pwr_irq & PWRSRC_IRQ_CFG_SVBUS_OVP)
+		info->is_charger_enabled = 0;
+		/* Xpwr pmic doesnt have interuppt for VBUS undervoltage.
+		 * hence trigger a power_supply_change when charger
+		 * health chnaged to dead.
+		 */
+		if (info->chrg_health != health)
+			power_supply_changed(&info->psy_usb);
+	} else if (pwr_irq & PWRSRC_IRQ_CFG_SVBUS_OVP) {
 		health = POWER_SUPPLY_HEALTH_OVERVOLTAGE;
+		info->is_charger_enabled = 0;
+	}
 	else if (chrg_stat & CHRG_STAT_PMIC_OTP)
 		health = POWER_SUPPLY_HEALTH_OVERHEAT;
 	else if (chrg_stat & CHRG_STAT_BAT_SAFE_MODE)
 		health = POWER_SUPPLY_HEALTH_SAFETY_TIMER_EXPIRE;
 	else if (!info->present)
 		health = POWER_SUPPLY_HEALTH_UNKNOWN;
-	else
+	else {
 		health = POWER_SUPPLY_HEALTH_GOOD;
+		info->is_charger_enabled = 1;
+	}
 
 health_read_fail:
+	info->chrg_health = health;
 	return health;
 }
 
@@ -576,7 +578,7 @@ static int get_charging_status(struct pmic_chrg_info *info)
 		stat = POWER_SUPPLY_STATUS_UNKNOWN;
 	else if (!(pwr_stat & PS_STAT_VBUS_PRESENT))
 		stat = POWER_SUPPLY_STATUS_DISCHARGING;
-	else if (chrg_stat & CHRG_STAT_CHARGING)
+	else if (bat_irq_stat & CHRG_STAT_CHARGING)
 		stat = POWER_SUPPLY_STATUS_CHARGING;
 	else if (bat_irq_stat & BAT_IRQ_STAT_CHRG_DONE)
 		stat = POWER_SUPPLY_STATUS_FULL;
@@ -859,15 +861,9 @@ static void dc_xpwr_otg_event_worker(struct work_struct *work)
 		dev_warn(&info->pdev->dev, "vbus path disable failed\n");
 
 	if (info->pdata->otg_gpio >= 0) {
-#if defined(CONFIG_MRD7) || defined(CONFIG_MRD8)
 		ret = dc_xpwr_turn_otg_vbus(info, info->id_short);
-#else		
-		ret = dc_xpwr_turn_otg_vbus(info, !info->id_short);
-#endif
 		if (ret < 0)
-			dev_err(&info->pdev->dev,
-					"VBUS ON/OFF FAILED: %d\n",
-					ret);
+			dev_err(&info->pdev->dev, "VBUS ON/OFF FAILED: %d\n", ret);
 	}
 	mutex_unlock(&info->lock);
 }
@@ -904,27 +900,57 @@ static int dc_xpwr_handle_otg_event(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
-static void pmic_chrg_init_hw_regs(struct pmic_chrg_info *info)
+static int pmic_chrg_init_hw_regs(struct pmic_chrg_info *info)
 {
+	int ret;
 	/* program temperature thresholds */
-	intel_mid_pmic_writeb(DC_CHRG_VLTFC_REG, DC_CHRG_VLTFC_VALUE);
-	intel_mid_pmic_writeb(DC_CHRG_VHTFC_REG, DC_CHRG_VHTFC_VALUE);
+	/*ret = pmic_chrg_reg_writeb(info, DC_CHRG_VLTFC_REG, CHRG_VLTFC_N5C);*/
+	ret = pmic_chrg_reg_writeb(info, DC_CHRG_VLTFC_REG, CHRG_VLTFC_0C);
+	if (ret < 0) {
+		dev_err(&info->pdev->dev, "Failed to program low temp thresholds\n");
+		return ret;
+	}
+	/*ret = pmic_chrg_reg_writeb(info, DC_CHRG_VHTFC_REG, CHRG_VHTFC_60C);*/
+	ret = pmic_chrg_reg_writeb(info, DC_CHRG_VHTFC_REG, CHRG_VHTFC_55C);
+	if (ret < 0) {
+		dev_err(&info->pdev->dev, "Failed to program high temp thresholds\n");
+		return ret;
+	}
 
-	/* do not turn-off charger o/p after charge cycle ends */
-	intel_mid_pmic_setb(DC_CHRG_CNTL2_REG, CNTL2_CHG_OUT_TURNON);
+	/* do not turn-off charger o/p after charge cycle ends.
+	 * Set charge timer as 12Hrs.
+	 */
+	ret = pmic_chrg_reg_setb(info, DC_CHRG_CNTL2_REG,
+			CNTL2_CHG_OUT_TURNON | CNTL2_CC_TIMEOUT_12HRS);
+	if (ret < 0) {
+		dev_err(&info->pdev->dev, "Failed to program CNTL2 reg\n");
+		return ret;
+	}
 
-	/* Fast charge maximum time setting to 12hours */
-	intel_mid_pmic_setb(DC_CHRG_CNTL2_REG, CNTL2_CC_TIMEOUT_12HRS);
-	
-	/*set vhold to default value 4.4v to avoid PMIC over heat issue*/
-	intel_mid_pmic_setb(DC_VBUS_ISPOUT_REG, VBUS_IPSOUT_VBUS_VALUE);
+
+	/*set vhold to default value 4.0v to avoid PMIC over heat issue*/
+	ret = intel_mid_pmic_readb(DC_VBUS_ISPOUT_REG);
+	intel_mid_pmic_writeb(DC_VBUS_ISPOUT_REG, ((ret & ~VBUS_IPSOUT_VBUS_MASK) | VBUS_IPSOUT_VBUS_VALUE));
 
 	/* set the Charge end condition to 20% of CC */
-	intel_mid_pmic_setb(DC_CHRG_CCCV_REG, CHRG_CCCV_ITERM_20P);
+	ret = pmic_chrg_reg_setb(info, DC_CHRG_CCCV_REG, CHRG_CCCV_ITERM_20P);
+	if (ret < 0) {
+		dev_err(&info->pdev->dev, "Failed to program Iterm as 20\%\n");
+		return ret;
+	}
 
 	/* enable interrupts */
-	intel_mid_pmic_setb(DC_BAT_IRQ_CFG_REG, BAT_IRQ_CFG_BAT_MASK);
-	intel_mid_pmic_setb(DC_TEMP_IRQ_CFG_REG, TEMP_IRQ_CFG_MASK);
+	ret = pmic_chrg_reg_setb(info, DC_BAT_IRQ_CFG_REG, BAT_IRQ_CFG_BAT_MASK);
+	if (ret < 0) {
+		dev_err(&info->pdev->dev, "Failed to program IRQ batt config\n");
+		return ret;
+	}
+	ret = pmic_chrg_reg_setb(info, DC_TEMP_IRQ_CFG_REG, TEMP_IRQ_CFG_MASK);
+	if (ret < 0) {
+		dev_err(&info->pdev->dev, "Failed to program IRQ temp condig\n");
+		return ret;
+	}
+	return 0;
 }
 
 static void pmic_chrg_init_psy_props(struct pmic_chrg_info *info)
@@ -961,8 +987,6 @@ intr_failed:
 	}
 }
 
-extern void *dollarcove_chrg_pdata(void *info);
-
 static void dc_xpwr_usb_otg_enable(struct usb_phy *phy)
 {
 	struct pmic_chrg_info *info;
@@ -984,7 +1008,7 @@ static void dc_xpwr_usb_otg_enable(struct usb_phy *phy)
 		ret = phy->get_id_status(phy, &id_value);
 		if (ret < 0) {
 			dev_warn(&info->pdev->dev,
-				"otg get ID status failed:%d\n", ret);
+					"otg get ID status failed:%d\n", ret);
 			return;
 		} else if (id_value != 0) {
 			/* otg vbus should not be enabled or disabled if otg device is not connected */
@@ -1013,7 +1037,7 @@ static void dc_xpwr_usb_otg_enable(struct usb_phy *phy)
 static int pmic_chrg_probe(struct platform_device *pdev)
 {
 	struct pmic_chrg_info *info;
-	int ret;
+	int ret, i;
 
 	info = devm_kzalloc(&pdev->dev, sizeof(*info), GFP_KERNEL);
 	if (!info) {
@@ -1022,21 +1046,25 @@ static int pmic_chrg_probe(struct platform_device *pdev)
 	}
 
 	info->pdev = pdev;
-#ifdef CONFIG_ACPI
-	info->pdata = dollarcove_chrg_pdata(NULL);
-#else
 	info->pdata = pdev->dev.platform_data;
-#endif
-	platform_set_drvdata(pdev, info);
+	if (!info->pdata)
+		return -ENODEV;
+
 	mutex_init(&info->lock);
 	INIT_WORK(&info->otg_work, dc_xpwr_otg_event_worker);
 
 	pmic_chrg_init_psy_props(info);
 	pmic_chrg_init_irq(info);
-	pmic_chrg_init_hw_regs(info);
+	ret = pmic_chrg_init_hw_regs(info);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "Failed to initialize the charge registers, ret=%d\n", ret);
+		goto chrg_init_failed;
+	}
 	info->a_bus_enable = true;
 
+	platform_set_drvdata(pdev, info);
 	pinfo = info;
+
 	/* Register for OTG notification */
 	info->otg = usb_get_phy(USB_PHY_TYPE_USB2);
 	if (!info->otg) {
@@ -1068,13 +1096,19 @@ static int pmic_chrg_probe(struct platform_device *pdev)
 	}
 	INIT_DELAYED_WORK(&info->chrg_full_wrkr, xpwr_full_worker);
 
-	dwc3_trigger_gpio_id_check();
-
-	g_info = info;
-
 	return 0;
 
+chrg_init_failed:
+	probe_retry_cnt++;
+	/* XPWR pmic will give read write error if busy with other R/W operations.
+	 * Defer probe if charger register initialization failed.
+	 */
+	if (probe_retry_cnt < RETRY_RW)
+		ret = -EPROBE_DEFER;
 psy_reg_failed:
+	/* Free IRQs */
+	for (i = 0; i < DC_CHRG_INTR_NUM && info->irq[i] != -1; i++)
+		free_irq(info->irq[i], info);
 	return ret;
 }
 
@@ -1082,8 +1116,6 @@ static int pmic_chrg_remove(struct platform_device *pdev)
 {
 	struct pmic_chrg_info *info =  dev_get_drvdata(&pdev->dev);
 	int i;
-
-	pmic_chrg_enable_charging(info, true);  // to fix that charging doesn't work in low power charging.
 
 	for (i = 0; i < DC_CHRG_INTR_NUM && info->irq[i] != -1; i++)
 		free_irq(info->irq[i], info);

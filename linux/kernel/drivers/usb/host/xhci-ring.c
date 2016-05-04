@@ -1762,14 +1762,8 @@ static void handle_port_status(struct xhci_hcd *xhci,
 			goto cleanup;
 		} else {
 			xhci_dbg(xhci, "resume HS port %d\n", port_id);
-            if (xhci->pm_check_flag) {
-                xhci_dbg(xhci, "modefy acpi time for reomte wakeup\n");
-                bus_state->resume_done[faked_port_index] = xhci->remote_time +
-                    msecs_to_jiffies(20);
-            } else {
-                bus_state->resume_done[faked_port_index] = jiffies +
-                    msecs_to_jiffies(20);
-            }
+			bus_state->resume_done[faked_port_index] = jiffies +
+				msecs_to_jiffies(20);
 			set_bit(faked_port_index, &bus_state->resuming_ports);
 			mod_timer(&hcd->rh_timer,
 				  bus_state->resume_done[faked_port_index]);
@@ -2908,7 +2902,6 @@ irqreturn_t xhci_byt_pm_irq(int irq, struct usb_hcd *hcd)
 	u32			gpe_en;
 	u32			pme_sts;
 
-    xhci->remote_time = jiffies;
 	/* PME status from PMC side for XHCI */
 	pme_sts = readl(xhci->pmc_base_addr + 0xc0);
 

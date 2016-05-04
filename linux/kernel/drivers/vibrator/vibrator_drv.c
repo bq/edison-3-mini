@@ -286,7 +286,6 @@ static int vib_mod_init(void)
     {
         printk("[vibrator]device_create_file vibr_on fail! \n");
     }
-
     printk("[vibrator]vib_mod_init Done \n");
 
     return RSUCCESS;

@@ -57,7 +57,7 @@
 
 /*hw dongle +*/
 #define HW_UNUSUAL_DEV(id_vendor, cl, sc, pr, \
-			vendorName, productName,useProtocol, useTransport, \
+			vendorName, productName, useProtocol, useTransport, \
 			initFunction, flags) \
 { \
 	.match_flags = USB_DEVICE_ID_MATCH_INT_INFO | USB_DEVICE_ID_MATCH_VENDOR, \
@@ -65,7 +65,7 @@
 	.bInterfaceClass = (cl), \
 	.bInterfaceSubClass = (sc), \
 	.bInterfaceProtocol = (pr), \
-	.driver_info = (flags)| 0x800000 }
+	.driver_info = (flags) | 0x800000 }
 /*hw dongle -*/
 
 struct usb_device_id usb_storage_usb_ids[] = {

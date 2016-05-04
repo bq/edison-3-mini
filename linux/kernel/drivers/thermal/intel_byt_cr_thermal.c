@@ -20,6 +20,7 @@
 
 #define pr_fmt(fmt)  "intel_byt_cr_thermal: " fmt
 
+#include <linux/acpi.h>
 #include <linux/pm.h>
 #include <linux/init.h>
 #include <linux/slab.h>
@@ -43,9 +44,12 @@
 #define PMIC_THERMAL_SENSORS	2
 
 /* ADC to Temperature conversion table length */
-#define TABLE_LENGTH	22
+#define TABLE_LENGTH_XPWR	19
+#define TABLE_LENGTH_TI		73
 
-static const int adc_code[2][TABLE_LENGTH] = {
+#define DC_TI_PMIC_OFFSET	0x51
+
+static int adc_code_xpwr[2][TABLE_LENGTH_XPWR] = {
 	{6987, 5263, 4004, 3076, 2385,
 	 1864, 1469, 1166, 932, 750,
 	 607, 495, 405, 334, 277,
@@ -56,7 +60,28 @@ static const int adc_code[2][TABLE_LENGTH] = {
 	 30, 35, 40, 45, 50,
 	 55, 60, 65, 70, 75,
 	 80, 85},
-};
+	};
+
+static int adc_code_ti[2][TABLE_LENGTH_TI] = {
+	{914, 910, 905, 900, 895, 889, 884, 878, 873, 867, 861, 854, 848, 842, 835,
+		828, 821, 814, 807, 800, 793, 785, 778, 770, 762, 754, 746, 738, 729, 721,
+		713, 704, 696, 687, 678, 669, 661, 652, 643, 634, 625, 616, 607, 598, 589,
+		580, 571, 562, 553, 544, 535, 526, 518, 509, 500, 491, 483, 474, 466, 457,
+		449, 441, 433, 425, 417, 409, 401, 393, 385, 378, 370, 335, 301},
+	{-10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4,
+		5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+		20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34,
+		35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
+		50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 65, 70},
+	};
+
+static int table_length;
+
+static int *adc_code[2];
+
+static int (*adc_to_pmic_die_temp)(unsigned int);
+
+static bool valid_entry;
 
 static DEFINE_MUTEX(thrm_update_lock);
 
@@ -79,10 +104,17 @@ struct thermal_data {
 };
 static struct thermal_data *tdata;
 
-static inline int adc_to_pmic_die_temp(unsigned int val)
+static int adc_to_pmic_die_temp_xpwr(unsigned int val)
 {
 	/* return temperature in mC */
 	return  -267700 + val * 100;
+}
+
+static int adc_to_pmic_die_temp_ti(unsigned int val)
+{
+	s8 reg_val = (s8)intel_mid_pmic_readb(DC_TI_PMIC_OFFSET);
+	/* return temperature in mC */
+	return  (val - reg_val - 470) * 675 + 27000;
 }
 
 /**
@@ -95,8 +127,9 @@ static inline int adc_to_pmic_die_temp(unsigned int val)
 static int find_adc_code(uint16_t val)
 {
 	int left = 0;
-	int right = TABLE_LENGTH - 1;
+	int right = table_length - 1;
 	int mid;
+
 	while (left <= right) {
 		mid = (left + right)/2;
 		if (val == adc_code[0][mid] ||
@@ -132,6 +165,11 @@ static int adc_to_temp(int direct, uint16_t adc_val, long *tp)
 		return 0;
 	}
 
+	/* If value out of range return appropriate value */
+	if (adc_code[0][0] < adc_val || adc_code[0][table_length - 1] > adc_val) {
+		*tp = adc_code[1][0] * 1000;
+		return 0;
+	}
 	indx = find_adc_code(adc_val);
 	if (indx < 0)
 		return -EINVAL;
@@ -217,6 +255,13 @@ static ssize_t show_temp(struct thermal_zone_device *tzd, long *temp)
 
 	return ret;
 }
+
+static acpi_status pmic_check(acpi_handle handle, u32 lvl, void *context, void **rv)
+{
+	valid_entry = true;
+	return (acpi_status) 0x0000;
+}
+
 
 static struct thermal_device_info *initialize_sensor(int index,
 				struct intel_mid_thermal_sensor *sensor)
@@ -315,7 +360,7 @@ static int byt_cr_thermal_probe(struct platform_device *pdev)
 	/* Register with IIO to sample temperature values */
 	tdata->iio_chan = iio_channel_get_all(&pdev->dev);
 	if (IS_ERR(tdata->iio_chan)) {
-		dev_err(&pdev->dev, "tdata->iio_chan is invalid\n");
+		dev_err(&pdev->dev, "tdata->iio_chan is null\n");
 		ret = -EINVAL;
 		goto exit_tzd;
 	}
@@ -326,6 +371,27 @@ static int byt_cr_thermal_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "incorrect number of channels:%d\n", ret);
 		ret = -EFAULT;
 		goto exit_iio;
+	}
+
+	/* Assign values based on type of PMIC */
+	if (ACPI_SUCCESS(acpi_get_devices("INT33F5", pmic_check, NULL, NULL)) && valid_entry) {
+		dev_info(&pdev->dev, "TI PMIC ACPI entry[INT33F5] found\n");
+		*(adc_code + 0) = (int *)(adc_code_ti[0]);
+		*(adc_code + 1) = (int *)(adc_code_ti[1]);
+		table_length = TABLE_LENGTH_TI;
+		adc_to_pmic_die_temp = &adc_to_pmic_die_temp_ti;
+	} else if (ACPI_SUCCESS(acpi_get_devices("INT33F4", pmic_check, NULL, NULL))
+			&& valid_entry) {
+		dev_info(&pdev->dev, "X-Power PMIC ACPI entry[INT33F4] found\n");
+		*(adc_code + 0) = (int *)(adc_code_xpwr[0]);
+		*(adc_code + 1) = (int *)(adc_code_xpwr[1]);
+		table_length = TABLE_LENGTH_XPWR;
+		adc_to_pmic_die_temp = &adc_to_pmic_die_temp_xpwr;
+	} else {
+		*(adc_code + 0) = (int *)(adc_code_xpwr[0]);
+		*(adc_code + 1) = (int *)(adc_code_xpwr[1]);
+		table_length = TABLE_LENGTH_XPWR;
+		adc_to_pmic_die_temp = &adc_to_pmic_die_temp_xpwr;
 	}
 
 	/* Register each sensor with the generic thermal framework */
@@ -342,6 +408,7 @@ static int byt_cr_thermal_probe(struct platform_device *pdev)
 			goto exit_reg;
 		}
 	}
+
 	return 0;
 
 exit_reg:

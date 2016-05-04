@@ -33,7 +33,7 @@ static struct platform_device intel_mid_gps_device = {
 	},
 };
 
-int  __init intel_mid_gps_device_init(void)
+static __init int intel_mid_gps_device_init(void)
 {
 	int ret = 0;
 

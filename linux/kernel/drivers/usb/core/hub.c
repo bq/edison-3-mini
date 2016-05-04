@@ -8,7 +8,6 @@
  *
  */
 
-#define DEBUG
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/module.h>
@@ -2123,6 +2122,7 @@ void usb_disconnect(struct usb_device **pdev)
 
 	put_device(&udev->dev);
 
+	/* for H350 rild release tty */
 	msleep(1000);
 }
 

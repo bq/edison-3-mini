@@ -7,8 +7,9 @@
  * Copyright (C) 2012 Scott Lin <scott.lin@tw.synaptics.com>
  *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as published
- * by the Free Software Foundation
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -24,11 +25,11 @@
 #define SPI_DRIVER_NAME "synaptics_dsx_spi"
 
 /*
- * struct synaptics_dsx_cap_button_map - 0D button map
- * @nbuttons: number of 0D buttons
- * @map: pointer to array of button types
+ * struct synaptics_dsx_button_map - button map
+ * @nbuttons: number of buttons
+ * @map: pointer to array of button codes
  */
-struct synaptics_dsx_cap_button_map {
+struct synaptics_dsx_button_map {
 	unsigned char nbuttons;
 	unsigned int *map;
 };
@@ -44,6 +45,7 @@ struct synaptics_dsx_cap_button_map {
  * @power_on_state: power switch active state
  * @reset_gpio: reset GPIO
  * @reset_on_state: reset active state
+ * @max_y_for_2d: maximum y value for 2D area when virtual buttons are present
  * @irq_flags: IRQ flags
  * @device_descriptor_addr: HID device descriptor address
  * @panel_x: x-axis resolution of display panel
@@ -56,6 +58,7 @@ struct synaptics_dsx_cap_button_map {
  * @pwr_reg_name: pointer to name of regulator for power control
  * @bus_reg_name: pointer to name of regulator for bus pullup control
  * @cap_button_map: pointer to 0D button map
+ * @vir_button_map: pointer to virtual button map
  */
 struct synaptics_dsx_board_data {
 	bool x_flip;
@@ -68,6 +71,7 @@ struct synaptics_dsx_board_data {
 	int power_on_state;
 	int reset_gpio;
 	int reset_on_state;
+	int max_y_for_2d;
 	unsigned long irq_flags;
 	unsigned short device_descriptor_addr;
 	unsigned int panel_x;
@@ -79,7 +83,8 @@ struct synaptics_dsx_board_data {
 	unsigned int block_delay_us;
 	const char *pwr_reg_name;
 	const char *bus_reg_name;
-	struct synaptics_dsx_cap_button_map *cap_button_map;
+	struct synaptics_dsx_button_map *cap_button_map;
+	struct synaptics_dsx_button_map *vir_button_map;
 };
 
 #endif

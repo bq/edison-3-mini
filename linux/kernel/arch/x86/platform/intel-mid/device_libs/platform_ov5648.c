@@ -17,7 +17,7 @@
 #include <asm/intel-mid.h>
 #include <media/v4l2-subdev.h>
 #include <linux/mfd/intel_mid_pmic.h>
-#include <linux/vlv2_plat_clock.h>
+#include <asm/intel_soc_pmc.h>
 #include "platform_camera.h"
 #include "platform_ov5648.h"
 
@@ -26,7 +26,7 @@
 #define CAMERA_0_PWDN 123/*MCSI_GPIO[06]-active low to power down in P1*/
 #define CAM28_EN 119/*BYT:MCSI_GPIO[02], camera VDD2.8 control, active high*/
 #define AFVCC28_EN 118/*BYT:MCSI_GPIO[01], camera VCM2.8 control, active high*/
-#ifdef CONFIG_VLV2_PLAT_CLK
+#ifdef CONFIG_INTEL_SOC_PMC
 #define OSC_CAM0_CLK 0x0
 #define CLK_19P2MHz 0x1
 #endif
@@ -135,13 +135,13 @@ static int ov5648_flisclk_ctrl(struct v4l2_subdev *sd, int flag)
 {
 	static const unsigned int clock_khz = 19200;
 	int ret = 0;
-#ifdef CONFIG_VLV2_PLAT_CLK
+#ifdef CONFIG_INTEL_SOC_PMC
 	if (flag) {
-		ret = vlv2_plat_set_clock_freq(OSC_CAM0_CLK, CLK_19P2MHz);
+		ret = pmc_pc_set_freq(OSC_CAM0_CLK, CLK_19P2MHz);
 		if (ret)
 			return ret;
 	}
-	ret = vlv2_plat_configure_clock(OSC_CAM0_CLK, flag);
+	ret = pmc_pc_configure(OSC_CAM0_CLK, flag);
 #endif
 	return ret;
 }
@@ -184,10 +184,6 @@ static int ov5648_power_ctrl(struct v4l2_subdev *sd, int flag)
 			ret = camera_set_pmic_power(CAMERA_2P8V, true);
 			if (ret)
 				return ret;
-
-			ret = camera_set_pmic_power(CAMERA_1P5V, true);
-			if (ret)
-				return ret;
 			ret = camera_set_pmic_power(CAMERA_1P8V, true);
 #endif
 			if (!ret)
@@ -200,10 +196,6 @@ static int ov5648_power_ctrl(struct v4l2_subdev *sd, int flag)
 		if (camera_vprog1_on) {
 #ifdef CONFIG_CRYSTAL_COVE
 			ret = camera_set_pmic_power(CAMERA_2P8V, false);
-			if (ret)
-				return ret;
-
-			ret = camera_set_pmic_power(CAMERA_1P5V, false);
 			if (ret)
 				return ret;
 			ret = camera_set_pmic_power(CAMERA_1P8V, false);

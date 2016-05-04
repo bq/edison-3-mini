@@ -253,7 +253,7 @@ static long gc2235_s_exposure(struct v4l2_subdev *sd,
 {
 	struct i2c_client *client = v4l2_get_subdevdata(sd);
 
-	dev_dbg(&client->dev, "%s(0x%X 0x%X 0x%X)\n", __func__, exposure->integration_time[0], exposure->gain[0], exposure->gain[1]);
+	dev_dbg(&client->dev, "%s(%d %d %d)\n", __func__, exposure->integration_time[0], exposure->gain[0], exposure->gain[1]);
 	return gc2235_set_exposure_gain(sd, exposure->integration_time[0],
 				exposure->gain[0], exposure->gain[1]);
 }
@@ -366,7 +366,7 @@ static int gc2235_set_streaming(struct v4l2_subdev *sd)
 	gc2235_write_reg(client, GCSENSOR_8BIT, 0x10, 0x91);
 	gc2235_write_reg(client, GCSENSOR_8BIT, 0xfe, 0x00);
 //#endif
-
+	msleep(40);
 	return 0;
 }
 
@@ -723,7 +723,11 @@ static int gc2235_get_intg_factor(struct i2c_client *client,
 
 	buf->binning_factor_x = 1;
 	buf->binning_factor_y = 1;
-
+	dev_info(&client->dev, "pclk:%u, o_w:%d, o_h:%d, hts:%d, vts:%d, v_s:%d, v_e:%d, h_s:%d, h_e:%d\n",
+		buf->vt_pix_clk_freq_mhz, buf->output_width,
+		buf->output_height, buf->line_length_pck, buf->frame_length_lines,
+		buf->crop_vertical_start, buf->crop_vertical_end,
+		buf->crop_horizontal_start, buf->crop_horizontal_end);
 	return 0;
 }
 
@@ -887,99 +891,127 @@ static int gc2235_g_exposure(struct v4l2_subdev *sd, s32 *value)
 	return 0;
 }
 
-struct gc2235_control gc2235_controls[] = {
+static int gc2235_s_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct gc2235_device *dev = container_of(
+		ctrl->handler, struct gc2235_device, ctrl_handler);
+	struct i2c_client *client = v4l2_get_subdevdata(&dev->sd);
+	int ret = 0;
+
+	switch (ctrl->id) {
+	case V4L2_CID_VFLIP:
+		dev_dbg(&client->dev, "%s: CID_VFLIP:%d.\n", __func__, ctrl->val);
+		ret = gc2235_v_flip(&dev->sd, ctrl->val);
+		break;
+	case V4L2_CID_HFLIP:
+		dev_dbg(&client->dev, "%s: CID_HFLIP:%d.\n", __func__, ctrl->val);
+		ret = gc2235_h_flip(&dev->sd, ctrl->val);
+		break;
+	}
+
+	return ret;
+}
+
+static int gc2235_g_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct gc2235_device *dev = container_of(
+		ctrl->handler, struct gc2235_device, ctrl_handler);
+	struct i2c_client *client = v4l2_get_subdevdata(&dev->sd);
+	int ret = 0;
+
+	switch (ctrl->id) {
+	case V4L2_CID_EXPOSURE_ABSOLUTE:
+		ret = gc2235_g_exposure(&dev->sd, &ctrl->val);
+		break;
+	case V4L2_CID_FOCAL_ABSOLUTE:
+		ret = gc2235_g_focal(&dev->sd, &ctrl->val);
+		break;
+	case V4L2_CID_FNUMBER_ABSOLUTE:
+		ret = gc2235_g_fnumber(&dev->sd, &ctrl->val);
+		break;
+	case V4L2_CID_FNUMBER_RANGE:
+		ret = gc2235_g_fnumber_range(&dev->sd, &ctrl->val);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return ret;
+}
+static const struct v4l2_ctrl_ops ctrl_ops = {
+       .s_ctrl = gc2235_s_ctrl,
+       .g_volatile_ctrl = gc2235_g_ctrl 
+};
+
+struct v4l2_ctrl_config gc2235_controls[] = {
 	{
-		.qc = {
+		.ops = &ctrl_ops,
 			.id = V4L2_CID_EXPOSURE_ABSOLUTE,
 			.type = V4L2_CTRL_TYPE_INTEGER,
 			.name = "exposure",
-			.minimum = 0x0,
-			.maximum = 0xffff,
+			.min = 0x0,
+			.max = 0xffff,
 			.step = 0x01,
-			.default_value = 0x00,
-			.flags = 0,
-		},
-		.query = gc2235_q_exposure,
+			.def = 0x00,
+			.flags = V4L2_CTRL_FLAG_VOLATILE,
 	},
 	{
-		.qc = {
+		.ops = &ctrl_ops,
 			.id = V4L2_CID_VFLIP,
 			.type = V4L2_CTRL_TYPE_BOOLEAN,
 			.name = "Flip",
-			.minimum = 0,
-			.maximum = 1,
+			.min = 0,
+			.max = 1,
 			.step = 1,
-			.default_value = 0,
-		},
-		.tweak = gc2235_v_flip,
+			.def = 0,
 	},
 	{
-		.qc = {
+		.ops = &ctrl_ops,
 			.id = V4L2_CID_HFLIP,
 			.type = V4L2_CTRL_TYPE_BOOLEAN,
 			.name = "Mirror",
-			.minimum = 0,
-			.maximum = 1,
+			.min = 0,
+			.max = 1,
 			.step = 1,
-			.default_value = 0,
-		},
-		.tweak = gc2235_h_flip,
+			.def = 0,
 	},
 	{
-		.qc = {
+		.ops = &ctrl_ops,
 			.id = V4L2_CID_FOCAL_ABSOLUTE,
 			.type = V4L2_CTRL_TYPE_INTEGER,
 			.name = "focal length",
-			.minimum = GC2235_FOCAL_LENGTH_DEFAULT,
-			.maximum = GC2235_FOCAL_LENGTH_DEFAULT,
+			.min = GC2235_FOCAL_LENGTH_DEFAULT,
+			.max = GC2235_FOCAL_LENGTH_DEFAULT,
 			.step = 0x01,
-			.default_value = GC2235_FOCAL_LENGTH_DEFAULT,
-			.flags = 0,
-		},
-		.query = gc2235_g_focal,
+			.def = GC2235_FOCAL_LENGTH_DEFAULT,
+			.flags = V4L2_CTRL_FLAG_VOLATILE,
 	},
 	{
-		.qc = {
+		.ops = &ctrl_ops,
 			.id = V4L2_CID_FNUMBER_ABSOLUTE,
 			.type = V4L2_CTRL_TYPE_INTEGER,
 			.name = "f-number",
-			.minimum = GC2235_F_NUMBER_DEFAULT,
-			.maximum = GC2235_F_NUMBER_DEFAULT,
+			.min = GC2235_F_NUMBER_DEFAULT,
+			.max = GC2235_F_NUMBER_DEFAULT,
 			.step = 0x01,
-			.default_value = GC2235_F_NUMBER_DEFAULT,
-			.flags = 0,
-		},
-		.query = gc2235_g_fnumber,
+			.def = GC2235_F_NUMBER_DEFAULT,
+			.flags = V4L2_CTRL_FLAG_VOLATILE,
 	},
 	{
-		.qc = {
+		.ops = &ctrl_ops,
 			.id = V4L2_CID_FNUMBER_RANGE,
 			.type = V4L2_CTRL_TYPE_INTEGER,
 			.name = "f-number range",
-			.minimum = GC2235_F_NUMBER_RANGE,
-			.maximum =  GC2235_F_NUMBER_RANGE,
+			.min = GC2235_F_NUMBER_RANGE,
+			.max =  GC2235_F_NUMBER_RANGE,
 			.step = 0x01,
-			.default_value = GC2235_F_NUMBER_RANGE,
-			.flags = 0,
-		},
-		.query = gc2235_g_fnumber_range,
-	},
-	{
-		.qc = {
-			.id = V4L2_CID_EXPOSURE_ABSOLUTE,
-			.type = V4L2_CTRL_TYPE_INTEGER,
-			.name = "exposure",
-			.minimum = 0x0,
-			.maximum = 0xffff,
-			.step = 0x01,
-			.default_value = 0x00,
-			.flags = 0,
-		},
-		.query = gc2235_g_exposure,
+			.def = GC2235_F_NUMBER_RANGE,
+			.flags = V4L2_CTRL_FLAG_VOLATILE,
 	},
 };
 
 #define N_CONTROLS (ARRAY_SIZE(gc2235_controls))
+#if 0
 static struct gc2235_control *gc2235_find_control(u32 id)
 {
 	int i;
@@ -1041,7 +1073,7 @@ static int gc2235_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *ctrl)
 
 	return ret;
 }
-
+#endif
 static int get_resolution_index(struct v4l2_subdev *sd, int w, int h)
 {
 	int i;
@@ -1170,6 +1202,8 @@ static int gc2235_s_mbus_fmt(struct v4l2_subdev *sd,
 		dev_err(&client->dev, "i2c write error for gc2235_sub_init()\n");
 	}
 #endif
+	dev_info(&client->dev, "@%s: width:%d, height:%d, index:%d\n",
+		__func__, fmt->width, fmt->height, dev->fmt_idx);
 
 	gc2235_def_reg = dev->curr_res_table[dev->fmt_idx].regs;
 
@@ -1197,7 +1231,7 @@ static int gc2235_s_mbus_fmt(struct v4l2_subdev *sd,
 	ret = gc2235_read_reg(client, GC2235_8BIT, GC2235_IMG_ORIENTATION, &val);
 	if (ret)
 		goto out;
-	val &= (GC2235_VFLIP_BIT|GC2235_HFLIP_BIT);
+	val = g_flip & (GC2235_VFLIP_BIT|GC2235_HFLIP_BIT);
 	gc2235_info->raw_bayer_order = gc2235_bayer_order_mapping[val];
 	dev->format.code = gc2235_translate_bayer_order(
 		gc2235_info->raw_bayer_order);
@@ -1261,12 +1295,12 @@ static int gc2235_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	int ret;
 	struct gc2235_device *dev = to_gc2235_sensor(sd);
-
+	printk("@%s: enable:%d\n", __func__, enable);
 	mutex_lock(&dev->input_lock);
-	if (enable) {
+	if (enable && dev->streaming != 1) {
 		ret = gc2235_set_streaming(sd);
 		dev->streaming = 1;
-	} else {
+	} else if (!enable) {
 		ret = gc2235_set_suspend(sd);
 		dev->streaming = 0;
 		dev->fps_index = 0;
@@ -1457,7 +1491,7 @@ gc2235_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *param)
 {
 	struct gc2235_device *dev = to_gc2235_sensor(sd);
 	dev->run_mode = param->parm.capture.capturemode;
-
+	printk("@%s: mode:%x\n", __func__, dev->run_mode);
 	mutex_lock(&dev->input_lock);
 	switch (dev->run_mode) {
 	case CI_MODE_VIDEO:
@@ -1544,13 +1578,14 @@ static const struct v4l2_subdev_video_ops gc2235_video_ops = {
 	.g_mbus_fmt = gc2235_g_mbus_fmt,
 	.s_mbus_fmt = gc2235_s_mbus_fmt,
 	.s_parm = gc2235_s_parm,
+	.g_frame_interval = gc2235_g_frame_interval,
 };
 
 static const struct v4l2_subdev_core_ops gc2235_core_ops = {
 	.g_chip_ident = gc2235_g_chip_ident,
-	.queryctrl = gc2235_queryctrl,
-	.g_ctrl = gc2235_g_ctrl,
-	.s_ctrl = gc2235_s_ctrl,
+	.queryctrl = v4l2_subdev_queryctrl,
+	.g_ctrl = v4l2_subdev_g_ctrl,
+	.s_ctrl = v4l2_subdev_s_ctrl,
 #ifdef POWER_ALWAYS_ON_BEFORE_SUSPEND
 	.s_power = gc2235_s_power_always_on,
 #else
@@ -1581,6 +1616,7 @@ static int gc2235_remove(struct i2c_client *client)
 	if (dev->platform_data->platform_deinit)
 		dev->platform_data->platform_deinit();
 
+	v4l2_ctrl_handler_free(&dev->ctrl_handler);
 	v4l2_device_unregister_subdev(sd);
 	media_entity_cleanup(&dev->sd.entity);
 	kfree(dev);
@@ -1597,6 +1633,26 @@ static int __update_gc2235_device_settings(struct gc2235_device *dev, u16 sensor
 	default:
 		return -EINVAL;
 	}
+
+	return 0;
+}
+
+static int __gc2235_init_ctrl_handler(struct gc2235_device *dev)
+{
+	struct v4l2_ctrl_handler *hdl;
+	int i;
+
+	hdl = &dev->ctrl_handler;
+
+	v4l2_ctrl_handler_init(&dev->ctrl_handler, ARRAY_SIZE(gc2235_controls));
+
+	for (i = 0; i < ARRAY_SIZE(gc2235_controls); i++)
+		v4l2_ctrl_new_custom(&dev->ctrl_handler,
+				&gc2235_controls[i], NULL);
+
+	dev->ctrl_handler.lock = &dev->input_lock;
+	dev->sd.ctrl_handler = hdl;
+	v4l2_ctrl_handler_setup(&dev->ctrl_handler);
 
 	return 0;
 }
@@ -1644,6 +1700,10 @@ static int gc2235_probe(struct i2c_client *client,
 	if (ret)
 		goto out_free;
 
+	ret = __gc2235_init_ctrl_handler(dev);
+	if (ret)
+		goto out_ctrl_handler_free;
+
 	dev->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	dev->pad.flags = MEDIA_PAD_FL_SOURCE;
 	dev->format.code = V4L2_MBUS_FMT_SGRBG10_1X10;
@@ -1655,6 +1715,9 @@ static int gc2235_probe(struct i2c_client *client,
 		gc2235_remove(client);
 
 	return ret;
+out_ctrl_handler_free:
+	v4l2_ctrl_handler_free(&dev->ctrl_handler);
+
 out_free:
 	v4l2_device_unregister_subdev(&dev->sd);
 	kfree(dev);

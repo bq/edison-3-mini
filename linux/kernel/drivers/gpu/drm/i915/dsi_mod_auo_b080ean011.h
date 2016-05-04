@@ -24,12 +24,12 @@
  *	Shobhit Kumar <shobhit.kumar@intel.com>
  *  *     Lingyan Guo <lingyan.guo@intel.com>
  */
-#ifndef __DSI_MOD_AUO_B080EAN02_H__
-#define __DSI_MOD_AUO_B080EAN02_H__
+#ifndef __DSI_MOD_AUO_B080EAN011_H__
+#define __DSI_MOD_AUO_B080EAN011_H__
 
 #include <drm/drmP.h>
 #include <drm/drm.h>
 #include <drm/drm_crtc.h>
 #include "intel_drv.h"
 
-#endif /* __DSI_MOD_AUO_B080EAN02_H__ */
+#endif /* __DSI_MOD_AUO_B080EAN011_H__ */

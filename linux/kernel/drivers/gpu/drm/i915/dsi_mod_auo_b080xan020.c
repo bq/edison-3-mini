@@ -39,8 +39,6 @@
 #include "intel_dsi.h"
 #include "intel_dsi_cmd.h"
 #include "dsi_mod_auo_b080xan020.h"
-
-
 #include "linux/lnw_gpio.h"
 #include "linux/gpio.h"
 
@@ -60,7 +58,7 @@ static struct drm_display_mode *b080xan02_get_modes(
 	struct intel_dsi_device *dsi)
 {
 	struct drm_display_mode *mode = NULL;
-
+	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
 	/* Allocate */
 	mode = kzalloc(sizeof(*mode), GFP_KERNEL);
 	if (!mode) {
@@ -68,19 +66,19 @@ static struct drm_display_mode *b080xan02_get_modes(
 		return NULL;
 	}
 	mode->hdisplay = 768;
-	mode->hsync_start = 828;//mode->hdisplay + 60;
-	mode->hsync_end = 892;//mode->hsync_start + 64;
-	mode->htotal = 948;//mode->hsync_end + 56;
+	mode->hsync_start = 828;
+	mode->hsync_end = 892;
+	mode->htotal = 948;
 
 	mode->vdisplay = 1024;
-	mode->vsync_start = 1060;//mode->vdisplay + 36;
-	mode->vsync_end = 1110;//mode->vsync_start + 50;
-	mode->vtotal = 1140;//mode->vsync_end + 30;
+	mode->vsync_start = 1060;
+	mode->vsync_end = 1110;
+	mode->vtotal = 1140;
 
 	mode->vrefresh = 60;
 	mode->clock =  mode->vrefresh * mode->vtotal *
 	mode->htotal / 1000;
-
+	intel_dsi->pclk = mode->clock;
 	/* Configure */
 	drm_mode_set_name(mode);
 	drm_mode_set_crtcinfo(mode, 0);
@@ -117,7 +115,7 @@ static enum drm_connector_status b080xan02_detect(
 	struct drm_device *dev = intel_dsi->base.base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
-	dev_priv->is_mipi = true;	
+	dev_priv->is_mipi = true;
 
 	return connector_status_connected;
 }
@@ -147,7 +145,6 @@ void b080xan02_panel_reset(struct intel_dsi_device *dsi)
 	vlv_gpio_nc_write(dev_priv, GPIO_NC_11_PAD, 0x00000005);
 	usleep_range(100000, 120000);
 	vlv_gpio_nc_write(dev_priv, GPIO_NC_9_PAD, 0x00000005);
-	
 }
 
 static int b080xan02_mode_valid(struct intel_dsi_device *dsi,
@@ -158,10 +155,9 @@ static int b080xan02_mode_valid(struct intel_dsi_device *dsi,
 
 static void b080xan02_dpms(struct intel_dsi_device *dsi, bool enable)
 {
-//	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-
 	DRM_DEBUG_KMS("\n");
 }
+
 static void b080xan02_enable(struct intel_dsi_device *dsi)
 {
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
@@ -171,7 +167,6 @@ static void b080xan02_enable(struct intel_dsi_device *dsi)
 	msleep(10);
 	dsi_vc_dcs_write_0(intel_dsi, 0, 0x29);
 	msleep(100);
-
 }
 static void b080xan02_disable(struct intel_dsi_device *dsi)
 {
@@ -187,9 +182,7 @@ static void b080xan02_disable(struct intel_dsi_device *dsi)
 bool b080xan02_init(struct intel_dsi_device *dsi)
 {
 	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-//	struct drm_device *dev = intel_dsi->base.base.dev;
-//	struct drm_i915_private *dev_priv = dev->dev_private;
-//	int err = 0;
+
 	/* create private data, slam to dsi->dev_priv. could support many panels
 	 * based on dsi->name. This panal supports both command and video mode,
 	 * so check the type. */
@@ -219,24 +212,23 @@ bool b080xan02_init(struct intel_dsi_device *dsi)
 	intel_dsi->turn_arnd_val = 0x3f;
 	intel_dsi->rst_timer_val = 0xff;
 	intel_dsi->init_count = 0x7d0;
-	intel_dsi->hs_to_lp_count = 0x46;
-	intel_dsi->lp_byte_clk = 4;
+	intel_dsi->hs_to_lp_count = 0x17; /*0x46*/
+	intel_dsi->lp_byte_clk = 0x3; /*4*/
 	intel_dsi->bw_timer = 0;
-	intel_dsi->clk_lp_to_hs_count = 0x24;
-	intel_dsi->clk_hs_to_lp_count = 0x0F;
+	intel_dsi->clk_lp_to_hs_count = 0x1C; /*0x24*/
+	intel_dsi->clk_hs_to_lp_count = 0x0C; /*0x0F*/
 	intel_dsi->video_frmt_cfg_bits = DISABLE_VIDEO_BTA;
-	intel_dsi->dphy_reg = 0x3F10430D;
+	intel_dsi->dphy_reg = 0x160C310A; /*0x3F10430D*/
+	intel_dsi->port = 0; /* PORT_A by default */
+	intel_dsi->burst_mode_ratio = 100;
 
 	intel_dsi->backlight_off_delay = 20;
 	intel_dsi->send_shutdown = true;
 	intel_dsi->shutdown_pkt_delay = 20;
-	//dev_priv->mipi.panel_bpp = 24;
-
 	intel_dsi->lane_count = 4;
 
 	return true;
 }
-
 
 void b080xan02_send_otp_cmds(struct intel_dsi_device *dsi)
 {
@@ -249,29 +241,16 @@ void b080xan02_send_otp_cmds(struct intel_dsi_device *dsi)
 	msleep(100);
 
 	intel_dsi->hs = 1;
-
 }
 
 void b080xan02_enable_panel_power(struct intel_dsi_device *dsi)
 {
-//	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-//	struct drm_device *dev = intel_dsi->base.base.dev;
-//	struct drm_i915_private *dev_priv = dev->dev_private;
-
 	DRM_DEBUG_KMS("\n");
-
-
 }
 
 void b080xan02_disable_panel_power(struct intel_dsi_device *dsi)
 {
-//	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
-//	struct drm_device *dev = intel_dsi->base.base.dev;
-//	struct drm_i915_private *dev_priv = dev->dev_private;
-
 	DRM_DEBUG_KMS("\n");
-
-
 }
 
 /* Callbacks. We might not need them all. */
@@ -291,6 +270,5 @@ struct intel_dsi_dev_ops auo_b080xan020_dsi_display_ops = {
 	.enable = b080xan02_enable,
 	.disable = b080xan02_disable,
 	.send_otp_cmds = b080xan02_send_otp_cmds,
-//	.enable_panel_power = b080xan02_enable_panel_power,
 	.disable_panel_power = b080xan02_disable_panel_power,
 };

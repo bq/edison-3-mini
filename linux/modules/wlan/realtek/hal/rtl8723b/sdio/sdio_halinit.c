@@ -1207,20 +1207,20 @@ static u32 rtl8723bs_hal_init(PADAPTER padapter)
 		DBG_871X("check fw_ps_state fail before PowerOn!\n");
 		pdbgpriv->dbg_ips_drvopen_fail_cnt++;
 	}
-
+	
 	ret = _InitPowerOn_8723BS(padapter);
 	if (_FAIL == ret) {
 		RT_TRACE(_module_hci_hal_init_c_, _drv_err_, ("Failed to init Power On!\n"));
 		return _FAIL;
 	}
 	DBG_871X("Power on ok!\n");
-
+	
 	if(rtw_fw_ps_state(padapter) == _FAIL)
 	{
 		DBG_871X("check fw_ps_state fail after PowerOn!\n");
 		pdbgpriv->dbg_ips_drvopen_fail_cnt++;
-	}
-
+	}	
+	
 
 	rtw_write8(padapter, REG_EARLY_MODE_CONTROL, 0);
 
@@ -2076,7 +2076,7 @@ static s32 _ReadAdapterInfo8723BS(PADAPTER padapter)
 	// before access eFuse, make sure card enable has been called
 	if(padapter->hw_init_completed == _FALSE)
 		_InitPowerOn_8723BS(padapter);
-	
+
 
 	val8 = rtw_read8(padapter, 0x4e);
 	MSG_8192C("%s, 0x4e=0x%x\n", __func__, val8);
@@ -2316,8 +2316,6 @@ _func_enter_;
 					, rtw_read32(padapter, 0x4a0), rtw_read32(padapter, 0x4a4)
 					, rtw_read32(padapter, 0x1cc), rtw_read32(padapter, 0x2f0), rtw_read32(padapter, 0x2f4), rtw_read32(padapter, 0x2f8)
 					, rtw_read32(padapter, 0x2fc), rtw_read32(padapter, 0x8c));
-
-                    DBG_871X("\n%s: filtered NBNS pkt count 0x01AC=0x%08x \n", __FUNCTION__, rtw_read32(padapter, 0x01AC));
 #ifdef CONFIG_PNO_SET_DEBUG
 					DBG_871X("0x1b9: 0x%02x, 0x632: 0x%02x\n",rtw_read8(padapter, 0x1b9), rtw_read8(padapter, 0x632));
 					DBG_871X("0x4fc: 0x%02x, 0x4fd: 0x%02x\n",rtw_read8(padapter, 0x4fc), rtw_read8(padapter, 0x4fd));

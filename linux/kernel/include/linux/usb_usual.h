@@ -74,8 +74,6 @@
 enum { US_DO_ALL_FLAGS };
 #undef US_FLAG
 
-#define USB_US_TYPE_STOR   1		/* usb-storage */
-
 #include <linux/usb/storage.h>
 
 extern int usb_usual_ignore_device(struct usb_interface *intf);

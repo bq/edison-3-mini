@@ -32,6 +32,4 @@
 #include <drm/drm_crtc.h>
 #include "intel_drv.h"
 
-
-  
 #endif /* __DSI_MOD_AUO_B080EAN02_H__ */

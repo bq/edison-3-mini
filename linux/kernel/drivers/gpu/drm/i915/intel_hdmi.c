@@ -37,6 +37,8 @@
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
 
+#define ENABLE_PFIT_HDMI 0
+
 static struct drm_device *intel_hdmi_to_dev(struct intel_hdmi *intel_hdmi)
 {
 	return hdmi_to_dig_port(intel_hdmi)->base.base.dev;
@@ -744,6 +746,7 @@ static void intel_hdmi_mode_set(struct intel_encoder *encoder)
 	POSTING_READ(intel_hdmi->hdmi_reg);
 
 	intel_hdmi->set_infoframes(&encoder->base, adjusted_mode);
+	switch_set_state(&intel_hdmi->sdev, 1);
 }
 
 static bool intel_hdmi_get_hw_state(struct intel_encoder *encoder,
@@ -925,10 +928,12 @@ bool intel_hdmi_compute_config(struct intel_encoder *encoder,
 	struct intel_hdmi *intel_hdmi = enc_to_intel_hdmi(&encoder->base);
 	struct drm_device *dev = encoder->base.dev;
 	struct drm_display_mode *adjusted_mode = &pipe_config->adjusted_mode;
-	struct intel_crtc *intel_crtc = encoder->new_crtc;
-	struct intel_connector *intel_connector = intel_hdmi->attached_connector;
 	int clock_12bpc = pipe_config->requested_mode.clock * 3 / 2;
 	int desired_bpp;
+#if ENABLE_PFIT_HDMI
+	struct intel_crtc *intel_crtc = encoder->new_crtc;
+	struct intel_connector *intel_connector = intel_hdmi->attached_connector;
+#endif
 
 	if (intel_hdmi->color_range_auto) {
 		/* See CEA-861-E - 5.1 Default Encoding Parameters */
@@ -938,12 +943,14 @@ bool intel_hdmi_compute_config(struct intel_encoder *encoder,
 		else
 			intel_hdmi->color_range = 0;
 	}
+	/*TODO: Panel fitter is not enabled for HDMI */
 
+#if ENABLE_PFIT_HDMI
 	if (IS_VALLEYVIEW(dev)) {
 		intel_gmch_panel_fitting(intel_crtc, pipe_config,
-			intel_connector->panel.fitting_mode);
+				intel_connector->panel.fitting_mode);
 	}
-
+#endif
 	if (intel_hdmi->color_range)
 		pipe_config->limited_color_range = true;
 
@@ -1156,9 +1163,9 @@ void intel_hdmi_hot_plug(struct intel_encoder *intel_encoder)
 	struct edid *old_edid = intel_hdmi->edid;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	bool need_event = false;
+	int pipe = 0;
 
 	connector = &intel_hdmi->attached_connector->base;
-
 	/* We are here, means there is a HDMI hot-plug
 	Lets try to get EDID */
 	edid = intel_hdmi_get_edid(connector, false);
@@ -1168,6 +1175,14 @@ void intel_hdmi_hot_plug(struct intel_encoder *intel_encoder)
 			need_event = true;
 	} else {
 		DRM_DEBUG_DRIVER("Hdmi: Monitor disconnected\n");
+		if (intel_encoder->type == INTEL_OUTPUT_HDMI &&
+				to_intel_crtc(encoder->crtc)) {
+			pipe = to_intel_crtc(encoder->crtc)->pipe;
+			if (dev_priv->gamma_enabled[pipe])
+				dev_priv->gamma_enabled[pipe] = false;
+			if (dev_priv->csc_enabled[pipe])
+				dev_priv->csc_enabled[pipe] = false;
+		}
 		if (connector->status == connector_status_disconnected)
 			need_event = true;
 	}
@@ -1205,6 +1220,9 @@ void intel_hdmi_hot_plug(struct intel_encoder *intel_encoder)
 	if (need_event) {
 		DRM_DEBUG_DRIVER("Sending self event");
 		intel_hdmi_send_uevent(dev, "HOTPLUG=1");
+	}
+	if (edid == NULL) {
+		switch_set_state(&intel_hdmi->sdev, 0);
 	}
 
 	/* Update EDID, kfree is NULL protected */
@@ -1421,7 +1439,8 @@ intel_hdmi_set_property(struct drm_connector *connector,
 
 		goto done;
 	}
-
+	/* TODO: Panel fitter is not enabled for HDMI */
+#if ENABLE_PFIT_HDMI
 	if (property == dev_priv->force_pfit_property) {
 		if (intel_connector->panel.fitting_mode == val)
 			return 0;
@@ -1429,12 +1448,12 @@ intel_hdmi_set_property(struct drm_connector *connector,
 
 		if (IS_VALLEYVIEW(dev_priv->dev)) {
 			intel_gmch_panel_fitting(intel_crtc, &intel_crtc->config,
-				intel_connector->panel.fitting_mode);
+					intel_connector->panel.fitting_mode);
 			return 0;
 		} else
 			goto done;
 	}
-
+#endif
 	if (property == dev_priv->scaling_src_size_property) {
 		intel_crtc->scaling_src_size = val;
 		DRM_DEBUG_DRIVER("src size = %x", intel_crtc->scaling_src_size);
@@ -1816,6 +1835,10 @@ void intel_hdmi_init(struct drm_device *dev, int hdmi_reg, enum port port)
 	intel_dig_port->dp.output_reg = 0;
 
 	intel_hdmi_init_connector(intel_dig_port, intel_connector);
+	intel_dig_port->hdmi.sdev.name = "hdmi";
+	if (switch_dev_register(&intel_dig_port->hdmi.sdev) < 0) {
+	    DRM_ERROR("Hdmi switch_dev registration failed\n");
+	}
 	/* Added for HDMI Audio */
 	/* HDMI private data */
 	INIT_WORK(&dev_priv->hdmi_audio_wq, i915_had_wq);

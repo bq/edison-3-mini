@@ -136,27 +136,7 @@ struct intel_pmic_irqregmap dollar_cove_ti_irqregmap[] = {
 
 static int dollar_cove_ti_init(void)
 {
-	int reg_val=0;
-
 	pr_info("Dollar Cove(TI: IC_TYPE 0x%02X\n", intel_mid_pmic_readb(0x00));
-	pr_info("Forcing Sleep Mode Vnn to 0.5V \n");
-
-	/* Write 0x14 to Register Buck5 VSleep Control: 0x2B */
-	reg_val = intel_mid_pmic_readb(0x2B);
-	if (reg_val < 0) {
-		pr_err("Error reading BUCK5 VSLEEP %x\n", reg_val);
-	}
-
-	else {
-		reg_val &= ~0xFE;
-		reg_val |= 0x14;
-
-		reg_val = intel_mid_pmic_writeb(0x2B, reg_val);
-		if (reg_val < 0) {
-			pr_err("Error setting VSLEEP Vnn to 0.5V %x\n", reg_val);
-		}
-	}
-
 	return 0;
 }
 

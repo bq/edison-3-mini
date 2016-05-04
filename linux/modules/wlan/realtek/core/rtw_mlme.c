@@ -302,6 +302,42 @@ exit:
 _func_exit_;			
 
 }
+void _rtw_free_networks_by_ssid_nolock(_adapter *padapter, u8 isfreeall, NDIS_802_11_SSID *ssid)
+{
+	_list *phead, *plist;
+	struct wlan_network *pnetwork;
+	struct mlme_priv* pmlmepriv = &padapter->mlmepriv;
+	_queue *scanned_queue = &pmlmepriv->scanned_queue;
+
+_func_enter_;
+
+	if (ssid == NULL)
+		goto exit;
+
+	//_enter_critical_bh(&scanned_queue->lock, &irqL);
+
+	phead = get_list_head(scanned_queue);
+	plist = get_next(phead);
+
+	while (rtw_end_of_queue_search(phead, plist) == _FALSE)
+	{
+		pnetwork = LIST_CONTAINOR(plist, struct wlan_network, list);
+		plist = get_next(plist);
+
+		if (_rtw_memcmp(ssid->Ssid, pnetwork->network.Ssid.Ssid, ssid->SsidLength) == _TRUE)
+		{
+			pnetwork->fixed = _FALSE;
+			_rtw_free_network(pmlmepriv,pnetwork, isfreeall);
+		}
+	}
+
+	//_exit_critical_bh(&scanned_queue->lock, &irqL);
+
+exit:
+
+_func_exit_;
+
+}
 
 void _rtw_free_network_nolock(struct	mlme_priv *pmlmepriv, struct wlan_network *pnetwork)
 {
@@ -544,6 +580,12 @@ _func_enter_;
 	_rtw_free_network_nolock(pmlmepriv, pnetwork);
 _func_exit_;		
 }
+void rtw_free_networks_by_ssid_nolock(_adapter *padapter, u8 isfreeall, NDIS_802_11_SSID *ssid)
+{
+_func_enter_;
+	_rtw_free_networks_by_ssid_nolock(padapter, isfreeall, ssid);
+_func_exit_;
+}
 
 
 void rtw_free_network_queue(_adapter* dev, u8 isfreeall)
@@ -720,7 +762,6 @@ void update_network(WLAN_BSSID_EX *dst, WLAN_BSSID_EX *src,
 	u8 ss_final;
 	u8 sq_final;
 	long rssi_final;
-	u8 rssi_change = _FALSE;//
 
 _func_enter_;		
 
@@ -751,37 +792,7 @@ _func_enter_;
 			rssi_final = rssi_ori;
 	}
 	else {
-
-		if(_rtw_memcmp(src->MacAddress, dst->MacAddress, ETH_ALEN) == _FALSE)
-		{
-			if((ss_smp > ss_ori) && (sq_smp != 101)) //src > dst
-			{
-				rssi_change = _TRUE;		
-
-#if 1 //debug purpose
-				DBG_871X(FUNC_ADPT_FMT" %s("MAC_FMT", ch%u) ss_ori:%3u, sq_ori:%3u, rssi_ori:%3ld\n"
-				, FUNC_ADPT_ARG(padapter)
-				, dst->Ssid.Ssid, MAC_ARG(dst->MacAddress), dst->Configuration.DSConfig
-				,ss_ori, sq_ori, rssi_ori);
-
-				DBG_871X(FUNC_ADPT_FMT" %s("MAC_FMT", ch%u) ss_smp:%3u, sq_smp:%3u, rssi_smp:%3ld\n"
-				, FUNC_ADPT_ARG(padapter)
-				, src->Ssid.Ssid, MAC_ARG(src->MacAddress), src->Configuration.DSConfig
-				,ss_smp, sq_smp, rssi_smp);
-#endif			
-			}
-			else
-			{
-				update_ie = _FALSE;
-			}
-		}
-
-
-		if(rssi_change) {
-			ss_final = src->PhyInfo.SignalStrength;
-			sq_final = src->PhyInfo.SignalQuality;
-			rssi_final = src->Rssi;			
-		}else if(sq_smp != 101) { /* from the right channel */
+		if(sq_smp != 101) { /* from the right channel */
 			ss_final = ((u32)(src->PhyInfo.SignalStrength)+(u32)(dst->PhyInfo.SignalStrength)*4)/5;
 			sq_final = ((u32)(src->PhyInfo.SignalQuality)+(u32)(dst->PhyInfo.SignalQuality)*4)/5;
 			rssi_final = (src->Rssi+dst->Rssi*4)/5;
@@ -794,7 +805,7 @@ _func_enter_;
 		
 	}
 
-	if (update_ie ||rssi_change) {
+	if (update_ie) {
 		dst->Reserved[0] = src->Reserved[0];
 		dst->Reserved[1] = src->Reserved[1];
 		_rtw_memcpy((u8 *)dst, (u8 *)src, get_WLAN_BSSID_EX_sz(src));
@@ -927,21 +938,10 @@ _func_enter_;
 		}
 #endif
 
-		if(feature)
+		if (is_same_network(&(pnetwork->network), target, feature))
 		{
-			if (is_same_network(&(pnetwork->network), target, feature))
-			{
-				target_find = 1;
-				break;
-			}
-		}
-		else
-		{
-			if (is_same_ess(&(pnetwork->network), target))
-			{
-				target_find = 1;
-				break;
-			}
+			target_find = 1;
+			break;
 		}
 
 		if (rtw_roam_flags(adapter)) {
@@ -1523,21 +1523,20 @@ _func_enter_;
 		psta = rtw_get_stainfo(&adapter->stapriv, tgt_network->network.MacAddress);
 
 #ifdef CONFIG_TDLS
-		if(ptdlsinfo->link_established == _TRUE)
-		{
-			rtw_tdls_cmd(adapter, myid(&(adapter->eeprompriv)), TDLS_RS_RCR);
+		if (ptdlsinfo->link_established == _TRUE) {
+			rtw_tdls_cmd(adapter, NULL, TDLS_RS_RCR);
 			rtw_reset_tdls_info(adapter);
 			rtw_free_all_stainfo(adapter);
-//			_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+			//_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 		}
 		else
 #endif //CONFIG_TDLS
 		{
-//			_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+			//_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 			rtw_free_stainfo(adapter,  psta);
 		}
 
-//		_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+		//_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 		
 	}
 
@@ -1548,9 +1547,9 @@ _func_enter_;
 		rtw_free_all_stainfo(adapter);
 
 		psta = rtw_get_bcmc_stainfo(adapter);
-//		_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+		//_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);		
 		rtw_free_stainfo(adapter, psta);
-//		_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+		//_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);		
 
 		rtw_init_bcmc_stainfo(adapter);	
 	}
@@ -1562,15 +1561,14 @@ _func_enter_;
 	if(pwlan)		
 	{
 		pwlan->fixed = _FALSE;
-		//patch from Realtek for fix CTS verifier issue
-        DBG_871X("free disconnecting network\n");
-        rtw_free_network_nolock(pmlmepriv, pwlan);
+
+		DBG_871X("free disconnecting network\n");		
+		rtw_free_network_nolock(pmlmepriv, pwlan);		
 #ifdef CONFIG_P2P
 		if(!rtw_p2p_chk_state(&adapter->wdinfo, P2P_STATE_NONE))
 		{
 			rtw_set_scan_deny(adapter, 2000);
-			//rtw_clear_scan_deny(adapter);
-			
+			//rtw_clear_scan_deny(adapter);			
 		}
 #endif //CONFIG_P2P
 	}	
@@ -1578,6 +1576,12 @@ _func_enter_;
 	{
 		RT_TRACE(_module_rtl871x_mlme_c_,_drv_err_,("rtw_free_assoc_resources : pwlan== NULL \n\n"));
 	}
+	//2014.11.25
+	//This function used to free hidden SSID AP's pwlan
+	//In scanned_queue, there are two instances (same MAC addr, one has ssid but the other does not)
+	//rtw_find_network() and rtw_free_network_nolock() will only free the instance does not have ssid
+	//rtw_free_networks_by_ssid_nolock will free the instance has ssid
+	rtw_free_networks_by_ssid_nolock(adapter, _TRUE, &tgt_network->network.Ssid);
 
 
 	if((check_fwstate(pmlmepriv, WIFI_ADHOC_MASTER_STATE) && (adapter->stapriv.asoc_sta_count== 1))
@@ -2061,9 +2065,9 @@ _func_enter_;
 
 					pcur_sta = rtw_get_stainfo(pstapriv, cur_network->network.MacAddress);
 					if(pcur_sta){
-//						_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL2);
+						//_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL2);
 						rtw_free_stainfo(adapter,  pcur_sta);
-//						_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL2);
+						//_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL2);
 					}
 
 					ptarget_wlan = rtw_find_network(&pmlmepriv->scanned_queue, pnetwork->network.MacAddress);
@@ -2175,36 +2179,9 @@ _func_enter_;
 			RT_TRACE(_module_rtl871x_mlme_c_,_drv_err_,("Set Assoc_Timer = 1; can't find match ssid in scanned_q \n"));
 		#endif
 			
-#if 0
-                        if((retry < 2) &&
-                                ((pnetwork->join_res == (-1)) ||(pnetwork->join_res == (-2)) ||(pnetwork->join_res == (-3))))
-                        {
-                                if(rtw_p2p_chk_state(&adapter->wdinfo, P2P_STATE_NONE))
-                                {
-                                        _set_timer(&pmlmepriv->assoc_timer, MAX_JOIN_TIMEOUT);
-                                        pmlmepriv->to_join = _TRUE;
-                                        _clr_fwstate_(pmlmepriv, _FW_UNDER_LINKING);
- 
-                                        DBG_871X("scanning before reconnecting\n");
- 
-                                        retry++;
- 
-                                        if( _SUCCESS != rtw_sitesurvey_cmd(adapter, &pmlmepriv->assoc_ssid, 1, NULL, 0))
-                                        {
-                                                pmlmepriv->to_join = _FALSE;
-                                        }
-                                }
-                        }
-                        else
-                        {
-                                retry = 0;
-                        }
-#else
-                        _set_timer(&pmlmepriv->assoc_timer, 1);
-                        //rtw_free_assoc_resources(adapter, 1);
-                        _clr_fwstate_(pmlmepriv, _FW_UNDER_LINKING);
-#endif
-
+			_set_timer(&pmlmepriv->assoc_timer, 1);
+			//rtw_free_assoc_resources(adapter, 1);
+			_clr_fwstate_(pmlmepriv, _FW_UNDER_LINKING);
 			
 		#ifdef REJOIN
 			retry = 0;	
@@ -2437,7 +2414,7 @@ _func_enter_;
 	
 #ifdef CONFIG_RTL8711
 	//submit SetStaKey_cmd to tell fw, fw will allocate an CAM entry for this sta	
-	rtw_setstakey_cmd(adapter, (unsigned char*)psta, _FALSE, _TRUE);
+	rtw_setstakey_cmd(adapter, (unsigned char*)psta, GROUP_KEY, _TRUE);
 #endif
 		
 exit:
@@ -2555,9 +2532,9 @@ _func_enter_;
 	      check_fwstate(pmlmepriv,WIFI_ADHOC_STATE))
 	{
 		
-//		_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+		//_enter_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 		rtw_free_stainfo(adapter,  psta);
-//		_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
+		//_exit_critical_bh(&(pstapriv->sta_hash_lock), &irqL);
 		
 		if(adapter->stapriv.asoc_sta_count== 1) //a sta + bc/mc_stainfo (not Ibss_stainfo)
 		{ 
@@ -2875,8 +2852,8 @@ void rtw_dynamic_check_timer_handlder(_adapter *adapter)
 	if ((adapter_to_pwrctl(adapter)->bFwCurrentInPSMode ==_TRUE )
         //2015.01.08
         //BYT-CR may suspend SDIO bus when driver is in LPS because runtime_pm
-        //Therefore, driver will use rtw_dynamic_chk_wk_cmd() to do traffic_status_watchdog
-        //and linked_status_chk()when pmlmeext->retry >= 5 
+        //Therefore, driver will use rtw_dynamic_chk_wk_cmd() to do traffic_status_watchdog()
+        //and linked_status_chk() when pmlmeext->retry >= 5 
         //Using rtw_dynamic_chk_wk_cmd() will access SDIO and make SDIO wakeup.
         && (pmlmeext->retry < 5)
 #ifdef CONFIG_BT_COEXIST
@@ -4285,21 +4262,17 @@ void rtw_issue_addbareq_cmd_tdls(_adapter *padapter, struct xmit_frame *pxmitfra
 
 	priority = pattrib->priority;
 
-	if(pattrib->direct_link == _TRUE)
-	{
+	if (pattrib->direct_link == _TRUE) {
 		ptdls_sta = rtw_get_stainfo(&padapter->stapriv, pattrib->dst);
-		if((ptdls_sta != NULL) && (ptdls_sta->tdls_sta_state & TDLS_ESTABLISHED))
-		{
+		if ((ptdls_sta != NULL) && (ptdls_sta->tdls_sta_state & TDLS_LINKED_STATE)) {
 			phtpriv = &ptdls_sta->htpriv;
 
-			if((phtpriv->ht_option==_TRUE) && (phtpriv->ampdu_enable==_TRUE)) 
-			{
+			if ((phtpriv->ht_option == _TRUE) && (phtpriv->ampdu_enable == _TRUE)) {
 				issued = (phtpriv->agg_enable_bitmap>>priority)&0x1;
 				issued |= (phtpriv->candidate_tid_bitmap>>priority)&0x1;
 
-				if(0==issued)
-				{
-					DBG_871X("rtw_issue_addbareq_cmd, p=%d\n", priority);
+				if (0 == issued) {
+					DBG_871X("[%s], p=%d\n", __FUNCTION__, priority);
 					ptdls_sta->htpriv.candidate_tid_bitmap |= BIT((u8)priority);
 					rtw_addbareq_cmd(padapter,(u8)priority, pattrib->dst);
 				}

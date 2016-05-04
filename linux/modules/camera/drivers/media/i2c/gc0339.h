@@ -33,6 +33,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-chip-ident.h>
 #include <linux/v4l2-mediabus.h>
+#include <media/v4l2-ctrls.h>
 #include <media/media-entity.h>
 #include <linux/atomisp_platform.h>
 #include <linux/atomisp.h>
@@ -234,6 +235,8 @@ struct gc0339_device {
 	struct v4l2_subdev sd;
 	struct media_pad pad;
 	struct v4l2_mbus_framefmt format;
+	struct v4l2_ctrl_handler ctrl_handler;
+	struct mutex input_lock; /* serialize sensor's ioctl */
 
 	struct camera_sensor_platform_data *platform_data;
 	int real_model_id;
@@ -241,6 +244,8 @@ struct gc0339_device {
 	int power;
 	int second_power_on_at_boot_done;
 	int once_launched;
+	int streaming;
+	unsigned int vt_pix_clk_freq_mhz;
 
 	unsigned int bus_width;
 	unsigned int mode;

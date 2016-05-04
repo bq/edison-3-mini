@@ -25,7 +25,6 @@
 
 #include <rtw_wifi_regd.h>
 
-#define RTW_MAX_MGMT_TX_CNT (8)
 
 #define RTW_SCAN_IE_LEN_MAX      2304
 #define RTW_MAX_REMAIN_ON_CHANNEL_DURATION 5001 //ms
@@ -373,6 +372,9 @@ struct cfg80211_bss *rtw_cfg80211_inform_bss(_adapter *padapter, struct wlan_net
 	struct wireless_dev *wdev = padapter->rtw_wdev;
 	struct wiphy *wiphy = wdev->wiphy;
 	struct mlme_priv *pmlmepriv = &(padapter->mlmepriv);
+	struct timespec ts;
+       struct rtw_wdev_priv *pwdev_priv = adapter_wdev_data(padapter); 
+	_irqL	irqL;
 
 
 	//DBG_8192C("%s\n", __func__);
@@ -399,7 +401,7 @@ struct cfg80211_bss *rtw_cfg80211_inform_bss(_adapter *padapter, struct wlan_net
 #endif //!CONFIG_WAPI_SUPPORT
 
 	//To reduce PBC Overlap rate
-	//_enter_critical_bh(&pwdev_priv->scan_req_lock, &irqL);
+	_enter_critical_bh(&pwdev_priv->scan_req_lock, &irqL);
 	if(adapter_wdev_data(padapter)->scan_request != NULL)
 	{
 		u8 *psr=NULL, sr = 0;
@@ -470,7 +472,7 @@ struct cfg80211_bss *rtw_cfg80211_inform_bss(_adapter *padapter, struct wlan_net
 			}			
 		}		
 	}
-	//_exit_critical_bh(&pwdev_priv->scan_req_lock, &irqL);
+	_exit_critical_bh(&pwdev_priv->scan_req_lock, &irqL);
 	
 
 	channel = pnetwork->network.Configuration.DSConfig;
@@ -482,7 +484,8 @@ struct cfg80211_bss *rtw_cfg80211_inform_bss(_adapter *padapter, struct wlan_net
 	notify_channel = ieee80211_get_channel(wiphy, freq);
 
 	//rtw_get_timestampe_from_ie()
-	notify_timestamp = jiffies_to_msecs(jiffies)*1000; /* uSec */
+	get_monotonic_boottime(&ts);
+	notify_timestamp = ((u64)ts.tv_sec*1000000) + ts.tv_nsec / 1000;
 
 	notify_interval = le16_to_cpu(*(u16*)rtw_get_beacon_interval_from_ie(pnetwork->network.IEs));
 	notify_capability = le16_to_cpu(*(u16*)rtw_get_capability_from_ie(pnetwork->network.IEs));		
@@ -543,10 +546,10 @@ struct cfg80211_bss *rtw_cfg80211_inform_bss(_adapter *padapter, struct wlan_net
 	//#endif
 	
 
-#if 1	
+#if 0
 	bss = cfg80211_inform_bss_frame(wiphy, notify_channel, (struct ieee80211_mgmt *)buf,
 		len, notify_signal, GFP_ATOMIC);
-#else			 
+#else
 			
 	bss = cfg80211_inform_bss(wiphy, notify_channel, (const u8 *)pnetwork->network.MacAddress,
                 notify_timestamp, notify_capability, notify_interval, notify_ie,
@@ -1280,7 +1283,7 @@ _func_enter_;
 					//DEBUG_ERR((" param->u.crypt.key_len=%d\n",param->u.crypt.key_len));
 					DBG_871X(" ~~~~set sta key:unicastkey\n");
 					
-					rtw_setstakey_cmd(padapter, (unsigned char *)psta, _TRUE, _TRUE);
+					rtw_setstakey_cmd(padapter, (unsigned char *)psta, UNICAST_KEY, _TRUE);
 				}
 				else//group key
 				{
@@ -1447,6 +1450,9 @@ static int cfg80211_rtw_add_key(struct wiphy *wiphy, struct net_device *ndev,
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(ndev);
 	struct wireless_dev *rtw_wdev = padapter->rtw_wdev;
 	struct mlme_priv *pmlmepriv = &padapter->mlmepriv;
+#ifdef CONFIG_TDLS
+	struct sta_info *ptdls_sta;
+#endif /* CONFIG_TDLS */
 	
 	DBG_871X(FUNC_NDEV_FMT" adding key for %pM\n", FUNC_NDEV_ARG(ndev), mac_addr);
 	DBG_871X("cipher=0x%x\n", params->cipher);
@@ -1536,6 +1542,17 @@ static int cfg80211_rtw_add_key(struct wiphy *wiphy, struct net_device *ndev,
 
 	if(check_fwstate(pmlmepriv, WIFI_STATION_STATE) == _TRUE)
 	{
+#ifdef CONFIG_TDLS
+		if (rtw_tdls_is_driver_setup(padapter) == _FALSE && mac_addr) {
+			ptdls_sta = rtw_get_stainfo(&padapter->stapriv, (void *)mac_addr);
+			if (ptdls_sta != NULL && ptdls_sta->tdls_sta_state) {
+				_rtw_memcpy(ptdls_sta->tpk.tk, params->key, params->key_len);
+				rtw_tdls_set_key(padapter, ptdls_sta);
+				goto addkey_end;
+			}
+		}
+#endif /* CONFIG_TDLS */
+
 		ret =  rtw_cfg80211_set_encryption(ndev, param, param_len);	
 	}
 	else if(check_fwstate(pmlmepriv, WIFI_AP_STATE) == _TRUE)
@@ -4100,9 +4117,28 @@ static int cfg80211_rtw_stop_ap(struct wiphy *wiphy, struct net_device *ndev)
 static int	cfg80211_rtw_add_station(struct wiphy *wiphy, struct net_device *ndev,
 			       u8 *mac, struct station_parameters *params)
 {
+	int ret = 0;
+#ifdef CONFIG_TDLS
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(ndev);
+   	struct sta_priv *pstapriv = &padapter->stapriv;
+	struct sta_info *psta;
+#endif /* CONFIG_TDLS */
 	DBG_871X(FUNC_NDEV_FMT"\n", FUNC_NDEV_ARG(ndev));
 	
-	return 0;
+#ifdef CONFIG_TDLS
+	psta = rtw_get_stainfo(pstapriv, mac);
+	if (psta == NULL) {
+		psta = rtw_alloc_stainfo(pstapriv, mac);
+		if (psta ==NULL) {
+			DBG_871X("[%s] Alloc station for "MAC_FMT" fail\n", __FUNCTION__, MAC_ARG(mac));
+			ret =-EOPNOTSUPP;
+			goto exit;
+		}
+	}
+#endif /* CONFIG_TDLS */
+
+exit:
+	return ret;
 }
 
 static int	cfg80211_rtw_del_station(struct wiphy *wiphy, struct net_device *ndev,
@@ -5052,8 +5088,6 @@ static int cfg80211_rtw_mgmt_tx(struct wiphy *wiphy,
 #endif
 	int ret = 0;
 	int tx_ret;
-	u32 dump_limit = RTW_MAX_MGMT_TX_CNT;
-	u32 dump_cnt = 0;
 	bool ack = _TRUE;
 	u8 tx_ch = (u8)ieee80211_frequency_to_channel(chan->center_freq);
 	u8 category, action;
@@ -5061,6 +5095,7 @@ static int cfg80211_rtw_mgmt_tx(struct wiphy *wiphy,
 	u32 start = rtw_get_current_time();
 	_adapter *padapter;
 	struct rtw_wdev_priv *pwdev_priv;
+	u8 orig_buf[len];
 
 	if (ndev == NULL) {
 		ret = -EINVAL;
@@ -5072,6 +5107,9 @@ static int cfg80211_rtw_mgmt_tx(struct wiphy *wiphy,
 
 	/* cookie generation */
 	*cookie = (unsigned long) buf;
+
+	/* frame backup copy, in case content would be modified */
+	memcpy(orig_buf, buf, len);
 
 #ifdef CONFIG_DEBUG_CFG80211
 	DBG_871X(FUNC_ADPT_FMT" len=%zu, ch=%d"
@@ -5091,13 +5129,6 @@ static int cfg80211_rtw_mgmt_tx(struct wiphy *wiphy,
 	#endif
 	);
 #endif /* CONFIG_DEBUG_CFG80211 */
-
-	/* indicate ack before issue frame to avoid racing with rsp frame */
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37)) || defined(COMPAT_KERNEL_RELEASE)
-	rtw_cfg80211_mgmt_tx_status(padapter, *cookie, buf, len, ack, GFP_KERNEL);
-#elif  (LINUX_VERSION_CODE>=KERNEL_VERSION(2,6,34) && LINUX_VERSION_CODE<=KERNEL_VERSION(2,6,35))
-	cfg80211_action_tx_status(ndev, *cookie, buf, len, ack, GFP_KERNEL);
-#endif
 
 	if (rtw_action_frame_parse(buf, len, &category, &action) == _FALSE) {
 		DBG_8192C(FUNC_ADPT_FMT" frame_control:0x%x\n", FUNC_ADPT_ARG(padapter),
@@ -5124,15 +5155,22 @@ dump:
 		goto cancel_ps_deny;
 	}
 
-	do {
-		dump_cnt++;
-		tx_ret = _cfg80211_rtw_mgmt_tx(padapter, tx_ch, buf, len);
-	} while (dump_cnt < dump_limit && tx_ret != _SUCCESS);
+	tx_ret = _cfg80211_rtw_mgmt_tx(padapter, tx_ch, buf, len);
 
-	if (tx_ret != _SUCCESS || dump_cnt > 1) {
-		DBG_871X(FUNC_ADPT_FMT" %s (%d/%d) in %d ms\n", FUNC_ADPT_ARG(padapter),
-			tx_ret==_SUCCESS?"OK":"FAIL", dump_cnt, dump_limit, rtw_get_passing_time_ms(start));
+	if (tx_ret != _SUCCESS) {
+		DBG_871X(FUNC_ADPT_FMT" %s in %d ms\n", FUNC_ADPT_ARG(padapter),
+			tx_ret==_SUCCESS?"OK":"FAIL", rtw_get_passing_time_ms(start));
+		ack = _FALSE;
 	}
+
+	/* use original frame to send status to upper layer */
+	memcpy(buf, orig_buf, len);
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37)) || defined(COMPAT_KERNEL_RELEASE)
+	rtw_cfg80211_mgmt_tx_status(padapter, *cookie, buf, len, ack, GFP_KERNEL);
+#elif  (LINUX_VERSION_CODE>=KERNEL_VERSION(2,6,34) && LINUX_VERSION_CODE<=KERNEL_VERSION(2,6,35))
+	cfg80211_action_tx_status(ndev, *cookie, buf, len, ack, GFP_KERNEL);
+#endif
 
 	switch (type) {
 	case P2P_GO_NEGO_CONF:
@@ -5197,12 +5235,15 @@ static int cfg80211_rtw_tdls_mgmt(struct wiphy *wiphy,
 	size_t len)
 {
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(ndev);
+	struct mlme_ext_priv	*pmlmeext = &padapter->mlmeextpriv;
+	struct mlme_ext_info	*pmlmeinfo = &pmlmeext->mlmext_info;
 	int ret = 0;
 	struct tdls_txmgmt txmgmt;
 
-	//TDLS: discard wpa_supplicant's frame mgmt
-	DBG_871X("%s %d\n", __FUNCTION__, __LINE__);
-	return 0;
+	if (rtw_tdls_is_driver_setup(padapter)) {
+		DBG_871X("Discard tdls action:%d, let driver to set up direct link\n", action_code);
+		goto discard;
+	}
 
 	_rtw_memset(&txmgmt, 0x00, sizeof(struct tdls_txmgmt));
 	_rtw_memcpy(txmgmt.peer, peer, ETH_ALEN);
@@ -5211,53 +5252,52 @@ static int cfg80211_rtw_tdls_mgmt(struct wiphy *wiphy,
 	txmgmt.status_code = status_code;
 	txmgmt.len = len;
 	txmgmt.buf = (u8 *)rtw_malloc(txmgmt.len);
-	if (txmgmt.buf == NULL)
-	{
+	if (txmgmt.buf == NULL) {
 		ret = -ENOMEM;
 		goto bad;
 	}
 	_rtw_memcpy(txmgmt.buf, (void*)buf, txmgmt.len);
-	txmgmt.external_support = _TRUE;
 
-//TDLS: Debug purpose
-#if 0
+/* Debug purpose */
+#if 1
 	DBG_871X("%s %d\n", __FUNCTION__, __LINE__);
-	DBG_871X("peer:"MAC_FMT" ", MAC_ARG(txmgmt.peer));
-	DBG_871X("action code:%d ", txmgmt.action_code);
-	DBG_871X("dialog:%d ", txmgmt.dialog_token);
-	DBG_871X("status code:%d\n", txmgmt.status_code);
-	if( txmgmt.len > 0 )
-	{
+	DBG_871X("peer:"MAC_FMT", action code:%d, dialog:%d, status code:%d\n",
+				MAC_ARG(txmgmt.peer), txmgmt.action_code, 
+				txmgmt.dialog_token, txmgmt.status_code);
+	if (txmgmt.len > 0) {
 		int i=0;
 		for(;i < len; i++)
-			DBG_871X("%02x ", *(txmgmt.buf+i));
-			DBG_871X("\n len:%d\n", txmgmt.len);
+			printk("%02x ", *(txmgmt.buf+i));
+			DBG_871X("len:%d\n", (u32)txmgmt.len);
 	}
 #endif
 
-	switch(txmgmt.action_code) {
-		case TDLS_SETUP_REQUEST:
-			issue_tdls_setup_req(padapter, &txmgmt, _TRUE);
-			break;
-		case TDLS_SETUP_RESPONSE:
-			issue_tdls_setup_rsp(padapter, &txmgmt);
-			break;
-		case TDLS_SETUP_CONFIRM:
-			issue_tdls_setup_cfm(padapter, &txmgmt);
-			break;
-		case TDLS_TEARDOWN:
-			break;
-		case TDLS_DISCOVERY_REQUEST:
-			issue_tdls_dis_req(padapter, &txmgmt);
+	switch (txmgmt.action_code) {
+	case TDLS_SETUP_REQUEST:
+		issue_tdls_setup_req(padapter, &txmgmt, _TRUE);
+		break;
+	case TDLS_SETUP_RESPONSE:
+		issue_tdls_setup_rsp(padapter, &txmgmt);
+		break;
+	case TDLS_SETUP_CONFIRM:
+		issue_tdls_setup_cfm(padapter, &txmgmt);
+		break;
+	case TDLS_TEARDOWN:
+		issue_tdls_teardown(padapter, &txmgmt, _TRUE);
+		break;
+	case TDLS_DISCOVERY_REQUEST:
+		issue_tdls_dis_req(padapter, &txmgmt);
+		break;
+	case TDLS_DISCOVERY_RESPONSE:
+		issue_tdls_dis_rsp(padapter, &txmgmt, pmlmeinfo->enc_algo? _TRUE : _FALSE);
 		break;
 	}
 
 bad:
 	if (txmgmt.buf)
-	{
 		rtw_mfree(txmgmt.buf, txmgmt.len);
-	}
 
+discard:
 	return ret;
 }
 
@@ -5267,6 +5307,7 @@ static int cfg80211_rtw_tdls_oper(struct wiphy *wiphy,
 	enum nl80211_tdls_operation oper)
 {
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(ndev);
+	struct tdls_info *ptdlsinfo = &padapter->tdlsinfo;
 	struct tdls_txmgmt	txmgmt;
 	struct sta_info *ptdls_sta = NULL;
 
@@ -5277,50 +5318,58 @@ static int cfg80211_rtw_tdls_oper(struct wiphy *wiphy,
 #endif //CONFIG_LPS
 
 	_rtw_memset(&txmgmt, 0x00, sizeof(struct tdls_txmgmt));
-	if(peer)
+	if (peer)
 		_rtw_memcpy(txmgmt.peer, peer, ETH_ALEN);
-#if 0
-	CFG80211_TDLS_DISCOVERY_REQ,
-	CFG80211_TDLS_SETUP,
-	CFG80211_TDLS_TEARDOWN,
-	CFG80211_TDLS_ENABLE_LINK,
-	CFG80211_TDLS_DISABLE_LINK,
-	CFG80211_TDLS_ENABLE,
-	CFG80211_TDLS_DISABLE
-#endif
-	switch(oper) {
-		case NL80211_TDLS_DISCOVERY_REQ:
-			issue_tdls_dis_req(padapter, &txmgmt);
-			break;
-		case NL80211_TDLS_SETUP:
+
+	if (rtw_tdls_is_driver_setup(padapter)) {
+		/* these two cases are done by driver itself */
+		if (oper == NL80211_TDLS_ENABLE_LINK || oper == NL80211_TDLS_DISABLE_LINK)
+			return 0;
+	}
+
+	switch (oper) {
+	case NL80211_TDLS_DISCOVERY_REQ:
+		issue_tdls_dis_req(padapter, &txmgmt);
+		break;
+	case NL80211_TDLS_SETUP:
 #ifdef CONFIG_WFD
-			if ( _AES_ != padapter->securitypriv.dot11PrivacyAlgrthm )
-			{
-				if ( padapter->wdinfo.wfd_tdls_weaksec == _TRUE)
-					issue_tdls_setup_req(padapter, &txmgmt, _TRUE);
-				else
-					DBG_871X( "[%s] Current link is not AES, SKIP sending the tdls setup request!!\n", __FUNCTION__ );
-			}
-			else
-#endif // CONFIG_WFD
-			{
+		if ( _AES_ != padapter->securitypriv.dot11PrivacyAlgrthm ) {
+			if ( padapter->wdinfo.wfd_tdls_weaksec == _TRUE)
 				issue_tdls_setup_req(padapter, &txmgmt, _TRUE);
-			}
-			break;
-		case NL80211_TDLS_TEARDOWN:
-			ptdls_sta = rtw_get_stainfo( &(padapter->stapriv), txmgmt.peer);
-			if(ptdls_sta != NULL)
-			{
-				txmgmt.status_code = _RSON_TDLS_TEAR_UN_RSN_;
-				issue_tdls_teardown(padapter, &txmgmt, _FALSE);
-			}
 			else
-				DBG_871X( "TDLS peer not found\n");
-			break;
-		case NL80211_TDLS_ENABLE_LINK:
-			break;
-		case NL80211_TDLS_DISABLE_LINK:
-			break;			
+				DBG_871X( "[%s] Current link is not AES, SKIP sending the tdls setup request!!\n", __FUNCTION__ );
+		} else
+#endif // CONFIG_WFD
+		{
+			issue_tdls_setup_req(padapter, &txmgmt, _TRUE);
+		}
+		break;
+	case NL80211_TDLS_TEARDOWN:
+		ptdls_sta = rtw_get_stainfo( &(padapter->stapriv), txmgmt.peer);
+		if (ptdls_sta != NULL) {
+			txmgmt.status_code = _RSON_TDLS_TEAR_UN_RSN_;
+			issue_tdls_teardown(padapter, &txmgmt, _TRUE);
+		}else {
+			DBG_871X( "TDLS peer not found\n");
+		}
+		break;
+	case NL80211_TDLS_ENABLE_LINK:
+		DBG_871X(FUNC_NDEV_FMT", NL80211_TDLS_ENABLE_LINK;mac:"MAC_FMT"\n", FUNC_NDEV_ARG(ndev), MAC_ARG(peer));
+		ptdls_sta = rtw_get_stainfo(&(padapter->stapriv), peer);
+		if (ptdls_sta != NULL) {
+			ptdlsinfo->link_established = _TRUE;
+			ptdls_sta->tdls_sta_state |= TDLS_LINKED_STATE;
+			ptdls_sta->state |= _FW_LINKED;
+			rtw_tdls_cmd(padapter, txmgmt.peer, TDLS_ESTABLISHED);
+		}
+		break;
+	case NL80211_TDLS_DISABLE_LINK:
+		DBG_871X(FUNC_NDEV_FMT", NL80211_TDLS_DISABLE_LINK;mac:"MAC_FMT"\n", FUNC_NDEV_ARG(ndev), MAC_ARG(peer));
+		ptdls_sta = rtw_get_stainfo(&(padapter->stapriv), peer);
+		if (ptdls_sta != NULL) {
+			rtw_tdls_cmd(padapter, peer, TDLS_TEAR_STA );
+		}
+		break;
 	}
 	return 0;
 }
@@ -5344,11 +5393,9 @@ static int cfg80211_rtw_sched_scan_start(struct wiphy *wiphy,
 		check_fwstate(pmlmepriv, _FW_LINKED) == _TRUE  ||
 		check_fwstate(pmlmepriv, _FW_UNDER_LINKING) == _TRUE) {
 		DBG_871X("%s: device is busy.\n", __func__);
-        //2014.09.29 Adam PNO wakeup patch
-        //when PNO wakeup patch execute rtw_sitesurvey_cmd(), 
-        //if cfg80211_rtw_sched_scan_start excute rtw_scan_abort() will cause system crash.
-        //rtw_scan_abort(padapter);
-        return -EINVAL;
+		//2014.09.29 Adam PNO wakeup patch
+		//rtw_scan_abort(padapter);
+		return -EINVAL;
 	}
 
 	if (request == NULL) {
@@ -5881,7 +5928,6 @@ static void rtw_cfg80211_preinit_wiphy(_adapter *padapter, struct wiphy *wiphy)
 								| BIT(NL80211_IFTYPE_ADHOC)
 #ifdef CONFIG_AP_MODE
 								| BIT(NL80211_IFTYPE_AP)
-								| BIT(NL80211_IFTYPE_MONITOR)
 #endif
 #if defined(CONFIG_P2P) && ((LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37)) || defined(COMPAT_KERNEL_RELEASE))
 								| BIT(NL80211_IFTYPE_P2P_CLIENT)
@@ -5934,7 +5980,10 @@ static void rtw_cfg80211_preinit_wiphy(_adapter *padapter, struct wiphy *wiphy)
 
 #if defined(CONFIG_TDLS) && (LINUX_VERSION_CODE >= KERNEL_VERSION(3,2,0))
 	wiphy->flags |= WIPHY_FLAG_SUPPORTS_TDLS;
-	//wiphy->flags |= WIPHY_FLAG_TDLS_EXTERNAL_SETUP;
+#ifndef CONFIG_TDLS_DRIVER_SETUP
+	wiphy->flags |= WIPHY_FLAG_TDLS_EXTERNAL_SETUP;	//Driver handles key exchange
+	wiphy->flags |= NL80211_ATTR_HT_CAPABILITY;
+#endif //CONFIG_TDLS_DRIVER_SETUP
 #endif /* CONFIG_TDLS */
 
 	if(padapter->registrypriv.power_mgnt != PS_MODE_ACTIVE)
@@ -6017,6 +6066,7 @@ static struct cfg80211_ops rtw_cfg80211_ops = {
 	.sched_scan_start = cfg80211_rtw_sched_scan_start,
 	.sched_scan_stop = cfg80211_rtw_sched_scan_stop,
 #endif /* CONFIG_PNO_SUPPORT */
+
 };
 
 int rtw_wdev_alloc(_adapter *padapter, struct device *dev)

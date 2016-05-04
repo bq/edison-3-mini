@@ -154,8 +154,8 @@ extern int ia_css_queue_get_free_space(
 /** @brief Peek at an element in the queue
  *
  * @param[in]  qhandle.  Handle to queue instance
- * @param[in]  offset    Offset of element to peek,
- * 			 starting from begining of queue
+ * @param[in]  offset   Offset of element to peek,
+ * 			 starting from head of queue
  * @param[in]  element   Value of element returned
  * @return     0       - Successfully access state.
  * @return     EINVAL  - Invalid argument.

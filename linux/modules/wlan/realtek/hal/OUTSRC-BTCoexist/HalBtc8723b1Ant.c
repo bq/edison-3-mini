@@ -1559,7 +1559,7 @@ halbtc8723b1ant_PsTdma(
 	}
 	
 	if (  (type == 3) || (type == 13) || (type == 14) )
-	{
+		{
 		psTdmaByte4Val = psTdmaByte4Val & 0xbf;  //no dynamic slot for multi-profile
 	
 		if (!bWifiBusy)
@@ -1577,7 +1577,7 @@ halbtc8723b1ant_PsTdma(
 				halbtc8723b1ant_SetFwPstdma(pBtCoexist, 0x51, 0x1a, 0x1a, 0x0, psTdmaByte4Val);
 				break;
 			case 1:
-				halbtc8723b1ant_SetFwPstdma(pBtCoexist, psTdmaByte0Val, 0x2d+nWiFiDurationAdjust, 0x03, psTdmaByte3Val, psTdmaByte4Val);								
+				halbtc8723b1ant_SetFwPstdma(pBtCoexist, psTdmaByte0Val, 0x3a+nWiFiDurationAdjust, 0x03, psTdmaByte3Val, psTdmaByte4Val);								
 				break;
 			case 2:
 				halbtc8723b1ant_SetFwPstdma(pBtCoexist, psTdmaByte0Val, 0x2d+nWiFiDurationAdjust, 0x03, psTdmaByte3Val, psTdmaByte4Val);							
@@ -2384,7 +2384,7 @@ halbtc8723b1ant_ActionWifiConnectedBtAclBusy(
 		}
 		else
 		{
-			halbtc8723b1ant_TdmaDurationAdjustForAcl(pBtCoexist, wifiStatus);	
+			halbtc8723b1ant_TdmaDurationAdjustForAcl(pBtCoexist, wifiStatus);			
 			halbtc8723b1ant_CoexTableWithType(pBtCoexist, NORMAL_EXEC, 4);
 			pCoexDm->bAutoTdmaAdjust = TRUE;
 		}
@@ -3420,7 +3420,7 @@ EXhalbtc8723b1ant_IpsNotify(
 		halbtc8723b1ant_InitHwConfig(pBtCoexist, FALSE, FALSE);
 		halbtc8723b1ant_InitCoexDm(pBtCoexist);
 		halbtc8723b1ant_QueryBtInfo(pBtCoexist);
-		pCoexSta->bUnderIps = FALSE;
+                pCoexSta->bUnderIps = FALSE;
 	}
 }
 

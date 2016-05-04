@@ -17,14 +17,14 @@
 #include <asm/intel-mid.h>
 #include <media/v4l2-subdev.h>
 #include <linux/mfd/intel_mid_pmic.h>
-#include <linux/vlv2_plat_clock.h>
+#include <asm/intel_soc_pmc.h>
 #include "platform_camera.h"
 #include "platform_gc0310soc.h"
 
 /* workround - pin defined for byt */
 #define CAMERA_1_RESET 120 /*MCSI_GPIO[10]:NC_25 MRD7 GPIONC_18+102: CAM2_RESET_N: 17:CAM1*/
 #define CAMERA_1_PWDN 124 /*MCSI_GPIO[07]: MRD7 GPIONC_22+102: CAM2_PD: 21:CAM1_PD*/
-#ifdef CONFIG_VLV2_PLAT_CLK
+#ifdef CONFIG_INTEL_SOC_PMC
 #define OSC_CAM1_CLK 0x1
 #define CLK_19P2MHz 0x1
 #endif
@@ -137,14 +137,14 @@ static int gc0310_flisclk_ctrl(struct v4l2_subdev *sd, int flag)
 {
 	static const unsigned int clock_khz = 19200;
 	int ret = 0;
-#ifdef CONFIG_VLV2_PLAT_CLK
+#ifdef CONFIG_INTEL_SOC_PMC
 	if (flag) {
-		ret = vlv2_plat_set_clock_freq(OSC_CAM1_CLK, 0x0);
+		ret = pmc_pc_set_freq(OSC_CAM1_CLK, 0x0);
 
 		if (ret)
 			return ret;
 	}
-	ret = vlv2_plat_configure_clock(OSC_CAM1_CLK, flag);
+	ret = pmc_pc_configure(OSC_CAM1_CLK, flag);
 
 #endif
 	return ret;

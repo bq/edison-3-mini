@@ -39,7 +39,6 @@ struct dc_xpwr_fg_cfg {
 };
 
 struct dollarcove_fg_pdata {
-
 	char battid[BATTID_LEN + 1];
 	int technology;
 	int design_cap;
@@ -47,8 +46,6 @@ struct dollarcove_fg_pdata {
 	int design_max_volt;
 	int max_temp;
 	int min_temp;
-
-	int (*batt_adc_to_temp)(int adc_val, int *temp);
 };
 
 #endif	/* __DOLLAR_COVE_BATTERY_H__ */

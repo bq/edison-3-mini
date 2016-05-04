@@ -34,6 +34,7 @@
 #include <media/v4l2-chip-ident.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
+#include <media/v4l2-ctrls.h>
 
 #define I2C_MSG_LENGTH		0x2
 
@@ -230,6 +231,7 @@ struct gc2235_settings {
 	int n_res_video;
 };
 
+#if 0
 static struct gc2235_reg const gc2235_720p_30fps[] = {
 	{GC2235_8BIT, 0x90, 0x01},
 	{GC2235_8BIT, 0x92, 0xf0},
@@ -247,6 +249,59 @@ static struct gc2235_reg const gc2235_720p_30fps[] = {
 	{GC2235_8BIT, 0xfe, 0x00},
 	{GC2235_TOK_TERM, 0, 0},
 };
+
+static struct gc2235_reg const gc2235_720p2_30fps[] = {
+	{GC2235_8BIT, 0xfe, 0x00},
+	{GC2235_8BIT, 0x0a, 0x02},
+	{GC2235_8BIT, 0x0c, 0x00},
+	{GC2235_8BIT, 0x0d, 0x04},
+	{GC2235_8BIT, 0x0e, 0xd0},
+	{GC2235_8BIT, 0x0f, 0x06},
+	{GC2235_8BIT, 0x10, 0x58},
+
+	{GC2235_8BIT, 0x90, 0x01},
+	{GC2235_8BIT, 0x92, 0x98},
+	{GC2235_8BIT, 0x94, 0x2a},
+	{GC2235_8BIT, 0x95, 0x03},
+	{GC2235_8BIT, 0x96, 0x70},
+	{GC2235_8BIT, 0x97, 0x06},
+	{GC2235_8BIT, 0x98, 0x10},
+
+	{GC2235_8BIT, 0xfe, 0x03},
+	{GC2235_8BIT, 0x12, 0x94},
+	{GC2235_8BIT, 0x13, 0x07},
+	{GC2235_8BIT, 0x04, 0x20},
+	{GC2235_8BIT, 0x05, 0x00},
+	{GC2235_8BIT, 0xfe, 0x00},
+	{GC2235_TOK_TERM, 0, 0},
+};
+
+static struct gc2235_reg const gc2235_480p_30fps[] = {
+	{GC2235_8BIT, 0xfe, 0x00},
+	{GC2235_8BIT, 0x0a, 0x02},
+	{GC2235_8BIT, 0x0c, 0x00},
+	{GC2235_8BIT, 0x0d, 0x04},
+	{GC2235_8BIT, 0x0e, 0xd0},
+	{GC2235_8BIT, 0x0f, 0x06},
+	{GC2235_8BIT, 0x10, 0x58},
+
+	{GC2235_8BIT, 0x90, 0x01},
+	{GC2235_8BIT, 0x92, 0x02},
+	{GC2235_8BIT, 0x94, 0x32},
+	{GC2235_8BIT, 0x95, 0x04},
+	{GC2235_8BIT, 0x96, 0xc0},
+	{GC2235_8BIT, 0x97, 0x05},
+	{GC2235_8BIT, 0x98, 0xc8},
+
+	{GC2235_8BIT, 0xfe, 0x03},
+	{GC2235_8BIT, 0x12, 0x3a},
+	{GC2235_8BIT, 0x13, 0x07},
+	{GC2235_8BIT, 0x04, 0x20},
+	{GC2235_8BIT, 0x05, 0x00},
+	{GC2235_8BIT, 0xfe, 0x00},
+	{GC2235_TOK_TERM, 0, 0},
+};
+#endif
 
 static struct gc2235_reg const gc2235_1600x1200_30fps[] = {
 	{GC2235_8BIT, 0xfe, 0x00},
@@ -274,6 +329,7 @@ static struct gc2235_reg const gc2235_1600x1200_30fps[] = {
 	{GC2235_TOK_TERM, 0, 0},
 };
 
+#if 0
 static struct gc2235_reg const gc2235_still_1600x1200_30fps[] = {
 	{GC2235_8BIT, 0xfe, 0x00},
 	{GC2235_8BIT, 0x0a, 0x02},
@@ -299,6 +355,7 @@ static struct gc2235_reg const gc2235_still_1600x1200_30fps[] = {
 	{GC2235_8BIT, 0xfe, 0x00},
 	{GC2235_TOK_TERM, 0, 0},
 };
+#endif
 
 static struct gc2235_reg const gc2235_1280_30fps[] = {
 	{GC2235_8BIT, 0xfe, 0x00},
@@ -310,12 +367,19 @@ static struct gc2235_reg const gc2235_1280_30fps[] = {
 	{GC2235_8BIT, 0x10, 0x50},
 
 	{GC2235_8BIT, 0x90, 0x01},
-	{GC2235_8BIT, 0x92, 0x02},
-	{GC2235_8BIT, 0x94, 0x00},
+	{GC2235_8BIT, 0x92, 0x08},
+	{GC2235_8BIT, 0x94, 0x08},
 	{GC2235_8BIT, 0x95, 0x03},
-	{GC2235_8BIT, 0x96, 0x94},
+	{GC2235_8BIT, 0x96, 0x88},
 	{GC2235_8BIT, 0x97, 0x06},
-	{GC2235_8BIT, 0x98, 0x50},
+	{GC2235_8BIT, 0x98, 0x40},
+
+	{GC2235_8BIT, 0xfe, 0x03},
+	{GC2235_8BIT, 0x12, 0xd0},
+	{GC2235_8BIT, 0x13, 0x07},
+	{GC2235_8BIT, 0x04, 0x20},
+	{GC2235_8BIT, 0x05, 0x00},
+	{GC2235_8BIT, 0xfe, 0x00},
 	{GC2235_TOK_TERM, 0, 0},
 };
 
@@ -323,10 +387,10 @@ static struct gc2235_reg const gc2235_1280_30fps[] = {
 
 struct gc2235_resolution gc2235_res_still[] = {
 	{
-		.desc = "gc2235_1280_1_30fps",
+		.desc = "gc2235_1600x900_30fps",
 		.regs = gc2235_1280_30fps,
-		.width = 1552,//.width = 1616,
-		.height = 880,//.height = 916,
+		.width = 1600,//.width = 1552,
+		.height = 904,//.height = 880,
 		.fps = 30,
 		.pixels_per_line = 0x8c0,
 		.lines_per_frame = 0x3c4,
@@ -337,7 +401,7 @@ struct gc2235_resolution gc2235_res_still[] = {
 	},
 	{
 		.desc = "gc2235_1600x1200_30fps",
-		.regs = gc2235_still_1600x1200_30fps,
+		.regs = gc2235_1600x1200_30fps,
 		.width = 1616,
 		.height = 1216,
 		.fps = 21,
@@ -346,7 +410,7 @@ struct gc2235_resolution gc2235_res_still[] = {
 		.bin_factor_x = 1,
 		.bin_factor_y = 1,
 		.used = 0,
-		.skip_frames = 2,
+		.skip_frames = 4,
 		.bin_mode = 0,
 	},
 };
@@ -354,10 +418,40 @@ struct gc2235_resolution gc2235_res_still[] = {
 
 struct gc2235_resolution gc2235_res_preview[] = {
 	{
-		.desc = "gc2235_1280_1_30fps",
+		.desc = "gc2235_1600x900_30fps",
 		.regs = gc2235_1280_30fps,
-		.width = 1552,//.width = 1616,
-		.height = 880,//.height = 916,
+		.width = 1600,//.width = 1552,
+		.height = 904,//.height = 880,
+		.fps = 30,
+		.pixels_per_line = 0x8c0,
+		.lines_per_frame = 0x3c4,
+		.bin_factor_x = 1,
+		.bin_factor_y = 1,
+		.used = 0,
+		.skip_frames = 4,
+	},
+	{
+		.desc = "gc2235_1600x1200_30fps",
+		.regs = gc2235_1600x1200_30fps,
+		.width = 1616,
+		.height = 1216,
+		.fps = 21,
+		.pixels_per_line = 0x88e,
+		.lines_per_frame = 0x4e4,
+		.bin_factor_x = 1,
+		.bin_factor_y = 1,
+		.used = 0,
+		.skip_frames = 4,
+		.bin_mode = 0,
+	},
+};
+
+struct gc2235_resolution gc2235_res_video[] = {
+	{
+		.desc = "gc2235_1600x900_30fps",
+		.regs = gc2235_1280_30fps,
+		.width = 1600,//.width = 1552,
+		.height = 904,//.height = 880,
 		.fps = 30,
 		.pixels_per_line = 0x8c0,
 		.lines_per_frame = 0x3c4,
@@ -380,37 +474,6 @@ struct gc2235_resolution gc2235_res_preview[] = {
 		.skip_frames = 2,
 		.bin_mode = 0,
 	},
-};
-
-struct gc2235_resolution gc2235_res_video[] = {
-	{
-		.desc = "gc2235_1280_1_30fps",
-		.regs = gc2235_1280_30fps,
-		.width = 1552,//.width = 1616,
-		.height = 880,//.height = 916,
-		.fps = 30,
-		.pixels_per_line = 0x8c0,
-		.lines_per_frame = 0x3c4,
-		.bin_factor_x = 1,
-		.bin_factor_y = 1,
-		.used = 0,
-		.skip_frames = 4,
-	},
-#if 0
-	{
-		.desc = "gc2235_1280_2_30fps",
-		.regs = gc2235_1280_30fps,
-		.width = 1616,
-		.height = 916,
-		.fps = 30,
-		.pixels_per_line = 0x8c0,
-		.lines_per_frame = 0x3c4,
-		.bin_factor_x = 1,
-		.bin_factor_y = 1,
-		.used = 0,
-		.skip_frames = 4,
-	},
-#endif
 };
 
 /********************** settings for imx - reference *********************/
@@ -551,6 +614,7 @@ struct gc2235_device {
 	struct gc2235_settings *mode_tables;
 	const struct gc2235_resolution *curr_res_table;
 	int entries_curr_table;
+	struct v4l2_ctrl_handler ctrl_handler;
 };
 
 #define to_gc2235_sensor(x) container_of(x, struct gc2235_device, sd)

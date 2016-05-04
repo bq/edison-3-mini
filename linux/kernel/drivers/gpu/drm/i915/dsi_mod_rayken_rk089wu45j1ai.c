@@ -58,7 +58,7 @@ static struct drm_display_mode *rk089wu45j1ai_get_modes(
 	struct intel_dsi_device *dsi)
 {
 	struct drm_display_mode *mode = NULL;
-
+	struct intel_dsi *intel_dsi = container_of(dsi, struct intel_dsi, dev);
 	/* Allocate */
 	mode = kzalloc(sizeof(*mode), GFP_KERNEL);
 	if (!mode) {
@@ -82,7 +82,7 @@ static struct drm_display_mode *rk089wu45j1ai_get_modes(
 	mode->vrefresh = 60;
 	mode->clock =  mode->vrefresh * mode->vtotal *
 	mode->htotal / 1000;
-
+	intel_dsi->pclk = mode->clock;
 	/* Configure */
 	drm_mode_set_name(mode);
 	drm_mode_set_crtcinfo(mode, 0);
@@ -100,8 +100,8 @@ static void  rk089wu45j1ai_get_panel_info(int pipe,
 	}
 
 	if (pipe == 0) {
-	connector->display_info.width_mm = 192;
-	connector->display_info.height_mm = 120;
+		connector->display_info.width_mm = 192;
+		connector->display_info.height_mm = 120;
 	}
 
 	return;
@@ -171,7 +171,7 @@ static void rk089wu45j1ai_enable(struct intel_dsi_device *dsi)
 	DRM_DEBUG_KMS("\n");
 
 	dsi_vc_dcs_write_0(intel_dsi, 0, 0x11);
-	msleep(10);
+	msleep(20);
 	dsi_vc_dcs_write_0(intel_dsi, 0, 0x29);
 	msleep(100);
 
@@ -222,13 +222,16 @@ bool rk089wu45j1ai_init(struct intel_dsi_device *dsi)
 	intel_dsi->turn_arnd_val = 0x3f;
 	intel_dsi->rst_timer_val = 0xff;
 	intel_dsi->init_count = 0x7d0;
-	intel_dsi->hs_to_lp_count = 0x46;
-	intel_dsi->lp_byte_clk = 4;
+	intel_dsi->hs_to_lp_count = 0x2C;	/*0x46;*/
+	intel_dsi->lp_byte_clk = 0x6;		/*4;*/
 	intel_dsi->bw_timer = 0;
-	intel_dsi->clk_lp_to_hs_count = 0x24;
-	intel_dsi->clk_hs_to_lp_count = 0x0F;
+	intel_dsi->clk_lp_to_hs_count = 0x3A;	/*0x24;*/
+	intel_dsi->clk_hs_to_lp_count = 0x16;	/*0x0F;*/
 	intel_dsi->video_frmt_cfg_bits = DISABLE_VIDEO_BTA;
-	intel_dsi->dphy_reg = 0x3F10430D;
+	intel_dsi->dphy_reg = 0x311B6E16;		/*0x3F10430D;*/
+	intel_dsi->port = 0; /* PORT_A by default */
+	intel_dsi->burst_mode_ratio = 100;
+
 	intel_dsi->backlight_off_delay = 20;
 	intel_dsi->send_shutdown = true;
 	intel_dsi->shutdown_pkt_delay = 20;

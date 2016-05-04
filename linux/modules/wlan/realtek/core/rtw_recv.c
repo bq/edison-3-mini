@@ -985,10 +985,10 @@ sint OnTDLS(_adapter *adapter, union recv_frame *precv_frame)
 	u8 category_field = 1;
 #ifdef CONFIG_WFD
 	u8 WFA_OUI[3] = { 0x50, 0x6f, 0x9a };
-#endif //CONFIG_WFD
+#endif /* CONFIG_WFD */
 	struct tdls_info *ptdlsinfo = &(adapter->tdlsinfo);
 
-	//point to action field
+	/* point to action field */
 	paction+=pattrib->hdrlen 
 			+ pattrib->iv_len 
 			+ SNAP_SIZE 
@@ -996,82 +996,76 @@ sint OnTDLS(_adapter *adapter, union recv_frame *precv_frame)
 			+ PAYLOAD_TYPE_LEN 
 			+ category_field;
 
-	if(ptdlsinfo->tdls_enable == _FALSE)
-	{
+	if (ptdlsinfo->tdls_enable == _FALSE) {
 		DBG_871X("recv tdls frame, "
 				"but tdls haven't enabled\n");
 		ret = _FAIL;
 		return ret;
 	}
+
+	DBG_871X("[TDLS] Recv %s from "MAC_FMT"\n", rtw_tdls_action_txt(*paction), MAC_ARG(pattrib->src));
 	
 	switch(*paction){
-		case TDLS_SETUP_REQUEST:
-			DBG_871X("recv tdls setup request frame from "MAC_FMT"\n", MAC_ARG(pattrib->src));
-			ret=On_TDLS_Setup_Req(adapter, precv_frame);
-			break;
-		case TDLS_SETUP_RESPONSE:
-			DBG_871X("recv tdls setup response frame from "MAC_FMT"\n", MAC_ARG(pattrib->src));
-			ret=On_TDLS_Setup_Rsp(adapter, precv_frame);
-			break;
-		case TDLS_SETUP_CONFIRM:
-			DBG_871X("recv tdls setup confirm frame from "MAC_FMT"\n", MAC_ARG(pattrib->src));
-			ret=On_TDLS_Setup_Cfm(adapter, precv_frame);
-			break;
-		case TDLS_TEARDOWN:
-			DBG_871X("recv tdls teardown, free sta_info from "MAC_FMT"\n", MAC_ARG(pattrib->src));
-			ret=On_TDLS_Teardown(adapter, precv_frame);
-			break;
-		case TDLS_DISCOVERY_REQUEST:
-			DBG_871X("recv tdls discovery request frame from "MAC_FMT"\n", MAC_ARG(pattrib->src));
-			ret=On_TDLS_Dis_Req(adapter, precv_frame);
-			break;
-		case TDLS_PEER_TRAFFIC_INDICATION:
-			DBG_871X("recv tdls peer traffic indication frame\n");
-			ret=On_TDLS_Peer_Traffic_Indication(adapter, precv_frame);
-			break;
-		case TDLS_PEER_TRAFFIC_RESPONSE:
-			DBG_871X("recv tdls peer traffic response frame\n");
-			ret=On_TDLS_Peer_Traffic_Rsp(adapter, precv_frame);
-			break;
-		case TDLS_CHANNEL_SWITCH_REQUEST:
-			DBG_871X("recv tdls channel switch request frame\n");
-			ret=On_TDLS_Ch_Switch_Req(adapter, precv_frame);
-			break;
-		case TDLS_CHANNEL_SWITCH_RESPONSE:
-			DBG_871X("recv tdls channel switch response frame\n");
-			ret=On_TDLS_Ch_Switch_Rsp(adapter, precv_frame);
-			break;
+	case TDLS_SETUP_REQUEST:
+		ret=On_TDLS_Setup_Req(adapter, precv_frame);
+		break;
+	case TDLS_SETUP_RESPONSE:
+		ret=On_TDLS_Setup_Rsp(adapter, precv_frame);
+		break;
+	case TDLS_SETUP_CONFIRM:
+		ret=On_TDLS_Setup_Cfm(adapter, precv_frame);
+		break;
+	case TDLS_TEARDOWN:
+		ret=On_TDLS_Teardown(adapter, precv_frame);
+		break;
+	case TDLS_DISCOVERY_REQUEST:
+		ret=On_TDLS_Dis_Req(adapter, precv_frame);
+		break;
+	case TDLS_PEER_TRAFFIC_INDICATION:
+		ret=On_TDLS_Peer_Traffic_Indication(adapter, precv_frame);
+		break;
+	case TDLS_PEER_TRAFFIC_RESPONSE:
+		ret=On_TDLS_Peer_Traffic_Rsp(adapter, precv_frame);
+		break;
+#ifdef CONFIG_TDLS_CH_SW		
+	case TDLS_CHANNEL_SWITCH_REQUEST:
+		ret=On_TDLS_Ch_Switch_Req(adapter, precv_frame);
+		break;
+	case TDLS_CHANNEL_SWITCH_RESPONSE:
+		ret=On_TDLS_Ch_Switch_Rsp(adapter, precv_frame);
+		break;
+#endif		
 #ifdef CONFIG_WFD			
-		case 0x50:	//First byte of WFA OUI
-			if( _rtw_memcmp(WFA_OUI, (paction), 3) )
-			{
-				if( *(paction + 3) == 0x04)	//Probe request frame
-				{
-					//WFDTDLS: for sigma test, do not setup direct link automatically
-					ptdlsinfo->dev_discovered = 1;
-					DBG_871X("recv tunneled probe request frame\n");
-					issue_tunneled_probe_rsp(adapter, precv_frame);
-				}
-				if( *(paction + 3) == 0x05)	//Probe response frame
-				{
-					//WFDTDLS: for sigma test, do not setup direct link automatically
-					ptdlsinfo->dev_discovered = 1;
-					DBG_871X("recv tunneled probe response frame\n");
-				}
+	/* First byte of WFA OUI */
+	case 0x50:
+		if (_rtw_memcmp(WFA_OUI, paction, 3)) {
+			/* Probe request frame */
+			if (*(paction + 3) == 0x04) {
+				/* WFDTDLS: for sigma test, do not setup direct link automatically */
+				ptdlsinfo->dev_discovered = _TRUE;
+				DBG_871X("recv tunneled probe request frame\n");
+				issue_tunneled_probe_rsp(adapter, precv_frame);
 			}
-			break;
-#endif //CONFIG_WFD
-		default:
-			DBG_871X("receive TDLS frame %d but not support\n", *paction);
-			ret=_FAIL;
-			break;
+			/* Probe response frame */ 
+			if (*(paction + 3) == 0x05) {
+				/* WFDTDLS: for sigma test, do not setup direct link automatically */
+				ptdlsinfo->dev_discovered = _TRUE;
+				DBG_871X("recv tunneled probe response frame\n");
+			}
+		}
+		break;
+#endif /* CONFIG_WFD */
+	default:
+		DBG_871X("receive TDLS frame %d but not support\n", *paction);
+		ret=_FAIL;
+		break;
 	}
 
 exit:
 	return ret;
 	
 }
-#endif
+#endif /* CONFIG_TDLS */
 
 void count_rx_stats(_adapter *padapter, union recv_frame *prframe, struct sta_info*sta);
 void count_rx_stats(_adapter *padapter, union recv_frame *prframe, struct sta_info*sta)
@@ -1148,6 +1142,9 @@ sint sta2sta_data_frame(
 
 #ifdef CONFIG_TDLS	
 	struct tdls_info *ptdlsinfo = &adapter->tdlsinfo;
+#ifdef CONFIG_TDLS_CH_SW
+	struct tdls_ch_switch *pchsw_info = &ptdlsinfo->chsw_info;
+#endif
 	struct sta_info *ptdls_sta=NULL;
 	u8 *psnap_type=ptr+pattrib->hdrlen + pattrib->iv_len+SNAP_SIZE;
 	//frame body located after [+2]: ether-type, [+1]: payload type
@@ -1188,69 +1185,66 @@ _func_enter_;
 	{
 #ifdef CONFIG_TDLS
 
-		//direct link data transfer
-		if(ptdlsinfo->link_established == _TRUE){
+		/* direct link data transfer */
+		if (ptdlsinfo->link_established == _TRUE) {
 			ptdls_sta = rtw_get_stainfo(pstapriv, pattrib->src);
-			if(ptdls_sta==NULL)
-			{
+			if (ptdls_sta == NULL) {
 				ret=_FAIL;
 				goto exit;
-			}
-			else if(ptdls_sta->tdls_sta_state&TDLS_LINKED_STATE)
-			{
-				// filter packets that SA is myself or multicast or broadcast
-				if (_rtw_memcmp(myhwaddr, pattrib->src, ETH_ALEN)){
+			} else if (ptdls_sta->tdls_sta_state & TDLS_LINKED_STATE) {
+				/* filter packets that SA is myself or multicast or broadcast */
+				if (_rtw_memcmp(myhwaddr, pattrib->src, ETH_ALEN)) {
 					ret= _FAIL;
 					goto exit;
 				}
-				// da should be for me
-				if((!_rtw_memcmp(myhwaddr, pattrib->dst, ETH_ALEN))&& (!bmcast))
-				{
+				/* da should be for me */
+				if ((!_rtw_memcmp(myhwaddr, pattrib->dst, ETH_ALEN)) && (!bmcast)) {
 					ret= _FAIL;
 					goto exit;
 				}
-				// check BSSID
-				if( _rtw_memcmp(pattrib->bssid, "\x0\x0\x0\x0\x0\x0", ETH_ALEN) ||
+				/* check BSSID */
+				if (_rtw_memcmp(pattrib->bssid, "\x0\x0\x0\x0\x0\x0", ETH_ALEN) ||
 				     _rtw_memcmp(mybssid, "\x0\x0\x0\x0\x0\x0", ETH_ALEN) ||
-				     (!_rtw_memcmp(pattrib->bssid, mybssid, ETH_ALEN)) )
-				{
+				     (!_rtw_memcmp(pattrib->bssid, mybssid, ETH_ALEN))) {
 					ret= _FAIL;
 					goto exit;
 				}
 
-				//process UAPSD tdls sta
+#ifdef CONFIG_TDLS_CH_SW
+				pchsw_info->ch_sw_state |= TDLS_PEER_AT_OFF_STATE;
+
+				if(ATOMIC_READ(&pchsw_info->chsw_on) == _TRUE) {
+					if (!(pchsw_info->ch_sw_state & TDLS_PEER_AT_OFF_STATE)) {
+						DBG_871X("%s %d\n", __FUNCTION__, __LINE__);
+						issue_nulldata_to_TDLS_peer_STA(adapter, ptdls_sta->hwaddr, 0, 0, 0);
+						pchsw_info->ch_sw_state |= TDLS_PEER_AT_OFF_STATE;
+						/* On_TDLS_Peer_Traffic_Rsp(adapter, precv_frame); */
+					}
+				}
+#endif
+
+				/* process UAPSD tdls sta */
 				process_pwrbit_data(adapter, precv_frame);
 
-				// if NULL-frame, check pwrbit
-				if ((GetFrameSubType(ptr) & WIFI_DATA_NULL) == WIFI_DATA_NULL)
-				{
-					//NULL-frame with pwrbit=1, buffer_STA should buffer frames for sleep_STA
-					if(GetPwrMgt(ptr))
-					{
+				/* if NULL-frame, check pwrbit */
+				if ((GetFrameSubType(ptr) & WIFI_DATA_NULL) == WIFI_DATA_NULL) {
+					/* NULL-frame with pwrbit=1, buffer_STA should buffer frames for sleep_STA */
+					if (GetPwrMgt(ptr)) {
+						/* it would be triggered when we are off channel and receiving NULL DATA */
+						/* we can confirm that peer STA is at off channel */
 						DBG_871X("TDLS: recv peer null frame with pwr bit 1\n");
 						//ptdls_sta->tdls_sta_state|=TDLS_PEER_SLEEP_STATE;
-					// it would be triggered when we are off channel and receiving NULL DATA
-					// we can confirm that peer STA is at off channel
-					}
-					else if(ptdls_sta->tdls_sta_state&TDLS_CH_SWITCH_ON_STATE)
-					{
-						if((ptdls_sta->tdls_sta_state & TDLS_PEER_AT_OFF_STATE) != TDLS_PEER_AT_OFF_STATE)
-						{
-							issue_nulldata_to_TDLS_peer_STA(adapter, ptdls_sta->hwaddr, 0, 0, 0);
-							ptdls_sta->tdls_sta_state |= TDLS_PEER_AT_OFF_STATE;
-							On_TDLS_Peer_Traffic_Rsp(adapter, precv_frame);
-						}
 					}
 
-					//[TDLS] TODO: Updated BSSID's seq.
-					DBG_871X("drop Null Data\n");
+					/* TODO: Updated BSSID's seq. */
+					//DBG_871X("drop Null Data\n");
 					ptdls_sta->tdls_sta_state &= ~(TDLS_WAIT_PTR_STATE);
 					ret= _FAIL;
 					goto exit;
 				}
 
-				//receive some of all TDLS management frames, process it at ON_TDLS
-				if((_rtw_memcmp(psnap_type, SNAP_ETH_TYPE_TDLS, 2))){
+				/* receive some of all TDLS management frames, process it at ON_TDLS */
+				if (_rtw_memcmp(psnap_type, SNAP_ETH_TYPE_TDLS, 2)) {
 					ret= OnTDLS(adapter, precv_frame);
 					goto exit;
 				}
@@ -1267,7 +1261,7 @@ _func_enter_;
 			
 		}		
 		else
-#endif //CONFIG_TDLS
+#endif /* CONFIG_TDLS */
 		{
 			// For Station mode, sa and bssid should always be BSSID, and DA is my mac-address
 			if(!_rtw_memcmp(pattrib->bssid, pattrib->src, ETH_ALEN) )
@@ -1988,14 +1982,6 @@ _func_enter_;
 		goto exit;
 	}
 
-#if 0
-	if(psta->tdls_sta_state & TDLS_LINKED_STATE )
-	{
-		if(psta->dot118021XPrivacy==_AES_)
-			pattrib->encrypt=psta->dot118021XPrivacy;
-	}
-#endif //CONFIG_TDLS
-
 	if(pattrib->privacy){
 
 		RT_TRACE(_module_rtl871x_recv_c_,_drv_info_,("validate_recv_data_frame:pattrib->privacy=%x\n", pattrib->privacy));
@@ -2467,13 +2453,13 @@ _func_enter_;
 	}
 
 	if (ptr) {
-	_rtw_memcpy(ptr, pattrib->dst, ETH_ALEN);
-	_rtw_memcpy(ptr+ETH_ALEN, pattrib->src, ETH_ALEN);
+		_rtw_memcpy(ptr, pattrib->dst, ETH_ALEN);
+		_rtw_memcpy(ptr+ETH_ALEN, pattrib->src, ETH_ALEN);
 
-	if(!bsnaphdr) {
-		len = htons(len);
-		_rtw_memcpy(ptr+12, &len, 2);
-	}
+		if(!bsnaphdr) {
+			len = htons(len);
+			_rtw_memcpy(ptr+12, &len, 2);
+		}
 	}
 
 exiting:
@@ -3725,10 +3711,9 @@ int recv_func_posthandle(_adapter *padapter, union recv_frame *prframe)
 
 	if((_rtw_memcmp(psnap_type, SNAP_ETH_TYPE_TDLS, ETH_TYPE_LEN)) &&
 		((*pcategory==RTW_WLAN_CATEGORY_TDLS) || (*pcategory==RTW_WLAN_CATEGORY_P2P))){
-		ret = OnTDLS(padapter, prframe);	//all of functions will return _FAIL
+		ret = OnTDLS(padapter, prframe);
 		if(ret == _FAIL)
 			goto _exit_recv_func;
-		//goto _exit_recv_func;
 	}
 #endif //CONFIG_TDLS
 
@@ -3976,6 +3961,13 @@ void rtw_signal_stat_timer_hdl(RTW_TIMER_HDL_ARGS){
 			) {
 				goto set_timer;
 			}
+		}
+		//Intel platform
+		//When num_signal_strength == 0 and fwstate == _FW_LINKED, this situation means that
+		//SDIO might suspend by runtime_pm.
+		//In this scenario, rtw_signal_stat_timer_hdl() will not do signal status statistic.
+		if ( (num_signal_strength == 0) && (check_fwstate(&adapter->mlmepriv, _FW_LINKED) == _TRUE) ) {
+			goto set_timer;
 		}
 
 		if(check_fwstate(&adapter->mlmepriv, _FW_UNDER_SURVEY) == _TRUE

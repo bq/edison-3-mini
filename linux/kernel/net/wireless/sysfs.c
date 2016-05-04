@@ -96,7 +96,8 @@ static int wiphy_suspend(struct device *dev, pm_message_t state)
 	struct cfg80211_registered_device *rdev = dev_to_rdev(dev);
 	int ret = 0;
 
-	rdev->suspend_at = get_seconds();
+        //fix WiFi disconnect in sleep mode
+	/*rdev->suspend_at = get_seconds();
 
 	rtnl_lock();
 	if (rdev->wiphy.registered) {
@@ -105,12 +106,13 @@ static int wiphy_suspend(struct device *dev, pm_message_t state)
 		if (rdev->ops->suspend)
 			ret = rdev_suspend(rdev, rdev->wowlan);
 		if (ret == 1) {
-			/* Driver refuse to configure wowlan */
+			// Driver refuse to configure wowlan
 			cfg80211_leave_all(rdev);
 			ret = rdev_suspend(rdev, NULL);
 		}
 	}
-	rtnl_unlock();
+	rtnl_unlock();*/
+	//fix WiFi disconnect in sleep mode
 
 	return ret;
 }

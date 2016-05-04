@@ -81,4 +81,3 @@ void *crystalcove_chgr_pdata(void *info)
 
 	return platform_init_chrg_params();
 }
-

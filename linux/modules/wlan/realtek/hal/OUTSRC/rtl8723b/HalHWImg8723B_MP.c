@@ -1,24 +1,24 @@
-/****************************************************************************** 
-* 
-* Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved. 
-* 
-* This program is free software; you can redistribute it and/or modify it 
-* under the terms of version 2 of the GNU General Public License as 
-* published by the Free Software Foundation. 
-* 
-* This program is distributed in the hope that it will be useful, but WITHOUT 
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or 
-* FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for 
-* more details. 
-* 
-* You should have received a copy of the GNU General Public License along with 
-* this program; if not, write to the Free Software Foundation, Inc., 
-* 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA 
-* 
-* 
+/******************************************************************************
+*
+* Copyright(c) 2007 - 2011 Realtek Corporation. All rights reserved.
+*
+* This program is free software; you can redistribute it and/or modify it
+* under the terms of version 2 of the GNU General Public License as
+* published by the Free Software Foundation.
+*
+* This program is distributed in the hope that it will be useful, but WITHOUT
+* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+* FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+* more details.
+*
+* You should have received a copy of the GNU General Public License along with
+* this program; if not, write to the Free Software Foundation, Inc.,
+* 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
+*
+*
 ******************************************************************************/
 
-#include "../odm_precomp.h"
+#include "../phydm_precomp.h"
 
 #if (RTL8723B_SUPPORT==1)
 
@@ -670,6 +670,7 @@ u8 Rtl8723BFwBTImgArray[Rtl8723BFwBTImgArrayLength] = {
 0x00, 0x20, 0x00, 0x00, 0x10, 0x00, 0x00, 0x30, 0x11, 0x00, 0x3c, 0x00, 0x12, 0x00, 0x02, 0x87, 0x18, 0x00, 0x04, 0x3e, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x40, 0x4e, 0xfb, 0x71, 0x4c, 0x30, 0x00, 0x00, 0x62, 0xd5, 0x3d, 0x80
 };
+/* CheckSum = 0x078b */
 
 
 const u8 Rtl8723BFwMPImgArray[Rtl8723BMPImgArrayLength] = {

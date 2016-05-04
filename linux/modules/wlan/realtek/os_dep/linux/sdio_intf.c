@@ -890,9 +890,6 @@ static int rtw_sdio_resume(struct device *dev)
 
 	DBG_871X("==> %s (%s:%d)\n",__FUNCTION__, current->comm, current->pid);
 
-        if (func->card && func->card->host)
-                func->card->host->pm_flags &= ~MMC_PM_KEEP_POWER;  
-
 	if (func->card && func->card->host)
 	{
 		func->card->host->pm_flags &= ~MMC_PM_KEEP_POWER;

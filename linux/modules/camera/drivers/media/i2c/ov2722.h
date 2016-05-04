@@ -78,7 +78,7 @@
 #define OV2722_FINE_INTG_TIME_MIN 0
 #define OV2722_FINE_INTG_TIME_MAX_MARGIN 0
 #define OV2722_COARSE_INTG_TIME_MIN 1
-#define OV2722_COARSE_INTG_TIME_MAX_MARGIN (0xffff - 6)
+#define OV2722_COARSE_INTG_TIME_MAX_MARGIN (6)
 
 /*
  * OV2722 System control registers
@@ -967,7 +967,7 @@ struct ov2722_resolution ov2722_res_preview[] = {
 #define N_RES_PREVIEW (ARRAY_SIZE(ov2722_res_preview))
 
 struct ov2722_resolution ov2722_res_still[] = {
-
+#if 0
 	{
 		.desc = "ov2722_480P_30fps",
 		.width = 736,
@@ -984,6 +984,21 @@ struct ov2722_resolution ov2722_res_still[] = {
 		.regs = ov2722_480P_30fps,
 	},
 	{
+		.desc = "ov2722_1332_1092_30fps",
+		.width = 1332,
+		.height = 1092,
+		.fps = 30,
+		.pix_clk_freq = 85,
+		.used = 0,
+		.pixels_per_line = 2260,
+		.lines_per_frame = 1244,
+		.bin_factor_x = 1,
+		.bin_factor_y = 1,
+		.bin_mode = 0,
+		.skip_frames = 3,
+		.regs = ov2722_1452_1092_30fps,
+	},
+	{
 		.desc = "ov2722_1M3_30fps",
 		.width = 1416,
 		.height = 1034,
@@ -998,6 +1013,7 @@ struct ov2722_resolution ov2722_res_still[] = {
 		.skip_frames = 3,
 		.regs = ov2722_1M3_30fps,
 	},
+#endif
 	{
 		.desc = "ov2722_1080P_30fps",
 		.width = 1932,

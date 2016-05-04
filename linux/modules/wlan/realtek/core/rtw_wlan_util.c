@@ -1725,24 +1725,6 @@ void	update_ldpc_stbc_cap(struct sta_info *psta)
 #endif //CONFIG_80211N_HT
 }
 
-#ifdef CONFIG_TDLS
-int check_ap_tdls_prohibited(u8 *pframe, u8 pkt_len)
-{
-	u8 tdls_prohibited_bit = 0x40; //bit(38); TDLS_prohibited
-
-	if(pkt_len < 5)
-	{
-		return _FALSE;
-	}
-
-	pframe += 4;
-	if( (*pframe) & tdls_prohibited_bit )
-		return _TRUE;
-
-	return _FALSE;
-}
-#endif //CONFIG_TDLS
-
 int rtw_check_bcn_info(ADAPTER *Adapter, u8 *pframe, u32 packet_len)
 {
 	unsigned int		len;
@@ -2026,6 +2008,8 @@ void update_beacon_info(_adapter *padapter, u8 *pframe, uint pkt_len, struct sta
 			case _EXT_CAP_IE_:
 				if( check_ap_tdls_prohibited(pIE->data, pIE->Length) == _TRUE )
 					ptdlsinfo->ap_prohibited = _TRUE;
+				if (check_ap_tdls_ch_switching_prohibited(pIE->data, pIE->Length) == _TRUE)
+					ptdlsinfo->ch_switch_prohibited = _TRUE;
 				break;
 #endif //CONFIG_TDLS
 			default:
@@ -3446,8 +3430,12 @@ int rtw_dev_nlo_info_set(struct pno_nlo_info *nlo_info, pno_ssid_t* ssid,
 
 	nlo_info->fast_scan_period = pno_time;
 	nlo_info->ssid_num = num & BIT_LEN_MASK_32(8);
+	nlo_info->hidden_ssid_num = num & BIT_LEN_MASK_32(8);
 	nlo_info->slow_scan_period = (pno_time * 2);
 	nlo_info->fast_scan_iterations = 5;
+
+	if (nlo_info->hidden_ssid_num > 8)
+		nlo_info->hidden_ssid_num = 8;
 
 	//TODO: channel list and probe index is all empty.
 	for (i = 0 ; i < num ; i++) {
@@ -3498,6 +3486,7 @@ int rtw_dev_ssid_list_set(struct pno_ssid_list *pno_ssid_list,
 	for (i = 0 ; i < num ; i++) {
 		_rtw_memcpy(&pno_ssid_list->node[i].SSID,
 			ssid[i].SSID, ssid[i].SSID_len);
+		pno_ssid_list->node[i].SSID_len = ssid[i].SSID_len;
 	}
 	return 0;
 }
@@ -3567,7 +3556,7 @@ int rtw_dev_pno_set(struct net_device *net, pno_ssid_t* ssid, int num,
 		goto failing;
 	}
 
-	pwrctl->pno_in_resume = _FALSE;
+	pwrctl->pno_in_resume = _FALSE;//
 
 	pwrctl->pno_inited = _TRUE;
 	/* NLO Info */

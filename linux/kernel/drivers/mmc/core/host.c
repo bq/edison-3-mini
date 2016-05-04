@@ -440,7 +440,6 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 	err = idr_alloc(&mmc_host_idr, host, 0, 0, GFP_NOWAIT);
 	if (err >= 0)
 		host->index = err;
-        printk("##### Enter mmc_alloc_host, host->index=%d\n", host->index);
 	spin_unlock(&mmc_host_lock);
 	idr_preload_end();
 	if (err < 0)
@@ -567,7 +566,6 @@ void mmc_free_host(struct mmc_host *host)
 }
 
 EXPORT_SYMBOL(mmc_free_host);
-
 
 #ifdef CONFIG_MMC_MRVL_CWS
 static void* mmc_get_host_by_idx(unsigned index)

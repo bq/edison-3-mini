@@ -21,6 +21,8 @@
 #define _FPGA_TOPAZ_H_
 
 #include "psb_drv.h"
+#include "tng_topaz_hw_reg.h"
+
 
 #define TOPAZ_MTX_REG_SIZE (34 * 4 + 183 * 4)
 
@@ -40,8 +42,10 @@
 	codec == IMG_CODEC_H264_VCM  || \
 	codec == IMG_CODEC_H264_CBR  || \
 	codec == IMG_CODEC_H264_LLRC || \
-	codec == IMG_CODEC_H264_ALL_RC || \
-	codec == IMG_CODEC_H264MVC_NO_RC || \
+	codec == IMG_CODEC_H264_ALL_RC)
+
+#define TNG_IS_H264MVC_ENC(codec) \
+	(codec == IMG_CODEC_H264MVC_NO_RC || \
 	codec == IMG_CODEC_H264MVC_CBR || \
 	codec == IMG_CODEC_H264MVC_VBR)
 
@@ -167,13 +171,6 @@ struct tng_topaz_private {
 
 	uint32_t topaz_num_pipes;
 
-	/*Before load firmware, need to set up
-	jitter according to resolution*/
-	/*The data of MTX_CMDID_SW_NEW_CODEC command
-	contains width and length.*/
-	uint16_t frame_w;
-	uint16_t frame_h;
-
 	/* For IRQ and Sync */
 	uint32_t producer;
 	uint32_t consumer;
@@ -192,6 +189,8 @@ struct tng_topaz_private {
 	uint32_t power_down_by_release;
 
 	struct ttm_object_file *tfile;
+
+	uint8_t vec_err;
 
 	spinlock_t ctx_spinlock;
 };
@@ -279,6 +278,9 @@ int mtx_write_FIFO(struct drm_device *dev,
 
 int tng_topaz_remove_ctx(struct drm_psb_private *dev,
 	struct psb_video_ctx *video_ctx);
+
+void tng_topaz_mmu_hwsetup(struct drm_psb_private *dev_priv,
+			struct psb_video_ctx *video_ctx);
 
 extern int tng_topaz_save_mtx_state(struct drm_device *dev);
 
